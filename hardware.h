@@ -4,7 +4,7 @@
 #include <memory>
 #include <iostream>
 
-class OPU_tile{
+class PIM_tile{
     private:
         int memsize;// local SRAM size
         int blk_num;// basic blk num, now blk size is 1152*256, num is 4
@@ -13,7 +13,7 @@ class OPU_tile{
         int SIMD_connect[3][3];// SIMD-SIMD datapath
         int SRAM_connect[3][3];// SIMD-SRAM datapath
     public:
-        explicit OPU_tile(int memsize, int blk_num);
+        explicit PIM_tile(int memsize, int blk_num);
         int get_memsize() const;
         int get_blknum() const;
         int get_freeblk() const;
@@ -22,14 +22,14 @@ class OPU_tile{
         void allocate_free_mem(int size);
 };
 
-class OPU_chip{
+class PIM_chip{
     private:
         int w, h;// w*h tiles are deployed
-        std::unique_ptr<std::unique_ptr<OPU_tile[]>[]> tiles;
+        std::unique_ptr<std::unique_ptr<PIM_tile[]>[]> tiles;
     public:
-        explicit OPU_chip(int w, int h, int memsize, int blknum);
+        explicit PIM_chip(int w, int h, int memsize, int blknum);
         int get_shape() const;
 };
 
-std::ostream& operator<<(std::ostream& out,const OPU_tile& tile);
+std::ostream& operator<<(std::ostream& out,const PIM_tile& tile);
 #endif

@@ -1,7 +1,7 @@
 #include <iostream>
 #include "hardware.h"
 int main(){
-    OPU_tile tile(5, 4);
+    PIM_tile tile(5, 4);
     std::cout << "Hello world! " << std::endl;
     std::cout << tile.get_memsize() << " ";
     std::cout << tile.get_blknum() << " ";
@@ -12,6 +12,6 @@ int main(){
     std::cout << "after alloc2: " << tile.get_freeblk() << std::endl;
     tile.allocate_freeblk(3);
     std::cout << "after alloc3: " << tile.get_freeblk() << std::endl;
-    tile.~OPU_tile();
+    tile.~PIM_tile();
     return 0;
 }
