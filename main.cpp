@@ -12,6 +12,7 @@ int main(){
     std::cout << "after alloc2: " << tile.get_freeblk() << std::endl;
     tile.allocate_freeblk(3);
     std::cout << "after alloc3: " << tile.get_freeblk() << std::endl;
-    tile.~PIM_tile();
+    PIM_chip chip(2, 2, 3, 3);
+    std::cout << chip << std::endl;
     return 0;
 }
