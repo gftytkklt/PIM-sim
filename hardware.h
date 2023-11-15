@@ -5,40 +5,64 @@
 #include <iostream>
 #include <vector>
 
+// connection info
 struct connectinfo{
     int has_connect;
     int used_num;
 };
+
+// [3][3] to fit index of connection info of tile
+
+extern const char* directname[3][3];
+
+// override << of struct info
 std::ostream& operator<<(std::ostream& out,const connectinfo& info);
 
+// use for setup or clean connection
+typedef enum {TOP, DOWN, LEFT, RIGHT} direction;
+typedef enum {SIMD, SRAM} connect_type;
 class PIM_tile{
     friend class PIM_chip;
     private:
         int memsize;// local SRAM size
         int blk_num;// basic blk num, now blk size is 1152*256, num is 4
-        int free_blk;// free blk can be allocated
-        int free_mem;// free mem can be allocated
+        int available_blk;// free blk can be allocated
+        int available_mem;// free mem can be allocated
         struct connectinfo SIMD_connect[3][3];// SIMD-SIMD datapath
         struct connectinfo SRAM_connect[3][3];// SIMD-SRAM datapath
     public:
-        explicit PIM_tile(int memsize, int blk_num);
-        int get_memsize() const;
-        int get_blknum() const;
-        int get_freeblk() const;
-        int get_freemem() const;
-        void allocate_freeblk(int num);
-        void allocate_free_mem(int size);
+        explicit PIM_tile(int memsize, int blk_num); // ctor
+        int get_memsize() const; // mem capacity of tile
+        int get_blknum() const; // basic blk num of tile
+        int get_freeblk() const; // current free blk num of tile
+        int get_freemem() const; // current free mem of tile
+        void allocate_blk(int num); // alloc free blk
+        void allocate_mem(int size); // alloc free mem
+        void free_blk(int num); // free blk
+        void free_mem(int size); // free mem
+        void init_connection(int i, int j, int w, int h); // init tile connection
+        void inc_connection(direction direct, connect_type type); // inc type.used
+        void del_connection(direction direct, connect_type type); // del type.used
+        void clr_connection(); // clr all used
         friend std::ostream& operator<<(std::ostream& out,const PIM_tile& tile);
 };
 
 class PIM_chip{
     private:
-        int w, h;// w*h tiles are deployed
-        std::vector<std::vector<PIM_tile>> tiles;
+        int row, col;// w*h tiles are deployed
+        std::vector<std::vector<PIM_tile>> tiles; // tile array, wrapped by std::vector
         // std::unique_ptr<std::unique_ptr<PIM_tile[]>[]> tiles;
     public:
-        explicit PIM_chip(int w, int h, int memsize, int blknum);
-        std::pair<int, int> get_shape() const;
+        explicit PIM_chip(int row, int col, int memsize, int blknum); // ctor
+        std::pair<int, int> get_shape() const; // w, h pair
+        void init_connection(); // init connection between tiles
+        void add_connection(int xsrc, int ysrc, int xdst, int ydst);// TODO: add connection from src to dst
+        void remove_connection(int xsrc, int ysrc, int xdst, int ydst);// TODO: delete connection from src to dst
+        void clr_connection();
+        void alloc_mem(int xdst, int ydst, int size); // alloc mem for conv
+        void free_mem(int xdst, int ydst, int size); // free mem
+        void alloc_blk(int xdst, int ydst, int num); // alloc blk for kernel
+        void free_blk(int xdst, int ydst, int num); // free blk(maybe useless)
         friend std::ostream& operator<<(std::ostream& out,const PIM_chip& tile);
 };
 
