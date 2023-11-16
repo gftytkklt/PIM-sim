@@ -1,8 +1,6 @@
 #include "hardware.h"
+#include "util.h"
 
-const char* directname[3][3] = {
-    "tl", "top", "tr", "left", "self", "right", "bl", "bot", "br"
-};
 // tile impl
 PIM_tile::PIM_tile(int memsize=0, int blk_num=0) : 
     memsize(memsize), blk_num(blk_num), available_blk(blk_num), available_mem(memsize), SIMD_connect{}, SRAM_connect{}{}
@@ -49,80 +47,48 @@ void PIM_tile::free_mem(int size) {
 void PIM_tile::init_connection(int i, int j, int row, int col) {
     // not top row, add up connection
     if (i > 0) {
-        this->SIMD_connect[0][1].has_connect = 1;
-        this->SRAM_connect[0][1].has_connect = 1;
+        this->SIMD_connect[Direction::Top] = 0;
+        this->SRAM_connect[Direction::Top] = 0;
     }
     // not bottom row, add down connection
     if (i < row - 1) {
-        this->SIMD_connect[2][1].has_connect = 1;
-        this->SRAM_connect[2][1].has_connect = 1;
+        this->SIMD_connect[Direction::Bottom] = 0;
+        this->SRAM_connect[Direction::Bottom] = 0;
     }
     // not leftmost col, add left connection
     if (j > 0) {
-        this->SIMD_connect[1][0].has_connect = 1;
-        this->SRAM_connect[1][0].has_connect = 1;
+        this->SIMD_connect[Direction::Left] = 0;
+        this->SRAM_connect[Direction::Left] = 0;
     }
     // not rightmost col, add right connection
     if (j < col - 1) {
-        this->SIMD_connect[1][2].has_connect = 1;
-        this->SRAM_connect[1][2].has_connect = 1;
+        this->SIMD_connect[Direction::Right] = 0;
+        this->SRAM_connect[Direction::Right] = 0;
     }
 }
 
-void PIM_tile::inc_connection(direction direct, connect_type type) {
-    auto &info = (type == SIMD) ? this->SIMD_connect : this->SRAM_connect;
-    int x, y;
-    switch (direct) {
-    case LEFT:
-        x = 1; y = 0;
-        break;
-    case RIGHT:
-        x = 1; y = 2;
-        break;
-    case TOP:
-        x = 0; y = 1;
-        break;
-    case DOWN:
-        x = 2; y = 1;
-        break;
-    default:
-        std::cout << "Error: should not reach here!" << std::endl;
-        break;
-    }
-    if (info[x][y].has_connect) info[x][y].used_num++;
-    else std::cout << "Failed: No path exist!" << std::endl;
+void PIM_tile::inc_connection(Direction direct, connect_type type) {
+    auto &info = (type == connect_type::SIMD) ? this->SIMD_connect : this->SRAM_connect;
+    auto it = info.find(direct);
+    if (it != info.end()) it->second += 1;
+    else std::cout << "Failed: No available path exist!" << std::endl;
 }
 
-void PIM_tile::del_connection(direction direct, connect_type type) {
-    auto &info = (type == SIMD) ? this->SIMD_connect : this->SRAM_connect;
-    int x, y;
-    switch (direct) {
-    case LEFT:
-        x = 1; y = 0;
-        break;
-    case RIGHT:
-        x = 1; y = 2;
-        break;
-    case TOP:
-        x = 0; y = 1;
-        break;
-    case DOWN:
-        x = 2; y = 1;
-        break;
-    default:
-        std::cout << "Error: should not reach here!" << std::endl;
-        break;
+void PIM_tile::del_connection(Direction direct, connect_type type) {
+    auto &info = (type == connect_type::SIMD) ? this->SIMD_connect : this->SRAM_connect;
+    auto it = info.find(direct);
+    if (it != info.end()) {
+        if(it->second > 0) it->second -= 1;
     }
-    if (info[x][y].used_num > 0) info[x][y].used_num--;
     else std::cout << "Failed: No path to delete!" << std::endl;
 }
 
 void PIM_tile::clr_connection(){
-    for(int i=0; i<3; ++i){
-        for(int j=0; j<3; ++j){
-            this->SIMD_connect[i][j].used_num = 0;
-            this->SRAM_connect[i][j].used_num = 0;
-        }
+    for (auto& it : SIMD_connect){
+        it.second = 0;
+    }
+    for (auto& it : SRAM_connect){
+        it.second = 0;
     }
 }
 
@@ -148,12 +114,12 @@ void PIM_chip::init_connection() {
 void PIM_chip::add_connection(int xsrc, int ysrc, int xdst, int ydst) {
     //TODO: impl applicable func
     for (int i=xsrc; i<xdst; i++) {
-        this->tiles[i][ysrc].inc_connection(DOWN, SRAM);
-        this->tiles[i+1][ysrc].inc_connection(TOP, SRAM);
+        this->tiles[i][ysrc].inc_connection(Direction::Bottom, connect_type::SRAM);
+        this->tiles[i+1][ysrc].inc_connection(Direction::Top, connect_type::SRAM);
     }
     for (int j=ysrc; j<ydst; j++){
-        this->tiles[xdst][j].inc_connection(RIGHT, SRAM);
-        this->tiles[xdst][j+1].inc_connection(LEFT, SRAM);
+        this->tiles[xdst][j].inc_connection(Direction::Right, connect_type::SRAM);
+        this->tiles[xdst][j+1].inc_connection(Direction::Left, connect_type::SRAM);
     }
 }
 
@@ -180,6 +146,20 @@ void PIM_chip::free_blk(int xdst, int ydst, int num) {
 }
 
 // << overload impl: print info of each tile
+std::string toString(Direction dir) {
+    switch (dir) {
+        case Direction::TopLeft:     return "TopLeft";
+        case Direction::Top:         return "Top";
+        case Direction::TopRight:    return "TopRight";
+        case Direction::Left:        return "Left";
+        case Direction::Self:        return "Self";
+        case Direction::Right:       return "Right";
+        case Direction::BottomLeft:  return "BottomLeft";
+        case Direction::Bottom:      return "Bottom";
+        case Direction::BottomRight: return "BottomRight";
+        default:                     return "Unknown";
+    }
+}
 
 std::ostream& operator<<(std::ostream& out,const PIM_chip& chip) {
     auto shape = chip.get_shape();
@@ -187,26 +167,15 @@ std::ostream& operator<<(std::ostream& out,const PIM_chip& chip) {
         for(int j = 0; j < shape.second; ++j){
             out << "tile: (" << i << ", " << j << ")" << std::endl << chip.tiles[i][j] << std::endl;
         }
-        // out << std::endl;
     }
     return out;
 }
 
 std::ostream& operator<<(std::ostream& out,const PIM_tile& tile) {
-    // out << "memsize: " << tile.get_memsize() << " ";
     out << "SRAM connection: " << std::endl;
-    for(int i = 0; i < 3; i++){
-        for(int j = 0; j < 3; j++){
-            if (tile.SIMD_connect[i][j].has_connect)
-                out << directname[i][j] << ": " << tile.SRAM_connect[i][j] << std::endl;
-        }
-        // out << std::endl;
+    for(const auto &it : tile.SRAM_connect){
+        out << toString(it.first) << ": " << it.second << " connected" << std::endl;
     }
     out << "freeblk: " << tile.get_freeblk() << ", freemem: " << tile.get_freemem() << std::endl;
-    return out;
-}
-
-std::ostream& operator<<(std::ostream& out,const connectinfo& info) {
-    out << "(" << info.has_connect << "connected, " << info.used_num << "used) ";
     return out;
 }

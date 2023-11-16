@@ -4,23 +4,18 @@
 #include <memory>
 #include <iostream>
 #include <vector>
+#include <map>
 
-// connection info
-struct connectinfo{
-    int has_connect;
-    int used_num;
+// Direction enum
+enum class Direction {
+    TopLeft, Top, TopRight,
+    Left, Self, Right,
+    BottomLeft, Bottom, BottomRight
 };
 
-// [3][3] to fit index of connection info of tile
+extern std::string toString(Direction dir);
 
-extern const char* directname[3][3];
-
-// override << of struct info
-std::ostream& operator<<(std::ostream& out,const connectinfo& info);
-
-// use for setup or clean connection
-typedef enum {TOP, DOWN, LEFT, RIGHT} direction;
-typedef enum {SIMD, SRAM} connect_type;
+enum class connect_type{SIMD, SRAM};
 class PIM_tile{
     friend class PIM_chip;
     private:
@@ -28,8 +23,9 @@ class PIM_tile{
         int blk_num;// basic blk num, now blk size is 1152*256, num is 4
         int available_blk;// free blk can be allocated
         int available_mem;// free mem can be allocated
-        struct connectinfo SIMD_connect[3][3];// SIMD-SIMD datapath
-        struct connectinfo SRAM_connect[3][3];// SIMD-SRAM datapath
+        std::map<Direction, int> SIMD_connect, SRAM_connect;
+        // struct connectinfo SIMD_connect[3][3];// SIMD-SIMD datapath
+        // struct connectinfo SRAM_connect[3][3];// SIMD-SRAM datapath
     public:
         explicit PIM_tile(int memsize, int blk_num); // ctor
         int get_memsize() const; // mem capacity of tile
@@ -41,8 +37,8 @@ class PIM_tile{
         void free_blk(int num); // free blk
         void free_mem(int size); // free mem
         void init_connection(int i, int j, int w, int h); // init tile connection
-        void inc_connection(direction direct, connect_type type); // inc type.used
-        void del_connection(direction direct, connect_type type); // del type.used
+        void inc_connection(Direction direct, connect_type type); // inc type.used
+        void del_connection(Direction direct, connect_type type); // del type.used
         void clr_connection(); // clr all used
         friend std::ostream& operator<<(std::ostream& out,const PIM_tile& tile);
 };
@@ -63,7 +59,7 @@ class PIM_chip{
         void free_mem(int xdst, int ydst, int size); // free mem
         void alloc_blk(int xdst, int ydst, int num); // alloc blk for kernel
         void free_blk(int xdst, int ydst, int num); // free blk(maybe useless)
-        friend std::ostream& operator<<(std::ostream& out,const PIM_chip& tile);
+        friend std::ostream& operator<<(std::ostream& out,const PIM_chip& chip);
 };
 
 #endif
