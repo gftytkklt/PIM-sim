@@ -70,7 +70,9 @@ void PIM_tile::init_connection(int i, int j, int row, int col) {
 void PIM_tile::inc_connection(Direction direct, connect_type type) {
     auto &info = (type == connect_type::SIMD) ? this->SIMD_connect : this->SRAM_connect;
     auto it = info.find(direct);
-    if (it != info.end()) it->second += 1;
+    if ((it != info.end()) && ((it->second == 0) || type == connect_type::SRAM)) {
+        it->second += 1;
+    }
     else std::cout << "Failed: No available path exist!" << std::endl;
 }
 
@@ -80,7 +82,7 @@ void PIM_tile::del_connection(Direction direct, connect_type type) {
     if (it != info.end()) {
         if(it->second > 0) it->second -= 1;
     }
-    else std::cout << "Failed: No path to delete!" << std::endl;
+    else std::cout << "Failed: No path to delete! " << toString(direct) << std::endl;
 }
 
 void PIM_tile::clr_connection(){
@@ -99,7 +101,7 @@ PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0) :
 }
 
 std::pair<int, int> PIM_chip::get_shape() const {
-    return std::pair(this->row, this->col);
+    return std::make_pair(this->row, this->col);
 }
 
 void PIM_chip::init_connection() {
@@ -111,33 +113,67 @@ void PIM_chip::init_connection() {
 }
 
 // default strategy for debug: vertical first, hori next
-void PIM_chip::add_connection(int xsrc, int ysrc, int xdst, int ydst) {
+void PIM_chip::add_connection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
     //TODO: impl applicable func
     std::vector<std::pair<int, int>> path;
-    path.push_back(std::pair(xsrc, ysrc));
-    for (int i=xsrc; i<xdst; i++) {
-        this->tiles[i][ysrc].inc_connection(Direction::Bottom, connect_type::SRAM);
-        this->tiles[i+1][ysrc].inc_connection(Direction::Top, connect_type::SRAM);
-        path.push_back(std::pair(i+1, ysrc));
+    path.push_back(src);
+    for (int i=src.first; i<dst.first; i++) {
+        this->tiles[i][src.second].inc_connection(Direction::Bottom, type);
+        this->tiles[i+1][src.second].inc_connection(Direction::Top, type);
+        path.push_back(std::make_pair(i+1, src.second));
     }
-    for (int j=ysrc; j<ydst; j++){
-        this->tiles[xdst][j].inc_connection(Direction::Right, connect_type::SRAM);
-        this->tiles[xdst][j+1].inc_connection(Direction::Left, connect_type::SRAM);
-        path.push_back(std::pair(xdst, j+1));
+    for (int j=src.second; j<dst.second; j++){
+        this->tiles[dst.first][j].inc_connection(Direction::Right, type);
+        this->tiles[dst.first][j+1].inc_connection(Direction::Left, type);
+        path.push_back(std::make_pair(dst.first, j+1));
     }
     this->paths.push_back(path);
 }
 
 // default strategy for debug: hori first, vertical next
-void PIM_chip::remove_connection(int xsrc, int ysrc, int xdst, int ydst) {
+void PIM_chip::remove_connection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
     for (auto it = paths.begin(); it != paths.end(); ) {
-        // 检查当前vector是否为空，以及第一个元素是否是pair(0, 0)
-        if (!it->empty() && it->front() == std::make_pair(xsrc, ysrc) && it->back() == std::make_pair(xdst, ydst)) {
-            it = paths.erase(it); // 删除这个vector并更新迭代器
+        // non-empty list && <src, dest> match
+        if (!it->empty() && it->front() == src && it->back() == dst) {
+            auto path = *it;
+            for (size_t i = 0; i < path.size() - 1; ++i) {
+                auto start = path[i];
+                auto end = path[i+1];
+                auto delta = std::make_pair(start.first-end.first, start.second-end.second);
+                // std::cout << "delete(" << start.first << ", " << start.second << ")->(" << end.first << ", " << end.second << "), ";
+                // std::cout << "delta = (" << delta.first << ", " << delta.second << ")" << std::endl;
+                std::pair <Direction, Direction> direct;
+                // 2D-mesh: start is on the right side of end
+                if(delta.second == 1){
+                    direct = std::make_pair(Direction::Left, Direction::Right);
+                }
+                // 2D-mesh: start is on the left side of end
+                else if(delta.second == -1){
+                    direct = std::make_pair(Direction::Right, Direction::Left);
+                }
+                // 2D-mesh: start is on the bottom side of end
+                else if(delta.first == 1){
+                    direct = std::make_pair(Direction::Top, Direction::Bottom);
+                }
+                // 2D-mesh: start is on the top of end
+                else if(delta.first == -1){
+                    direct = std::make_pair(Direction::Bottom, Direction::Top);
+                }
+                // 2D-mesh: should not reach here!
+                else {
+                    std::cout << "Failed: invalid path!" << std::endl;
+                    return;
+                }
+                auto &tile_start = this->tiles[start.first][start.second];
+                auto &tile_end = this->tiles[end.first][end.second];
+                std::cout << "direction: " << toString(direct.first) << ", " << toString(direct.second) << std::endl;
+                tile_start.del_connection(direct.first, type);
+                tile_end.del_connection(direct.second, type);
+            }
+            it = paths.erase(it);
             return;
-        } else {
-            ++it; // 否则，继续遍历
         }
+        ++it;
     }
     std::cout << "Failed: No such connection!" << std::endl;
 }
@@ -195,7 +231,8 @@ std::ostream& operator<<(std::ostream& out,const PIM_chip& chip) {
 std::ostream& operator<<(std::ostream& out,const PIM_tile& tile) {
     out << "SRAM connection: " << std::endl;
     for(const auto &it : tile.SRAM_connect){
-        out << toString(it.first) << ": " << it.second << " connected" << std::endl;
+        if(it.second > 0)
+            out << toString(it.first) << ": " << it.second << " connected" << std::endl;
     }
     out << "freeblk: " << tile.get_freeblk() << ", freemem: " << tile.get_freemem() << std::endl;
     return out;

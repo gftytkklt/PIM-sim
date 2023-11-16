@@ -25,8 +25,6 @@ class PIM_tile{
         int available_blk;// free blk can be allocated
         int available_mem;// free mem can be allocated
         std::map<Direction, int> SIMD_connect, SRAM_connect;
-        // struct connectinfo SIMD_connect[3][3];// SIMD-SIMD datapath
-        // struct connectinfo SRAM_connect[3][3];// SIMD-SRAM datapath
     public:
         explicit PIM_tile(int memsize, int blk_num); // ctor
         int get_memsize() const; // mem capacity of tile
@@ -53,8 +51,8 @@ class PIM_chip{
         explicit PIM_chip(int row, int col, int memsize, int blknum); // ctor
         std::pair<int, int> get_shape() const; // w, h pair
         void init_connection(); // init connection between tiles
-        void add_connection(int xsrc, int ysrc, int xdst, int ydst);// TODO: add connection from src to dst
-        void remove_connection(int xsrc, int ysrc, int xdst, int ydst);// TODO: delete connection from src to dst
+        void add_connection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type);// TODO: add connection from src to dst
+        void remove_connection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type);// TODO: delete connection from src to dst
         void clr_connection();
         void alloc_mem(int xdst, int ydst, int size); // alloc mem for conv
         void free_mem(int xdst, int ydst, int size); // free mem

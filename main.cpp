@@ -25,15 +25,16 @@ int main(){
     for (int i = 0; i < row; i++) {
         for (int j = 0; j < col; j++) {
             chip.alloc_mem(i, j, i*row + j);
-            chip.alloc_blk(i, j, 4-i*row - j);
-            if(i == 0) chip.add_connection(i, j, i+1, j);
-            if(j == 0) chip.add_connection(i, j, i, j+1);
+            chip.alloc_blk(i, j, row*col-i*row - j);
+            if(i == 0) chip.add_connection(std::make_pair(i, j), std::make_pair(i+1, j), connect_type::SIMD);
+            if(j == 0) chip.add_connection(std::make_pair(i, j), std::make_pair(i, j+1), connect_type::SRAM);
         }
     }
     std::cout << "deploy: " << std::endl << chip << std::endl;
-    chip.remove_connection(0, 0, 1, 0);
-    chip.remove_connection(0, 0, 1, 0);
-    chip.remove_connection(0, 1, 1, 1);
+    chip.remove_connection(std::make_pair(0, 0), std::make_pair(1, 0), connect_type::SIMD);
+    chip.remove_connection(std::make_pair(0, 0), std::make_pair(1, 0), connect_type::SIMD);
+    chip.remove_connection(std::make_pair(0, 1), std::make_pair(1, 1), connect_type::SIMD);
     std::cout << "remove: " << std::endl << chip << std::endl;
+    // TEST3: 
     return 0;
 }
