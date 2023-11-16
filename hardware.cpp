@@ -94,7 +94,7 @@ void PIM_tile::clr_connection(){
 
 // tile array impl
 PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0) : 
-    row(row), col(col), tiles(row, std::vector<PIM_tile>(col, PIM_tile(memsize, blknum))) {
+    row(row), col(col), tiles(row, std::vector<PIM_tile>(col, PIM_tile(memsize, blknum))), paths() {
     init_connection();
 }
 
@@ -113,19 +113,33 @@ void PIM_chip::init_connection() {
 // default strategy for debug: vertical first, hori next
 void PIM_chip::add_connection(int xsrc, int ysrc, int xdst, int ydst) {
     //TODO: impl applicable func
+    std::vector<std::pair<int, int>> path;
+    path.push_back(std::pair(xsrc, ysrc));
     for (int i=xsrc; i<xdst; i++) {
         this->tiles[i][ysrc].inc_connection(Direction::Bottom, connect_type::SRAM);
         this->tiles[i+1][ysrc].inc_connection(Direction::Top, connect_type::SRAM);
+        path.push_back(std::pair(i+1, ysrc));
     }
     for (int j=ysrc; j<ydst; j++){
         this->tiles[xdst][j].inc_connection(Direction::Right, connect_type::SRAM);
         this->tiles[xdst][j+1].inc_connection(Direction::Left, connect_type::SRAM);
+        path.push_back(std::pair(xdst, j+1));
     }
+    this->paths.push_back(path);
 }
 
 // default strategy for debug: hori first, vertical next
 void PIM_chip::remove_connection(int xsrc, int ysrc, int xdst, int ydst) {
-    //TODO
+    for (auto it = paths.begin(); it != paths.end(); ) {
+        // 检查当前vector是否为空，以及第一个元素是否是pair(0, 0)
+        if (!it->empty() && it->front() == std::make_pair(xsrc, ysrc) && it->back() == std::make_pair(xdst, ydst)) {
+            it = paths.erase(it); // 删除这个vector并更新迭代器
+            return;
+        } else {
+            ++it; // 否则，继续遍历
+        }
+    }
+    std::cout << "Failed: No such connection!" << std::endl;
 }
 
 void PIM_chip::alloc_mem(int xdst, int ydst, int size) {
@@ -167,6 +181,13 @@ std::ostream& operator<<(std::ostream& out,const PIM_chip& chip) {
         for(int j = 0; j < shape.second; ++j){
             out << "tile: (" << i << ", " << j << ")" << std::endl << chip.tiles[i][j] << std::endl;
         }
+    }
+    for (const auto& path : chip.paths) {
+        std::cout << "Path:" << std::endl;
+        for (const auto& p : path) {
+            std::cout << "(" << p.first << ", " << p.second << ") -> ";
+        }
+        std::cout << "end" << std::endl;
     }
     return out;
 }

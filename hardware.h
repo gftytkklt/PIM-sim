@@ -5,6 +5,7 @@
 #include <iostream>
 #include <vector>
 #include <map>
+#include <list>
 
 // Direction enum
 enum class Direction {
@@ -47,7 +48,7 @@ class PIM_chip{
     private:
         int row, col;// w*h tiles are deployed
         std::vector<std::vector<PIM_tile>> tiles; // tile array, wrapped by std::vector
-        // std::unique_ptr<std::unique_ptr<PIM_tile[]>[]> tiles;
+        std::list<std::vector<std::pair<int, int>>> paths; // paths 
     public:
         explicit PIM_chip(int row, int col, int memsize, int blknum); // ctor
         std::pair<int, int> get_shape() const; // w, h pair

@@ -31,5 +31,9 @@ int main(){
         }
     }
     std::cout << "deploy: " << std::endl << chip << std::endl;
+    chip.remove_connection(0, 0, 1, 0);
+    chip.remove_connection(0, 0, 1, 0);
+    chip.remove_connection(0, 1, 1, 1);
+    std::cout << "remove: " << std::endl << chip << std::endl;
     return 0;
 }
