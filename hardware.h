@@ -8,7 +8,7 @@
 #include <list>
 
 // Direction enum
-enum class Direction {
+enum class Direction{
     TopLeft, Top, TopRight,
     Left, Self, Right,
     BottomLeft, Bottom, BottomRight
