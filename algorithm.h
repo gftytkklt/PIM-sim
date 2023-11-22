@@ -36,7 +36,10 @@ class DFG {
         std::vector<SIMDblk> SIMDblks;
         std::pair<int, int> maxbaseblk; // <WL, BL> PIM array shape
     public:
-        DFG(){}
         DFG(std::vector<Convkernel> kernels, std::pair<int, int> maxbaseblk);
+        // connection impl, split each step for generalize
+        void create_baseblk(); // init blks
+        void create_SIMDblk(); // init SIMDblks
+        std::pair<int, int> get_blksize() const;
 };
 #endif

@@ -16,7 +16,8 @@ int main(){
     std::cout << "after alloc3: " << tile.get_freeblk() << std::endl;
     */
     // TEST2: test chip func impl
-    PIM_chip chip(3, 3, 10, 4, std::make_pair(1152, 256), std::list<Convkernel>());
+    struct Convkernel kernel{1, 3, 3, 1, 256, 384};
+    PIM_chip chip(3, 3, 10, 4, std::make_pair(1152, 256), std::vector<Convkernel>{kernel});
     std::cout << "init: " << std::endl << chip << std::endl;
     auto shape = chip.get_shape();
     int row = shape.first;

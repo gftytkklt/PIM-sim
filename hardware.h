@@ -50,10 +50,9 @@ class PIM_chip{
         int row, col;// w*h tiles are deployed
         std::vector<std::vector<PIM_tile>> tiles; // tile array, wrapped by std::vector
         std::list<std::vector<std::pair<int, int>>> paths; // paths 
-        std::list<Convkernel> kernels; // accel kernel list
         DFG dfg; // TODO: use kernels to init dfg
     public:
-        explicit PIM_chip(int row, int col, int memsize, int blknum, std::pair<int, int> blksize, std::list<Convkernel>&& kernels); // ctor
+        explicit PIM_chip(int row, int col, int memsize, int blknum, std::pair<int, int> blksize, std::vector<Convkernel> &&kernels); // ctor
         std::pair<int, int> get_shape() const; // w, h pair
         void init_connection(); // init connection between tiles
         void add_connection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type);// TODO: add connection from src to dst
@@ -63,6 +62,7 @@ class PIM_chip{
         void free_mem(int xdst, int ydst, int size); // free mem
         void alloc_blk(int xdst, int ydst, int num); // alloc blk for kernel
         void free_blk(int xdst, int ydst, int num); // free blk(maybe useless)
+        void map_DFG(); // impl DFG->tile mapping
         friend std::ostream& operator<<(std::ostream& out,const PIM_chip& chip);
 };
 
