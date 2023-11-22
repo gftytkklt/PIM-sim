@@ -16,7 +16,7 @@ int main(){
     std::cout << "after alloc3: " << tile.get_freeblk() << std::endl;
     */
     // TEST2: test chip func impl
-    PIM_chip chip(3, 3, 10, 4);
+    PIM_chip chip(3, 3, 10, 4, std::make_pair(1152, 256), std::list<Convkernel>());
     std::cout << "init: " << std::endl << chip << std::endl;
     auto shape = chip.get_shape();
     int row = shape.first;
@@ -35,6 +35,8 @@ int main(){
     chip.remove_connection(std::make_pair(0, 0), std::make_pair(1, 0), connect_type::SIMD);
     chip.remove_connection(std::make_pair(0, 1), std::make_pair(1, 1), connect_type::SIMD);
     std::cout << "remove: " << std::endl << chip << std::endl;
-    // TEST3: 
+    // TEST3: test conv kernel init
+    // TEST4: test SIMD blk init
+    // TEST5: test SIMD blk mapping
     return 0;
 }

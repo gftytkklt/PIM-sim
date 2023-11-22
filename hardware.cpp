@@ -2,8 +2,8 @@
 #include "util.h"
 
 // tile impl
-PIM_tile::PIM_tile(int memsize=0, int blk_num=0) : 
-    memsize(memsize), blk_num(blk_num), available_blk(blk_num), available_mem(memsize), SIMD_connect{}, SRAM_connect{}{}
+PIM_tile::PIM_tile(int memsize=0, int blk_num=0, std::pair<int, int> blk_size = {}) : 
+    memsize{memsize}, blk_num{blk_num}, available_blk{blk_num}, blk_size{blk_size}, available_mem{memsize}, SIMD_connect{}, SRAM_connect{}{}
 
 int PIM_tile::get_memsize() const {
     return this->memsize;
@@ -19,6 +19,10 @@ int PIM_tile::get_freeblk() const {
 
 int PIM_tile::get_freemem() const {
     return this->available_mem;
+}
+
+std::pair<int, int> PIM_tile::get_blksize() const {
+    return this->blk_size;
 }
 
 void PIM_tile::allocate_blk(int num) {
@@ -95,8 +99,8 @@ void PIM_tile::clr_connection(){
 }
 
 // tile array impl
-PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0) : 
-    row(row), col(col), tiles(row, std::vector<PIM_tile>(col, PIM_tile(memsize, blknum))), paths() {
+PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<int, int> blksize={}, std::list<Convkernel>&& kernels = std::list<Convkernel>()) : 
+    row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{memsize, blknum, blksize})), paths{}, kernels(std::move(kernels)) {
     init_connection();
 }
 
