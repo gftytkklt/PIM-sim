@@ -64,6 +64,8 @@ class PIM_chip{
         void free_blk(int xdst, int ydst, int num); // free blk(maybe useless)
         void map_DFG(); // impl DFG->tile mapping
         friend std::ostream& operator<<(std::ostream& out,const PIM_chip& chip);
+        void printDFG(){this->dfg.print_baseblks();}
+        void printSIMD(){this->dfg.print_SIMDblks();}
 };
 
 #endif

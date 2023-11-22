@@ -22,17 +22,23 @@ class Baseblk {
     public:
         Baseblk(int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel);
         void set_location(std::pair<int, int> coord);
+        int getLayer() const { return layer; }
+        std::pair<int, int> getInChannel() const { return in_channel; }
+        std::pair<int, int> getOutChannel() const { return out_channel; }
 };
 
 class SIMDblk {
     private:
-
+        std::vector<Baseblk> baseblks;
+    public:
+        SIMDblk(const std::vector<Baseblk>& blks) : baseblks(blks) {}
+        const std::vector<Baseblk>& getBaseblks() const {return baseblks;}
 };
 
 class DFG {
     private:
         std::vector<Convkernel> kernels;
-        std::vector<Baseblk> blks;
+        std::vector<Baseblk> baseblks;
         std::vector<SIMDblk> SIMDblks;
         std::pair<int, int> maxbaseblk; // <WL, BL> PIM array shape
     public:
@@ -41,5 +47,7 @@ class DFG {
         void create_baseblk(); // init blks
         void create_SIMDblk(); // init SIMDblks
         std::pair<int, int> get_blksize() const;
+        void print_baseblks() const;
+        void print_SIMDblks() const;
 };
 #endif
