@@ -42,16 +42,16 @@ void DFG::create_baseblk(){
 // rules: merge baseblk with same layer and in channel
 // must exec after create_baseblk()
 void DFG::create_SIMDblk(){
-    // 遍历baseblks，按layer和in_channel分组
+    // group baseblk via layer and in_channel
     std::map<std::pair<int, std::pair<int, int>>, std::vector<Baseblk>> groupedBlks;
 
-    for (const auto& blk : baseblks) {
+    for (const auto& blk : this->baseblks) {
         groupedBlks[std::make_pair(blk.getLayer(), blk.getInChannel())].push_back(blk);
     }
 
-    // 创建SIMDblk对象并添加到SIMDblks
+    // add simd object to vector
     for (const auto& group : groupedBlks) {
-        SIMDblks.emplace_back(group.second);
+        this->SIMDblks.emplace_back(group.second);
     }
 }
 

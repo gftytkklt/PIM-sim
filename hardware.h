@@ -27,6 +27,7 @@ class PIM_tile{
         int available_mem;// free mem can be allocated
         std::pair<int, int> blk_size; // WL * BL
         std::map<Direction, int> SIMD_connect, SRAM_connect;
+        std::vector<Baseblk> mapped_blks;
     public:
         explicit PIM_tile(int memsize, int blk_num, std::pair<int, int> blk_size); // ctor
         int get_memsize() const; // mem capacity of tile
@@ -42,6 +43,7 @@ class PIM_tile{
         void inc_connection(Direction direct, connect_type type); // inc type.used
         void del_connection(Direction direct, connect_type type); // del type.used
         void clr_connection(); // clr all used
+        int map_blk(Baseblk &blk); // return 0 for success, -1 for failure
         friend std::ostream& operator<<(std::ostream& out,const PIM_tile& tile);
 };
 

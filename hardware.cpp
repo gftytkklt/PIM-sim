@@ -3,7 +3,8 @@
 
 // tile impl
 PIM_tile::PIM_tile(int memsize=0, int blk_num=0, std::pair<int, int> blk_size = {}) : 
-    memsize{memsize}, blk_num{blk_num}, available_blk{blk_num}, blk_size{blk_size}, available_mem{memsize}, SIMD_connect{}, SRAM_connect{}{}
+    memsize{memsize}, blk_num{blk_num}, available_blk{blk_num}, blk_size{blk_size},
+    available_mem{memsize}, SIMD_connect{}, SRAM_connect{}, mapped_blks{}{}
 
 int PIM_tile::get_memsize() const {
     return this->memsize;
@@ -137,7 +138,23 @@ void PIM_chip::add_connection(std::pair<int, int> src, std::pair<int, int> dst, 
     this->paths.push_back(path);
 }
 
-// default strategy for debug: hori first, vertical next
+std::pair<Direction, Direction> getDirection(const std::pair<int, int>& delta) {
+    static const std::map<std::pair<int, int>, std::pair<Direction, Direction>> directionMap = {
+        {{0, 1}, {Direction::Left, Direction::Right}},
+        {{0, -1}, {Direction::Right, Direction::Left}},
+        {{1, 0}, {Direction::Top, Direction::Bottom}},
+        {{-1, 0}, {Direction::Bottom, Direction::Top}}
+    };
+
+    auto it = directionMap.find(delta);
+    if (it != directionMap.end()) {
+        return it->second;
+    }
+
+    throw std::runtime_error("Invalid delta value");
+}
+
+// remove connection of adjacent tiles in a path
 void PIM_chip::remove_connection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
     for (auto it = paths.begin(); it != paths.end(); ) {
         // non-empty list && <src, dest> match
@@ -147,30 +164,7 @@ void PIM_chip::remove_connection(std::pair<int, int> src, std::pair<int, int> ds
                 auto start = path[i];
                 auto end = path[i+1];
                 auto delta = std::make_pair(start.first-end.first, start.second-end.second);
-                // std::cout << "delete(" << start.first << ", " << start.second << ")->(" << end.first << ", " << end.second << "), ";
-                // std::cout << "delta = (" << delta.first << ", " << delta.second << ")" << std::endl;
-                std::pair <Direction, Direction> direct;
-                // 2D-mesh: start is on the right side of end
-                if(delta.second == 1){
-                    direct = std::make_pair(Direction::Left, Direction::Right);
-                }
-                // 2D-mesh: start is on the left side of end
-                else if(delta.second == -1){
-                    direct = std::make_pair(Direction::Right, Direction::Left);
-                }
-                // 2D-mesh: start is on the bottom side of end
-                else if(delta.first == 1){
-                    direct = std::make_pair(Direction::Top, Direction::Bottom);
-                }
-                // 2D-mesh: start is on the top of end
-                else if(delta.first == -1){
-                    direct = std::make_pair(Direction::Bottom, Direction::Top);
-                }
-                // 2D-mesh: should not reach here!
-                else {
-                    std::cout << "Failed: invalid path!" << std::endl;
-                    return;
-                }
+                auto direct = getDirection(delta);
                 auto &tile_start = this->tiles[start.first][start.second];
                 auto &tile_end = this->tiles[end.first][end.second];
                 std::cout << "direction: " << toString(direct.first) << ", " << toString(direct.second) << std::endl;

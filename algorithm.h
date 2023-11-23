@@ -29,6 +29,8 @@ class Baseblk {
 
 class SIMDblk {
     private:
+        int layer;
+        std::pair<int, int> in_channel, out_channel;
         std::vector<Baseblk> baseblks;
     public:
         SIMDblk(const std::vector<Baseblk>& blks) : baseblks(blks) {}
