@@ -56,24 +56,25 @@ void DFG::create_SIMDblk() {
     std::map<std::pair<int, std::pair<int, int>>, SIMDInfo> groupedBlks;
 
     for (const auto& blk : baseblks) {
-        auto key = std::make_pair(blk.getLayer(), blk.getInChannel());
+        auto key = std::make_pair(blk.getLayer(), blk.getOutChannel());
         auto& info = groupedBlks[key];
         info.baseblks.push_back(blk);
 
         // init layer & in channel
         info.layer = blk.getLayer();
-        info.inChannel = blk.getInChannel();
+        info.outChannel = blk.getOutChannel();
+        
 
         // init & update out channel
-        if (info.outChannel.first == 0 && info.outChannel.second == 0) {
-            info.outChannel = blk.getOutChannel();
+        if (info.inChannel.first == 0 && info.inChannel.second == 0) {
+            info.inChannel = blk.getInChannel();
         } else {
-            info.outChannel.first = std::min(info.outChannel.first, blk.getOutChannel().first);
-            info.outChannel.second = std::max(info.outChannel.second, blk.getOutChannel().second);
+            info.inChannel.first = std::min(info.inChannel.first, blk.getInChannel().first);
+            info.inChannel.second = std::max(info.inChannel.second, blk.getInChannel().second);
         }
     }
 
-    // 步骤3: 使用收集的信息构造 SIMDblk 对象
+    // build simd blk
     for (const auto& group : groupedBlks) {
         const auto& info = group.second;
         SIMDblk simdBlk(info.baseblks, info.layer, info.inChannel, info.outChannel);
