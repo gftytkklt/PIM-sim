@@ -3,11 +3,14 @@
 #include <map>
 
 Baseblk::Baseblk(int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel)
-    : layer(layer), in_channel(in_channel), out_channel(out_channel), fmap_size(0), location{} {}
+    : layer{layer}, in_channel{in_channel}, out_channel{out_channel}, fmap_size{0}, location{} {}
 
 void Baseblk::set_location(std::pair<int, int> coord) {
     this->location = coord;
 }
+
+SIMDblk::SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel)
+    : baseblks{blks}, layer{layer}, in_channel{in_channel}, out_channel{out_channel}{}
 
 DFG::DFG(std::vector<Convkernel> kernels={}, std::pair<int, int> maxbaseblk={})
     : kernels{kernels}, maxbaseblk{maxbaseblk} {
@@ -41,17 +44,40 @@ void DFG::create_baseblk(){
 }
 // rules: merge baseblk with same layer and in channel
 // must exec after create_baseblk()
-void DFG::create_SIMDblk(){
-    // group baseblk via layer and in_channel
-    std::map<std::pair<int, std::pair<int, int>>, std::vector<Baseblk>> groupedBlks;
+void DFG::create_SIMDblk() {
+    // store extra info of SIMD blk
+    struct SIMDInfo {
+        std::vector<Baseblk> baseblks;
+        int layer;
+        std::pair<int, int> inChannel;
+        std::pair<int, int> outChannel;
+    };
 
-    for (const auto& blk : this->baseblks) {
-        groupedBlks[std::make_pair(blk.getLayer(), blk.getInChannel())].push_back(blk);
+    std::map<std::pair<int, std::pair<int, int>>, SIMDInfo> groupedBlks;
+
+    for (const auto& blk : baseblks) {
+        auto key = std::make_pair(blk.getLayer(), blk.getInChannel());
+        auto& info = groupedBlks[key];
+        info.baseblks.push_back(blk);
+
+        // init layer & in channel
+        info.layer = blk.getLayer();
+        info.inChannel = blk.getInChannel();
+
+        // init & update out channel
+        if (info.outChannel.first == 0 && info.outChannel.second == 0) {
+            info.outChannel = blk.getOutChannel();
+        } else {
+            info.outChannel.first = std::min(info.outChannel.first, blk.getOutChannel().first);
+            info.outChannel.second = std::max(info.outChannel.second, blk.getOutChannel().second);
+        }
     }
 
-    // add simd object to vector
+    // 步骤3: 使用收集的信息构造 SIMDblk 对象
     for (const auto& group : groupedBlks) {
-        this->SIMDblks.emplace_back(group.second);
+        const auto& info = group.second;
+        SIMDblk simdBlk(info.baseblks, info.layer, info.inChannel, info.outChannel);
+        this->SIMDblks.emplace_back(simdBlk);
     }
 }
 
@@ -62,9 +88,9 @@ std::pair<int, int> DFG::get_blksize() const{
 void DFG::print_baseblks() const{
     for (const auto& blk : baseblks) {
         std::cout << "Layer: " << blk.getLayer()
-            << ", In Channel: " << blk.getInChannel().first << " - " << blk.getInChannel().second
-            << ", Out Channel: " << blk.getOutChannel().first << " - " << blk.getOutChannel().second
-            << std::endl;
+                  << ", In Channel: " << blk.getInChannel().first << " - " << blk.getInChannel().second
+                  << ", Out Channel: " << blk.getOutChannel().first << " - " << blk.getOutChannel().second
+                  << std::endl;
     }
 }
 
@@ -72,11 +98,10 @@ void DFG::print_SIMDblks() const {
     int i = 0;
     for (const auto& simdBlk : SIMDblks) {
         std::cout << "SIMD blk: " << ++i << std::endl;
-        for (const auto& baseBlk : simdBlk.getBaseblks()) {
-            std::cout << "Layer: " << baseBlk.getLayer()
-                      << ", In Channel: " << baseBlk.getInChannel().first << " - " << baseBlk.getInChannel().second
-                      << ", Out Channel: " << baseBlk.getOutChannel().first << " - " << baseBlk.getOutChannel().second
-                      << std::endl;
-        }
+        std::cout << "Layer: " << simdBlk.getLayer()
+                  << ", In Channel: " << simdBlk.getInChannel().first << " - " << simdBlk.getInChannel().second
+                  << ", Out Channel: " << simdBlk.getOutChannel().first << " - " << simdBlk.getOutChannel().second
+                  << std::endl;
+                  
     }
 }

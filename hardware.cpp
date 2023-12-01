@@ -2,8 +2,8 @@
 #include "util.h"
 
 // tile impl
-PIM_tile::PIM_tile(int memsize=0, int blk_num=0, std::pair<int, int> blk_size = {}) : 
-    memsize{memsize}, blk_num{blk_num}, available_blk{blk_num}, blk_size{blk_size},
+PIM_tile::PIM_tile(int memsize=0, int blk_num=0, std::pair<int, int> blk_size = {})
+    : memsize{memsize}, blk_num{blk_num}, available_blk{blk_num}, blk_size{blk_size},
     available_mem{memsize}, SIMD_connect{}, SRAM_connect{}, mapped_blks{}{}
 
 int PIM_tile::get_memsize() const {
@@ -20,6 +20,10 @@ int PIM_tile::get_freeblk() const {
 
 int PIM_tile::get_freemem() const {
     return this->available_mem;
+}
+
+int PIM_tile::get_portnum(connect_type type) const {
+    return (type == connect_type::SIMD) ? this->SIMD_connect.num : this->SRAM_connect.num;
 }
 
 std::pair<int, int> PIM_tile::get_blksize() const {
@@ -52,28 +56,36 @@ void PIM_tile::free_mem(int size) {
 void PIM_tile::init_connection(int i, int j, int row, int col) {
     // not top row, add up connection
     if (i > 0) {
-        this->SIMD_connect[Direction::Top] = 0;
-        this->SRAM_connect[Direction::Top] = 0;
+        this->SIMD_connect.port[Direction::Top] = 0;
+        this->SRAM_connect.port[Direction::Top] = 0;
+        this->SIMD_connect.num++;
+        this->SRAM_connect.num++;
     }
     // not bottom row, add down connection
     if (i < row - 1) {
-        this->SIMD_connect[Direction::Bottom] = 0;
-        this->SRAM_connect[Direction::Bottom] = 0;
+        this->SIMD_connect.port[Direction::Bottom] = 0;
+        this->SRAM_connect.port[Direction::Bottom] = 0;
+        this->SIMD_connect.num++;
+        this->SRAM_connect.num++;
     }
     // not leftmost col, add left connection
     if (j > 0) {
-        this->SIMD_connect[Direction::Left] = 0;
-        this->SRAM_connect[Direction::Left] = 0;
+        this->SIMD_connect.port[Direction::Left] = 0;
+        this->SRAM_connect.port[Direction::Left] = 0;
+        this->SIMD_connect.num++;
+        this->SRAM_connect.num++;
     }
     // not rightmost col, add right connection
     if (j < col - 1) {
-        this->SIMD_connect[Direction::Right] = 0;
-        this->SRAM_connect[Direction::Right] = 0;
+        this->SIMD_connect.port[Direction::Right] = 0;
+        this->SRAM_connect.port[Direction::Right] = 0;
+        this->SIMD_connect.num++;
+        this->SRAM_connect.num++;
     }
 }
 
 void PIM_tile::inc_connection(Direction direct, connect_type type) {
-    auto &info = (type == connect_type::SIMD) ? this->SIMD_connect : this->SRAM_connect;
+    auto &info = (type == connect_type::SIMD) ? this->SIMD_connect.port : this->SRAM_connect.port;
     auto it = info.find(direct);
     if ((it != info.end()) && ((it->second == 0) || type == connect_type::SRAM)) {
         it->second += 1;
@@ -82,7 +94,7 @@ void PIM_tile::inc_connection(Direction direct, connect_type type) {
 }
 
 void PIM_tile::del_connection(Direction direct, connect_type type) {
-    auto &info = (type == connect_type::SIMD) ? this->SIMD_connect : this->SRAM_connect;
+    auto &info = (type == connect_type::SIMD) ? this->SIMD_connect.port : this->SRAM_connect.port;
     auto it = info.find(direct);
     if (it != info.end()) {
         if(it->second > 0) it->second -= 1;
@@ -91,17 +103,17 @@ void PIM_tile::del_connection(Direction direct, connect_type type) {
 }
 
 void PIM_tile::clr_connection(){
-    for (auto& it : SIMD_connect){
+    for (auto& it : SIMD_connect.port){
         it.second = 0;
     }
-    for (auto& it : SRAM_connect){
+    for (auto& it : SRAM_connect.port){
         it.second = 0;
     }
 }
 
 // tile array impl
-PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {}) : 
-    row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{memsize, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize} {
+PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {})
+    : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{memsize, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize} {
     init_connection();
     // for debug
     // auto size = this->dfg.get_blksize();
@@ -235,7 +247,7 @@ std::ostream& operator<<(std::ostream& out,const PIM_chip& chip) {
 
 std::ostream& operator<<(std::ostream& out,const PIM_tile& tile) {
     out << "SRAM connection: " << std::endl;
-    for(const auto &it : tile.SRAM_connect){
+    for(const auto &it : tile.SRAM_connect.port){
         if(it.second > 0)
             out << toString(it.first) << ": " << it.second << " connected" << std::endl;
     }

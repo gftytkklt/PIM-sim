@@ -33,8 +33,11 @@ class SIMDblk {
         std::pair<int, int> in_channel, out_channel;
         std::vector<Baseblk> baseblks;
     public:
-        SIMDblk(const std::vector<Baseblk>& blks) : baseblks(blks) {}
+        SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel);
         const std::vector<Baseblk>& getBaseblks() const {return baseblks;}
+        int getLayer() const {return layer;}
+        std::pair<int, int> getInChannel() const {return in_channel;}
+        std::pair<int, int> getOutChannel() const {return out_channel;}
 };
 
 class DFG {

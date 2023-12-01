@@ -15,6 +15,11 @@ enum class Direction{
     BottomLeft, Bottom, BottomRight
 };
 
+struct Connection{
+    std::map<Direction, int> port;// direction & used num
+    int num;// number of port
+};
+
 extern std::string toString(Direction dir);
 
 enum class connect_type{SIMD, SRAM};
@@ -26,7 +31,7 @@ class PIM_tile{
         int available_blk;// free blk can be allocated
         int available_mem;// free mem can be allocated
         std::pair<int, int> blk_size; // WL * BL
-        std::map<Direction, int> SIMD_connect, SRAM_connect;
+        Connection SIMD_connect, SRAM_connect;
         std::vector<Baseblk> mapped_blks;
     public:
         explicit PIM_tile(int memsize, int blk_num, std::pair<int, int> blk_size); // ctor
@@ -34,6 +39,7 @@ class PIM_tile{
         int get_blknum() const; // basic blk num of tile
         int get_freeblk() const; // current free blk num of tile
         int get_freemem() const; // current free mem of tile
+        int get_portnum(connect_type type) const;
         std::pair<int, int> get_blksize() const;
         void allocate_blk(int num); // alloc free blk
         void allocate_mem(int size); // alloc free mem
