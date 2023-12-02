@@ -32,12 +32,21 @@ class SIMDblk {
         int layer;
         std::pair<int, int> in_channel, out_channel;
         std::vector<Baseblk> baseblks;
+        std::vector<SIMDblk*> parents, children;
+        int fanout;
+
     public:
         SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel);
         const std::vector<Baseblk>& getBaseblks() const {return baseblks;}
         int getLayer() const {return layer;}
         std::pair<int, int> getInChannel() const {return in_channel;}
         std::pair<int, int> getOutChannel() const {return out_channel;}
+        void addParent(SIMDblk* parent){parents.push_back(parent);}
+        void addChild(SIMDblk* child) {children.push_back(child);}
+        std::vector<SIMDblk*> getParent() const {return parents;}
+        std::vector<SIMDblk*> getChild() const {return children;}
+        void incrFanout(int size) {fanout += size;};
+        int getFanout() const {return fanout;}
 };
 
 class DFG {
@@ -51,6 +60,7 @@ class DFG {
         // connection impl, split each step for generalize
         void create_baseblk(); // init blks
         void create_SIMDblk(); // init SIMDblks
+        void connect_SIMDblk(); // build dependence map
         std::pair<int, int> get_blksize() const;
         void print_baseblks() const;
         void print_SIMDblks() const;

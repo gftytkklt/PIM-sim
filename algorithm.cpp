@@ -10,12 +10,13 @@ void Baseblk::set_location(std::pair<int, int> coord) {
 }
 
 SIMDblk::SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel)
-    : baseblks{blks}, layer{layer}, in_channel{in_channel}, out_channel{out_channel}{}
+    : baseblks{blks}, layer{layer}, in_channel{in_channel}, out_channel{out_channel}, parents{}, children{}, fanout{0}{}
 
 DFG::DFG(std::vector<Convkernel> kernels={}, std::pair<int, int> maxbaseblk={})
     : kernels{kernels}, maxbaseblk{maxbaseblk} {
     create_baseblk();
     create_SIMDblk();
+    connect_SIMDblk();
 }
 // steps: 
 // 1. decomp w*h to A*3*3
@@ -52,7 +53,7 @@ void DFG::create_SIMDblk() {
         std::pair<int, int> inChannel;
         std::pair<int, int> outChannel;
     };
-
+    // use layer(int) & out_channel(std::pair<int, int>) for labelling
     std::map<std::pair<int, std::pair<int, int>>, SIMDInfo> groupedBlks;
 
     for (const auto& blk : baseblks) {
@@ -63,7 +64,6 @@ void DFG::create_SIMDblk() {
         // init layer & in channel
         info.layer = blk.getLayer();
         info.outChannel = blk.getOutChannel();
-        
 
         // init & update out channel
         if (info.inChannel.first == 0 && info.inChannel.second == 0) {
@@ -79,6 +79,48 @@ void DFG::create_SIMDblk() {
         const auto& info = group.second;
         SIMDblk simdBlk(info.baseblks, info.layer, info.inChannel, info.outChannel);
         this->SIMDblks.emplace_back(simdBlk);
+    }
+}
+
+std::pair<int, int> getOverlap(const std::pair<int, int>& range1, const std::pair<int, int>& range2) {
+    // 计算重叠区间的起始和终止点
+    int start = std::max(range1.first, range2.first);
+    int end = std::min(range1.second, range2.second);
+
+    // 检查区间是否真的有重叠
+    if (start <= end) {
+        return {start, end};
+    } else {
+        // 如果没有重叠，返回一个无效的区间
+        // 您可以根据需要调整这里的返回值
+        return {0, 0};
+    }
+}
+// based on SIMDblk is sorted by ascending order of SIMD.layer
+void DFG::connect_SIMDblk() {
+    for (auto it = this->SIMDblks.begin(); it != this->SIMDblks.end(); ++it) {
+        int cur_layer = it->getLayer();
+        auto parent_channel = it->getOutChannel();
+        int child_layer = cur_layer + 1;
+        for (auto innerIt = std::next(it); innerIt != this->SIMDblks.end(); ++innerIt){
+            int node_layer = innerIt->getLayer();
+            // do nothing for same layer blk
+            if(node_layer < child_layer){continue;}
+            // end searching for subsequent layers
+            else if(node_layer > child_layer){break;}
+            // child layer: may have connection
+            auto child_channel = innerIt->getInChannel();
+            // check if parent out overlapped with child in
+            auto overlap = getOverlap(parent_channel, child_channel);
+            // overlap don't have zero if overlap exists
+            if(overlap.first != 0){
+                // addchild
+                it->addChild(&*innerIt);
+                innerIt->addParent(&*it);
+                // didn't consider non-128-channel-aligned kernel(fix it in the future)
+                it->incrFanout((overlap.second+1-overlap.first)/(maxbaseblk.first/9));
+            }
+        }
     }
 }
 
@@ -102,7 +144,27 @@ void DFG::print_SIMDblks() const {
         std::cout << "Layer: " << simdBlk.getLayer()
                   << ", In Channel: " << simdBlk.getInChannel().first << " - " << simdBlk.getInChannel().second
                   << ", Out Channel: " << simdBlk.getOutChannel().first << " - " << simdBlk.getOutChannel().second
+                  << ", Fanout: " << simdBlk.getFanout()
                   << std::endl;
-                  
+        const auto parent = simdBlk.getParent();
+        int j = 0;
+        for(const auto p : parent) {
+            if(p){
+                std::cout << "parent" << ++j << ", Layer: " << p->getLayer()
+                << ", In Channel: " << p->getInChannel().first << " - " << p->getInChannel().second
+                << ", Out Channel: " << p->getOutChannel().first << " - " << p->getOutChannel().second
+                << std::endl;
+            }
+        }
+        const auto child = simdBlk.getChild();
+        int k = 0;
+        for(const auto p : child) {
+            if(p){
+                std::cout << "child" << ++k << ", Layer: " << p->getLayer()
+                << ", In Channel: " << p->getInChannel().first << " - " << p->getInChannel().second
+                << ", Out Channel: " << p->getOutChannel().first << " - " << p->getOutChannel().second
+                << std::endl;
+            }
+        }
     }
 }
