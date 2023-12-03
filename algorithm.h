@@ -36,6 +36,7 @@ class SIMDblk {
         std::vector<SIMDblk*> parents, children;
         int fanout;
         std::pair<int, int> fanout_loc;
+        bool ismapped;
     public:
         SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel);
         const std::vector<Baseblk>& getBaseblks() const {return baseblks;}

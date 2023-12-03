@@ -41,7 +41,7 @@ class PIM_tile{
         int get_freemem() const; // current free mem of tile
         int get_portnum(connect_type type) const;
         std::pair<int, int> get_blksize() const;
-        void allocate_blk(int num); // alloc free blk
+        int allocate_blk(int num); // alloc free blk
         void allocate_mem(int size); // alloc free mem
         void free_blk(int num); // free blk
         void free_mem(int size); // free mem
@@ -69,13 +69,16 @@ class PIM_chip{
         void clr_connection();
         void alloc_mem(int xdst, int ydst, int size); // alloc mem for conv
         void free_mem(int xdst, int ydst, int size); // free mem
-        void alloc_blk(int xdst, int ydst, int num); // alloc blk for kernel
+        int alloc_blk(int xdst, int ydst, int num); // alloc blk for kernel
         void free_blk(int xdst, int ydst, int num); // free blk(maybe useless)
+        void deploySIMD(SIMDblk &blk);
+        // std::vector<std::pair<int, int>> getNodeIndex(std::vector<std::pair<int, int>> fanins, int size, int fanout);
         void map_DFG(); // impl DFG->tile mapping
         friend std::ostream& operator<<(std::ostream& out,const PIM_chip& chip);
         void printDFG(){this->dfg.print_baseblks();}
         void printSIMD(){this->dfg.print_SIMDblks();}
         void print_mappedblks() const;
+        // get tile index to be allocated to SIMDblk
 };
 
 #endif

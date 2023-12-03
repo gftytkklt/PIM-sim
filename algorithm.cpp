@@ -1,4 +1,5 @@
 #include "algorithm.h"
+#include "util.h"
 #include <iostream>
 #include <map>
 
@@ -17,7 +18,8 @@ void Baseblk::printBaseblkInfo() const {
 }
 
 SIMDblk::SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel)
-    : baseblks{blks}, layer{layer}, in_channel{in_channel}, out_channel{out_channel}, parents{}, children{}, fanout{0}, fanout_loc{std::make_pair(-1, -1)}{}
+    : baseblks{blks}, layer{layer}, in_channel{in_channel}, out_channel{out_channel},
+    parents{}, children{}, fanout{0}, fanout_loc{std::make_pair(-1, -1)}, ismapped{false}{}
 
 DFG::DFG(std::vector<Convkernel> kernels={}, std::pair<int, int> maxbaseblk={})
     : kernels{kernels}, maxbaseblk{maxbaseblk} {
@@ -89,20 +91,7 @@ void DFG::create_SIMDblk() {
     }
 }
 
-std::pair<int, int> getOverlap(const std::pair<int, int>& range1, const std::pair<int, int>& range2) {
-    // 计算重叠区间的起始和终止点
-    int start = std::max(range1.first, range2.first);
-    int end = std::min(range1.second, range2.second);
 
-    // 检查区间是否真的有重叠
-    if (start <= end) {
-        return {start, end};
-    } else {
-        // 如果没有重叠，返回一个无效的区间
-        // 您可以根据需要调整这里的返回值
-        return {0, 0};
-    }
-}
 // based on SIMDblk is sorted by ascending order of SIMD.layer
 void DFG::connect_SIMDblk() {
     for (auto it = this->SIMDblks.begin(); it != this->SIMDblks.end(); ++it) {

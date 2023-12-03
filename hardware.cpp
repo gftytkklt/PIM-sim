@@ -1,5 +1,9 @@
 #include "hardware.h"
 #include "util.h"
+#include <random>
+#include <chrono>
+#include <algorithm>
+#include <cassert>
 
 // tile impl
 PIM_tile::PIM_tile(int memsize=0, int blk_num=0, std::pair<int, int> blk_size = {})
@@ -30,9 +34,13 @@ std::pair<int, int> PIM_tile::get_blksize() const {
     return this->blk_size;
 }
 
-void PIM_tile::allocate_blk(int num) {
-    if (num > this->available_blk){std::cout << "Failed: out of free blk!" << std::endl;}
-    else {this->available_blk -= num;}
+int PIM_tile::allocate_blk(int num) {
+    if (num > this->available_blk){
+        std::cout << "Failed: out of free blk!" << std::endl;
+        return -1;
+    }
+    this->available_blk -= num;
+    return 0;
 }
 
 void PIM_tile::allocate_mem(int size) {
@@ -210,27 +218,138 @@ void PIM_chip::free_mem(int xdst, int ydst, int size) {
     auto &tile = this->tiles[xdst][ydst];
     tile.free_mem(size);
 }
-void PIM_chip::alloc_blk(int xdst, int ydst, int num) {
+int PIM_chip::alloc_blk(int xdst, int ydst, int num) {
     auto &tile = this->tiles[xdst][ydst];
-    tile.allocate_blk(num);
+    return tile.allocate_blk(num);
 }
 void PIM_chip::free_blk(int xdst, int ydst, int num) {
     auto &tile = this->tiles[xdst][ydst];
     tile.free_blk(num);
 } 
+// // impl allocate freeblk here
+// std::vector<std::pair<int, int>> PIM_chip::getNodeIndex(std::vector<std::pair<int, int>> fanins, int size, int fanout) {
+//     for(size_t i = 0; i < tiles.size(); ++i){
+//         for (size_t j = 0; j < tiles[i].size(); ++j) {
+//             auto &tile = tiles[i][j];
+//             if(tile.get_portnum(connect_type::SRAM) >= fanout){
 
+//             }
+//         }
+//     }
+// }
+// under layer by layer deploy logic
+void PIM_chip::deploySIMD(SIMDblk &blk) {
+    int size = blk.getBaseblks().size();
+    std::cout << "size: " << size << std::endl;
+    int fanout = blk.getFanout();
+    auto parents = blk.getParent();
+    std::vector<std::pair<int, int>> fanin{};
+    std::vector<std::pair<int, int>> locations{};
+    if(!parents.empty()) {
+        for (const auto &parent : parents){
+            fanin.emplace_back(parent->getFanoutloc());
+        }
+    }
+    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine engine(seed);
+
+    // 生成行索引的随机顺序
+    std::vector<int> rowIndexes(tiles.size());
+    std::iota(rowIndexes.begin(), rowIndexes.end(), 0); // 填充0到tiles.size()-1
+    std::shuffle(rowIndexes.begin(), rowIndexes.end(), engine);
+    bool findfanout = false;
+    std::pair<int, int> fanout_loc{};
+    for(int row : rowIndexes) {
+        // 生成列索引的随机顺序
+        std::vector<int> colIndexes(tiles[row].size());
+        std::iota(colIndexes.begin(), colIndexes.end(), 0); // 填充0到tiles[row].size()-1
+        std::shuffle(colIndexes.begin(), colIndexes.end(), engine);
+        for(int col : colIndexes) {
+            auto &tile = tiles[row][col];
+            if((tile.get_portnum(connect_type::SRAM) >= fanout) && (!tile.allocate_blk(1))){
+                fanout_loc = std::make_pair(row, col);
+                findfanout = true;
+                blk.setFanoutloc(fanout_loc);
+                locations.push_back(fanout_loc);
+                break;
+            }
+        }
+        if(findfanout) {
+            break;
+        }
+    }
+    // deploy other blks: gen ramdom pts, connect it
+    if (size > 1){
+        auto dst = randomPointWithManhattanDistance(this->row, this->col, fanout_loc.first, fanout_loc.second, size-1);
+        // add_connection(fanout_loc, dst, connect_type::SIMD);
+        // std::cout << "from (" << fanout_loc.first << ", " << fanout_loc.second << ") to (" << dst.first << ", " << dst.second << std::endl;
+        int deltax = dst.first > fanout_loc.first ? 1 : -1;
+        int deltay = dst.second > fanout_loc.second ? 1 : -1;
+        while((fanout_loc.first != dst.first) || (fanout_loc.second != dst.second)){
+            if(fanout_loc.second != dst.second){
+                fanout_loc.second += deltay;
+                locations.push_back(fanout_loc);
+                // std::cout << "push (" << fanout_loc.first << ", " << fanout_loc.second << std::endl;
+                continue;
+            }
+            fanout_loc.first += deltax;
+            locations.push_back(fanout_loc);
+            // std::cout << "push (" << fanout_loc.first << ", " << fanout_loc.second << std::endl;
+        }
+    }
+    // locations.size should be equal to baseblks
+    auto baseblks = blk.getBaseblks();
+    // std::cout << "size: " << locations.size() << " vs " << baseblks.size() << std::endl;
+    assert(locations.size() == baseblks.size());
+    for (int i=0; i<locations.size(); i++){
+        int x = locations[i].first;
+        int y = locations[i].second;
+        tiles[x][y].allocate_blk(1);
+        tiles[x][y].map_blk(baseblks[i]);
+    }
+    // bool findfanout = false;
+    // std::pair<int, int> fanout_loc{};
+    // // find fan out location
+    // for(int i = 0; i < tiles.size(); ++i) {
+    //     for (int j = 0; j < tiles[i].size(); ++j) {
+    //         auto &tile = tiles[i][j];
+    //         if((tile.get_portnum(connect_type::SRAM) >= fanout) && (!tile.allocate_blk(1))){
+    //             fanout_loc = std::make_pair(i, j);
+    //             findfanout = true;
+    //             locations.push_back(fanout_loc);
+    //             break;
+    //         }
+    //     }
+    //     if(findfanout) {
+    //         break;
+    //     }
+    // }
+}
+
+// based on SIMDblk is sorted by ascending order of SIMD.layer
 void PIM_chip::map_DFG() {
     // TODO: impl me
-    for (const auto& it: this->dfg.get_SIMDblk()){
-        int curlayer = it.getLayer();
-        int cursize = it.getBaseblks().size();
+    auto SIMDblks = this->dfg.get_SIMDblk();
+    for (auto it = SIMDblks.begin(); it!= SIMDblks.end(); ++it){
+        // int cursize = it->getBaseblks().size();
+        // int fanout = it->getFanout();
+        // // have parents
+        // std::vector<std::pair<int, int>> fanin{};
+        // auto parents = it->getParent();
+        // if(!parents.empty()){
+        //     for (const auto &parent : parents){
+        //         fanin.emplace_back(parent->getFanoutloc());
+        //     }
+        // }
+        deploySIMD(*it);
+        // auto index = getNodeIndex(fanin, cursize, fanout);
     }
 }
 
 void PIM_chip::print_mappedblks() const {
     for (size_t i = 0; i < tiles.size(); ++i) {
         for (size_t j = 0; j < tiles[i].size(); ++j) {
-            std::cout << "tile(" << i+1 << ", " << j+1 << "): " << std::endl;
+            std::cout << "tile(" << i << ", " << j << "): " << std::endl;
             tiles[i][j].printMappedblks();
         }
     }
