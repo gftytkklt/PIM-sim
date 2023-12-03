@@ -62,6 +62,7 @@ class DFG {
         void create_SIMDblk(); // init SIMDblks
         void connect_SIMDblk(); // build dependence map
         std::pair<int, int> get_blksize() const;
+        std::vector<SIMDblk> get_SIMDblk() const {return this->SIMDblks;}
         void print_baseblks() const;
         void print_SIMDblks() const;
 };

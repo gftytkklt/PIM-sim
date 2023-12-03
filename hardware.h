@@ -49,7 +49,7 @@ class PIM_tile{
         void inc_connection(Direction direct, connect_type type); // inc type.used
         void del_connection(Direction direct, connect_type type); // del type.used
         void clr_connection(); // clr all used
-        int map_blk(Baseblk &blk); // return 0 for success, -1 for failure
+        void map_blk(Baseblk &blk); // must map blk to available tile by dfg algorithm
         friend std::ostream& operator<<(std::ostream& out,const PIM_tile& tile);
 };
 

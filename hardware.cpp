@@ -111,10 +111,15 @@ void PIM_tile::clr_connection(){
     }
 }
 
+void PIM_tile::map_blk(Baseblk &blk) {
+    this->mapped_blks.push_back(blk);
+}
+
 // tile array impl
 PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {})
     : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{memsize, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize} {
     init_connection();
+    map_DFG();
     // for debug
     // auto size = this->dfg.get_blksize();
     // std::cout << "DFG: " << size.first << " " << size.second << std::endl;
@@ -206,10 +211,13 @@ void PIM_chip::alloc_blk(int xdst, int ydst, int num) {
 void PIM_chip::free_blk(int xdst, int ydst, int num) {
     auto &tile = this->tiles[xdst][ydst];
     tile.free_blk(num);
-}
+} 
 
 void PIM_chip::map_DFG(){
     // TODO: impl me
+    for(const auto& it: this->dfg.get_SIMDblk()){
+        
+    }
 }
 
 // << overload impl: print info of each tile
