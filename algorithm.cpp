@@ -9,8 +9,15 @@ void Baseblk::set_location(std::pair<int, int> coord) {
     this->location = coord;
 }
 
+void Baseblk::printBaseblkInfo() const {
+    std::cout << "Layer: " << this->getLayer()
+                  << ", In Channel: " << this->getInChannel().first << " - " << this->getInChannel().second
+                  << ", Out Channel: " << this->getOutChannel().first << " - " << this->getOutChannel().second
+                  << std::endl;
+}
+
 SIMDblk::SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel)
-    : baseblks{blks}, layer{layer}, in_channel{in_channel}, out_channel{out_channel}, parents{}, children{}, fanout{0}{}
+    : baseblks{blks}, layer{layer}, in_channel{in_channel}, out_channel{out_channel}, parents{}, children{}, fanout{0}, fanout_loc{std::make_pair(-1, -1)}{}
 
 DFG::DFG(std::vector<Convkernel> kernels={}, std::pair<int, int> maxbaseblk={})
     : kernels{kernels}, maxbaseblk{maxbaseblk} {
@@ -130,10 +137,7 @@ std::pair<int, int> DFG::get_blksize() const{
 
 void DFG::print_baseblks() const{
     for (const auto& blk : baseblks) {
-        std::cout << "Layer: " << blk.getLayer()
-                  << ", In Channel: " << blk.getInChannel().first << " - " << blk.getInChannel().second
-                  << ", Out Channel: " << blk.getOutChannel().first << " - " << blk.getOutChannel().second
-                  << std::endl;
+        blk.printBaseblkInfo();
     }
 }
 

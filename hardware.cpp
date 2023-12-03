@@ -115,6 +115,12 @@ void PIM_tile::map_blk(Baseblk &blk) {
     this->mapped_blks.push_back(blk);
 }
 
+void PIM_tile::printMappedblks() const {
+    for(const auto& it: mapped_blks) {
+        it.printBaseblkInfo();
+    }
+}
+
 // tile array impl
 PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {})
     : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{memsize, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize} {
@@ -213,10 +219,20 @@ void PIM_chip::free_blk(int xdst, int ydst, int num) {
     tile.free_blk(num);
 } 
 
-void PIM_chip::map_DFG(){
+void PIM_chip::map_DFG() {
     // TODO: impl me
-    for(const auto& it: this->dfg.get_SIMDblk()){
-        
+    for (const auto& it: this->dfg.get_SIMDblk()){
+        int curlayer = it.getLayer();
+        int cursize = it.getBaseblks().size();
+    }
+}
+
+void PIM_chip::print_mappedblks() const {
+    for (size_t i = 0; i < tiles.size(); ++i) {
+        for (size_t j = 0; j < tiles[i].size(); ++j) {
+            std::cout << "tile(" << i+1 << ", " << j+1 << "): " << std::endl;
+            tiles[i][j].printMappedblks();
+        }
     }
 }
 

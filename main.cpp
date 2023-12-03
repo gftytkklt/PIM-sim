@@ -47,5 +47,6 @@ int main(){
     // TEST4: test SIMD blk init
     chip.printSIMD();
     // TEST5: test SIMD blk mapping
+    chip.print_mappedblks();
     return 0;
 }

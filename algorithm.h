@@ -25,6 +25,7 @@ class Baseblk {
         int getLayer() const { return layer; }
         std::pair<int, int> getInChannel() const { return in_channel; }
         std::pair<int, int> getOutChannel() const { return out_channel; }
+        void printBaseblkInfo() const;
 };
 
 class SIMDblk {
@@ -34,7 +35,7 @@ class SIMDblk {
         std::vector<Baseblk> baseblks;
         std::vector<SIMDblk*> parents, children;
         int fanout;
-
+        std::pair<int, int> fanout_loc;
     public:
         SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel);
         const std::vector<Baseblk>& getBaseblks() const {return baseblks;}
@@ -45,8 +46,10 @@ class SIMDblk {
         void addChild(SIMDblk* child) {children.push_back(child);}
         std::vector<SIMDblk*> getParent() const {return parents;}
         std::vector<SIMDblk*> getChild() const {return children;}
-        void incrFanout(int size) {fanout += size;};
+        void incrFanout(int size) {fanout += size;}
         int getFanout() const {return fanout;}
+        std::pair<int, int> getFanoutloc() const {return fanout_loc;}
+        void setFanoutloc(std::pair<int, int> loc) {fanout_loc = loc;}
 };
 
 class DFG {

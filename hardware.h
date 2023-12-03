@@ -50,6 +50,7 @@ class PIM_tile{
         void del_connection(Direction direct, connect_type type); // del type.used
         void clr_connection(); // clr all used
         void map_blk(Baseblk &blk); // must map blk to available tile by dfg algorithm
+        void printMappedblks() const;
         friend std::ostream& operator<<(std::ostream& out,const PIM_tile& tile);
 };
 
@@ -74,6 +75,7 @@ class PIM_chip{
         friend std::ostream& operator<<(std::ostream& out,const PIM_chip& chip);
         void printDFG(){this->dfg.print_baseblks();}
         void printSIMD(){this->dfg.print_SIMDblks();}
+        void print_mappedblks() const;
 };
 
 #endif
