@@ -2,16 +2,38 @@
 
 
 // sort elem in DAG in simulation order
-template<typename Task, typename Memory, ModuleConcept Module>
-void PerfModel<Task, Memory, Module>::topologicalSort(){
+template<typename Task, typename Memory>
+void PerfModel<Task, Memory>::topologicalSort(){
     std::unordered_map<Module*, NodeState> states;
-    dfs(root, states);
+    dfs(this->root, states);
     simList.pop_back();
 }
 
-template<typename Task, typename Memory, ModuleConcept Module>
-void PerfModel<Task, Memory, Module>::dfs(std::shared_ptr<Module> node, std::unordered_map<Module*, NodeState>& states){
+// template<typename Task, typename Memory>
+// void PerfModel<Task, Memory>::dfs(Module* node, std::unordered_map<Module*, NodeState>& states){
+//     // end of DAG or visited node: do nothing
+//     if (!node || states[node] == NodeState::Visited) {
+//         return;
+//     }
+//     // loop detection
+//     if (states[node] == NodeState::Visiting) {
+//         throw std::runtime_error("Detected a cycle in the graph");
+//     }
+//     // mark node to visited
+//     states[node] = NodeState::Visiting;
+//     // search node recursively
+//     for (auto& nextNode : node->getNext()) {
+//         dfs(nextNode.get(), states);
+//     }
+//     // leaf node: marked visited & add to list
+//     states[node] = NodeState::Visited;
+//     simList.push_back(node);
+// }
+
+template<typename Task, typename Memory>
+void PerfModel<Task, Memory>::dfs(std::shared_ptr<Module> node, std::unordered_map<Module*, NodeState>& states){
     // end of DAG or visited node: do nothing
+    // std::cout << "dfs loop" << std::endl;
     if (!node || states[node.get()] == NodeState::Visited) {
         return;
     }
@@ -20,25 +42,29 @@ void PerfModel<Task, Memory, Module>::dfs(std::shared_ptr<Module> node, std::uno
         throw std::runtime_error("Detected a cycle in the graph");
     }
     // mark node to visited
+    // std::cout << "dfs loop2" << std::endl;
     states[node.get()] = NodeState::Visiting;
     // search node recursively
-    for (auto& nextNode : node->next) {
+    for (auto& nextNode : node->getNext()) {
+        // std::cout << "dfs inner loop" << std::endl;
         dfs(nextNode, states);
     }
     // leaf node: marked visited & add to list
     states[node.get()] = NodeState::Visited;
+    // node.get()->exec();
     simList.push_back(node);
 }
 
-template<typename Task, typename Memory, ModuleConcept Module>
-void PerfModel<Task, Memory, Module>::clock() {
+template<typename Task, typename Memory>
+void PerfModel<Task, Memory>::clock() {
     for (auto& module : simList){
         module->exec();
     }
     cur_cycle++;
 }
 
-template<typename Task, typename Memory, ModuleConcept Module>
-void PerfModel<Task, Memory, Module>::run(){
+template<typename Task, typename Memory>
+void PerfModel<Task, Memory>::run(){
     clock();
+
 }

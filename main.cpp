@@ -1,8 +1,9 @@
 #include <iostream>
 #include "hardware.h"
 #include "sim.h"
-// #include "module.h"
+#include "module.h"
 int main(){
+    std::cout << "hello main!" << std::endl;
     /*
     // TEST1: test tile func impl(tile may become private class of chip)
     PIM_tile tile(5, 4);
@@ -61,38 +62,39 @@ int main(){
         public:
         Memory(){std::cout<<"Hello mem\n"<<std::endl;}
     };
-    class testmodule{
+    // class testmodule{
+    // public:
+    //     std::string name;
+    //     std::vector<std::shared_ptr<testmodule>> next; // 指向后续模块的列表
+    //     testmodule(std::string n) : name(std::move(n)) {}
+
+    //     void addNext(std::shared_ptr<testmodule> module) {
+    //         next.push_back(module);
+    //     }
+
+    //     virtual void exec() {
+    //         // 模拟执行模块的功能
+    //         std::cout << "Executing " << name << std::endl;
+    //     }
+    // };
+
+    class testmodule2 : public Module{
     public:
-        std::string name;
-        std::vector<std::shared_ptr<testmodule>> next; // 指向后续模块的列表
-        testmodule(std::string n) : name(std::move(n)) {}
-
-        void addNext(std::shared_ptr<testmodule> module) {
-            next.push_back(module);
-        }
-
-        virtual void exec() {
-            // 模拟执行模块的功能
-            std::cout << "Executing " << name << std::endl;
-        }
-    };
-
-    class testmodule2 : public testmodule{
-    public:
-        testmodule2(std::string n) : testmodule(n) {}
+        testmodule2(std::string n, Module* parent) : Module(n, parent) {}
         void exec() override{
-            std::cout << "xxx exec " << name << std::endl;
+            std::cout << "xxx exec " << this->getName() << std::endl;
         }
     };
 
-    auto root = std::make_shared<testmodule>("root");
-    auto A = std::make_shared<testmodule>("A");
-    auto B = std::make_shared<testmodule>("B");
-    auto C = std::make_shared<testmodule>("C");
-    auto D = std::make_shared<testmodule2>("D");
-    auto E = std::make_shared<testmodule>("E");
-    auto F = std::make_shared<testmodule>("F");
-    root->addNext(A);
+    // auto root = std::make_shared<testmodule>("root");
+    PerfModel<Task, Memory> model("root");
+    auto A = std::make_shared<Module>("A", model.root.get());
+    auto B = std::make_shared<Module>("B", model.root.get());
+    auto C = std::make_shared<Module>("C", model.root.get());
+    auto D = std::make_shared<testmodule2>("D", model.root.get());
+    auto E = std::make_shared<Module>("E", model.root.get());
+    auto F = std::make_shared<Module>("F", model.root.get());
+    // root->addNext(A);
     A->addNext(B);
     A->addNext(C);
     B->addNext(C);
@@ -101,8 +103,8 @@ int main(){
     C->addNext(E);
     C->addNext(F);
 
-    PerfModel<Task, Memory, testmodule> model(root);
+    model.init();
     model.run();
-
+    std::cout << "goodbye main!" << std::endl;
     return 0;
 }

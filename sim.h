@@ -46,17 +46,19 @@ enum class NodeState {
     Visiting,
     Visited
 };
-template<typename Task, typename Memory, ModuleConcept Module>
-class PerfModel : public TimingSimtile<Task, Memory>{
+template<typename Task, typename Memory>
+class PerfModel : public TimingSimtile<Task, Memory>, public Module{
 public:
-    explicit PerfModel(std::shared_ptr<Module> root) : root(std::move(root)) {topologicalSort();}
-    void clock() final;// run modl
-    void run() final;
+    std::shared_ptr<Module> root = std::make_shared<Module>("root");// root of hardware DAG(data fwd resolved by global data individually)
+    explicit PerfModel(std::string n) : Module(n){}
+    void clock() final;// sim sequence
+    virtual void run();// run wrapper
+    void init(){topologicalSort();}
 private:
-    std::shared_ptr<Module> root;// root of hardware DAG(data fwd resolved by global data individually)
     std::vector<std::shared_ptr<Module>> simList;// sim order of module list
     uint64_t cur_cycle = 0;// sim time counter
     void topologicalSort();
+    // void dfs(Module* node, std::unordered_map<Module*, NodeState>& states);
     void dfs(std::shared_ptr<Module> node, std::unordered_map<Module*, NodeState>& states);
 };
 
