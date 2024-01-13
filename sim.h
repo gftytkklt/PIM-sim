@@ -6,7 +6,8 @@
 #include <unordered_map>
 #include "module.h"
 // abstract basemodel, define base tile programming status
-template<typename Task>
+// task abstraction
+template<TaskConcept Task>
 class BasePIMModel{
 public:
     BasePIMModel() = default;
@@ -22,9 +23,11 @@ public:
 };
 
 // abstract functional tile model, define base tile resources
-template<typename Task, typename Memory>
+// memory abstraction
+template<TaskConcept Task>
 class Simtile : public BasePIMModel<Task>{
 public:
+    using Inst = typename Task::Inst;
     Simtile() = default;
     virtual void run() = 0;// abstract simulator run
     // virtual void set_memory(std::shared_ptr<Memory> m) = 0;// set specific hierarchical memory
@@ -33,8 +36,8 @@ public:
 };
 
 // abstract timing-tile model, define base clock behavior
-template<typename Task, typename Memory>
-class TimingSimtile : public Simtile<Task, Memory>{
+template<TaskConcept Task>
+class TimingSimtile : public Simtile<Task>{
 public:
     virtual void clock() = 0;
     static std::shared_ptr<TimingSimtile> create_simtile();
@@ -46,14 +49,15 @@ enum class NodeState {
     Visiting,
     Visited
 };
-template<typename Task, typename Memory>
-class PerfModel : public TimingSimtile<Task, Memory>, public Module{
+template<TaskConcept Task>
+class PerfModel : public TimingSimtile<Task>, public Module{
 public:
     std::shared_ptr<Module> root = std::make_shared<Module>("root");// root of hardware DAG(data fwd resolved by global data individually)
     explicit PerfModel(std::string n) : Module(n){}
     void clock() final;// sim sequence
     virtual void run();// run wrapper
-    void init(){topologicalSort();}
+    virtual void init(){topologicalSort();}
+    uint64_t get_cycle() const {return cur_cycle;}
 private:
     std::vector<std::shared_ptr<Module>> simList;// sim order of module list
     uint64_t cur_cycle = 0;// sim time counter

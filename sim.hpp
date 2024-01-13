@@ -2,8 +2,8 @@
 
 
 // sort elem in DAG in simulation order
-template<typename Task, typename Memory>
-void PerfModel<Task, Memory>::topologicalSort(){
+template<TaskConcept Task>
+void PerfModel<Task>::topologicalSort(){
     std::unordered_map<Module*, NodeState> states;
     dfs(this->root, states);
     simList.pop_back();
@@ -30,8 +30,8 @@ void PerfModel<Task, Memory>::topologicalSort(){
 //     simList.push_back(node);
 // }
 
-template<typename Task, typename Memory>
-void PerfModel<Task, Memory>::dfs(std::shared_ptr<Module> node, std::unordered_map<Module*, NodeState>& states){
+template<TaskConcept Task>
+void PerfModel<Task>::dfs(std::shared_ptr<Module> node, std::unordered_map<Module*, NodeState>& states){
     // end of DAG or visited node: do nothing
     // std::cout << "dfs loop" << std::endl;
     if (!node || states[node.get()] == NodeState::Visited) {
@@ -55,16 +55,15 @@ void PerfModel<Task, Memory>::dfs(std::shared_ptr<Module> node, std::unordered_m
     simList.push_back(node);
 }
 
-template<typename Task, typename Memory>
-void PerfModel<Task, Memory>::clock() {
+template<TaskConcept Task>
+void PerfModel<Task>::clock() {
     for (auto& module : simList){
         module->exec();
     }
     cur_cycle++;
 }
 
-template<typename Task, typename Memory>
-void PerfModel<Task, Memory>::run(){
+template<TaskConcept Task>
+void PerfModel<Task>::run(){
     clock();
-
 }

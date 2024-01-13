@@ -10,6 +10,11 @@
 //     { a.next } -> std::same_as<std::vector<std::shared_ptr<T>>&>;
 //     { a.exec() } -> std::same_as<void>;
 // };
+template<typename T>
+concept TaskConcept = requires {
+    typename T::Inst; // Task must have a Inst class for memory init
+};
+
 class Module{
 public:
     // for PerfSim parent init

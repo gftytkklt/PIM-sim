@@ -1,7 +1,8 @@
 #include <iostream>
-#include "hardware.h"
-#include "sim.h"
-#include "module.h"
+// #include "hardware.h"
+// #include "sim.h"
+// #include "module.h"
+#include "sequential\seq.h"
 int main(){
     std::cout << "hello main!" << std::endl;
     /*
@@ -53,13 +54,19 @@ int main(){
     // TEST5: test SIMD blk mapping
     chip.print_mappedblks();
     */
+    /*
     // TEST6: test module inst
     class Task{
-        public:
+    public:
         Task(){std::cout<<"Hello task"<<std::endl;}
+        struct Inst{
+            int data;
+            bool isAdd;
+            int src1, src2, dest;
+        };
     };
     class Memory{
-        public:
+    public:
         Memory(){std::cout<<"Hello mem\n"<<std::endl;}
     };
     // class testmodule{
@@ -87,7 +94,7 @@ int main(){
     };
 
     // auto root = std::make_shared<testmodule>("root");
-    PerfModel<Task, Memory> model("root");
+    PerfModel<Task> model("root");
     auto A = std::make_shared<Module>("A", model.root.get());
     auto B = std::make_shared<Module>("B", model.root.get());
     auto C = std::make_shared<Module>("C", model.root.get());
@@ -105,6 +112,11 @@ int main(){
 
     model.init();
     model.run();
+    */
+    // test 7: test seq module run(in new abstraction)
+    SeqPipeline seq("seq", 10);
+    seq.init();
+    seq.run();
     std::cout << "goodbye main!" << std::endl;
     return 0;
 }
