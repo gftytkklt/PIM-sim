@@ -2,7 +2,7 @@
 // #include "hardware.h"
 // #include "sim.h"
 // #include "module.h"
-#include "sequential\seq.h"
+#include "sequential/seq.h"
 int main(){
     std::cout << "hello main!" << std::endl;
     /*

@@ -60,10 +60,10 @@ void PerfModel<Task>::clock() {
     for (auto& module : simList){
         module->exec();
     }
-    cur_cycle++;
 }
 
 template<TaskConcept Task>
 void PerfModel<Task>::run(){
     clock();
+    incr_cycle();
 }

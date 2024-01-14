@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <concepts>
+#include <iostream>
 // #include "sim.h"
 
 // template<typename T>

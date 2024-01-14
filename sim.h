@@ -27,7 +27,6 @@ public:
 template<TaskConcept Task>
 class Simtile : public BasePIMModel<Task>{
 public:
-    using Inst = typename Task::Inst;
     Simtile() = default;
     virtual void run() = 0;// abstract simulator run
     // virtual void set_memory(std::shared_ptr<Memory> m) = 0;// set specific hierarchical memory
@@ -52,12 +51,14 @@ enum class NodeState {
 template<TaskConcept Task>
 class PerfModel : public TimingSimtile<Task>, public Module{
 public:
+    using Inst = typename Task::Inst;
     std::shared_ptr<Module> root = std::make_shared<Module>("root");// root of hardware DAG(data fwd resolved by global data individually)
     explicit PerfModel(std::string n) : Module(n){}
     void clock() final;// sim sequence
     virtual void run();// run wrapper
     virtual void init(){topologicalSort();}
     uint64_t get_cycle() const {return cur_cycle;}
+    void incr_cycle(){cur_cycle++;}
 private:
     std::vector<std::shared_ptr<Module>> simList;// sim order of module list
     uint64_t cur_cycle = 0;// sim time counter
