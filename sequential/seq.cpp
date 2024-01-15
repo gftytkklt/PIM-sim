@@ -28,12 +28,21 @@ void SeqPipeline::run(){
     else{
         std::cout << "hit good trap at cycle "<< get_cycle() << std::endl;
     }
+    printstat();
 }
 
 void SeqPipeline::init_memory(){
     auto inst_num = task.get_inst_num();
     for(uint64_t i = 0; i < inst_num; i++){
-        OPTYPE op = (i % 5) ? OPTYPE::ADD : OPTYPE::MUL;
+        OPTYPE op = (i % 4) ? OPTYPE::ADD : OPTYPE::MUL;
         addInst(std::make_unique<Inst>(0, op, 0, 0, 0));
     }
+    std::cout << "memory size: " << memory.size() << std::endl;
+}
+
+void SeqPipeline::printstat(){
+    std::cout << "total inst: " << state.commit_num << "\n";
+    std::cout << "add inst: " << state.add_cmt << "\n";
+    std::cout << "mul inst: " << state.mul_cmt << "\n";
+    std::cout << "mul congestion ticks: " << state.mul_congest << "\n";
 }
