@@ -1,10 +1,15 @@
 #include <iostream>
-// #include "hardware.h"
+#include "hardware.h"
 // #include "sim.h"
 // #include "module.h"
 #include "sequential/seq.h"
+
+void deploySIMD(SIMDblk &blk){
+    std::cout << "impl me!\n";
+}
+
 int main(){
-    std::cout << "hello main!" << std::endl;
+    std::cout << "hello main!\n";
     /*
     // TEST1: test tile func impl(tile may become private class of chip)
     PIM_tile tile(5, 4);
@@ -42,18 +47,21 @@ int main(){
     chip.remove_connection(std::make_pair(0, 1), std::make_pair(1, 1), connect_type::SIMD);
     std::cout << "remove: " << std::endl << chip << std::endl;
     */
-    /*
+    
     // TEST3: test conv kernel init
     struct Convkernel kernel1{1, 3, 3, 1, 256, 384};
     struct Convkernel kernel2{2, 3, 3, 1, 384, 384};
     struct Convkernel kernel3{3, 3, 3, 1, 384, 256};
-    PIM_chip chip(3, 3, 10, 4, std::make_pair(1152, 256), std::vector<Convkernel>{kernel1, kernel2, kernel3});
+    PIM_chip chip(3, 3, 10, 4, std::make_pair(1152, 256), std::vector<Convkernel>{kernel1, kernel2, kernel3}, deploySIMD);
+    std::cout << "DFG: \n";
     chip.printDFG();
     // TEST4: test SIMD blk init
+    std::cout << "SIMD: \n";
     chip.printSIMD();
     // TEST5: test SIMD blk mapping
+    std::cout << "mappedblks: \n";
     chip.print_mappedblks();
-    */
+    
     /*
     // TEST6: test module inst
     class Task{
@@ -113,10 +121,12 @@ int main(){
     model.init();
     model.run();
     */
+    /*
     // test 7: test seq module run(in new abstraction)
     SeqPipeline seq("seq", 10);
     seq.init();
     seq.run();
     std::cout << "goodbye main!" << std::endl;
     return 0;
+    */
 }

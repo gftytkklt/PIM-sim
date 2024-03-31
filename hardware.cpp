@@ -130,8 +130,8 @@ void PIM_tile::printMappedblks() const {
 }
 
 // tile array impl
-PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {})
-    : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{memsize, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize} {
+PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {}, std::function<void(SIMDblk&)> func = {})
+    : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{memsize, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize}, deploySIMDhandler{func} {
     init_connection();
     map_DFG();
     // for debug
@@ -238,97 +238,101 @@ void PIM_chip::free_blk(int xdst, int ydst, int num) {
 //     }
 // }
 // under layer by layer deploy logic
-void PIM_chip::deploySIMD(SIMDblk &blk) {
-    int size = blk.getBaseblks().size();
-    std::cout << "size: " << size << std::endl;
-    int fanout = blk.getFanout();
-    auto parents = blk.getParent();
-    std::vector<std::pair<int, int>> fanin{};
-    std::vector<std::pair<int, int>> locations{};
-    if(!parents.empty()) {
-        for (const auto &parent : parents){
-            fanin.emplace_back(parent->getFanoutloc());
-        }
-    }
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::default_random_engine engine(seed);
+// void PIM_chip::deploySIMD(SIMDblk &blk) {
+//     int size = blk.getBaseblks().size();
+//     std::cout << "size: " << size << std::endl;
+//     int fanout = blk.getFanout();
+//     auto parents = blk.getParent();
+//     std::vector<std::pair<int, int>> fanin{};
+//     std::vector<std::pair<int, int>> locations{};
+//     if(!parents.empty()) {
+//         for (const auto &parent : parents){
+//             fanin.emplace_back(parent->getFanoutloc());
+//         }
+//     }
+//     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+//     std::default_random_engine engine(seed);
 
-    // 生成行索引的随机顺序
-    std::vector<int> rowIndexes(tiles.size());
-    std::iota(rowIndexes.begin(), rowIndexes.end(), 0); // 填充0到tiles.size()-1
-    std::shuffle(rowIndexes.begin(), rowIndexes.end(), engine);
-    bool findfanout = false;
-    std::pair<int, int> fanout_loc{};
-    for(int row : rowIndexes) {
-        // 生成列索引的随机顺序
-        std::vector<int> colIndexes(tiles[row].size());
-        std::iota(colIndexes.begin(), colIndexes.end(), 0); // 填充0到tiles[row].size()-1
-        std::shuffle(colIndexes.begin(), colIndexes.end(), engine);
-        for(int col : colIndexes) {
-            auto &tile = tiles[row][col];
-            if((tile.get_portnum(connect_type::SRAM) >= fanout) && (!tile.allocate_blk(1))){
-                fanout_loc = std::make_pair(row, col);
-                findfanout = true;
-                blk.setFanoutloc(fanout_loc);
-                locations.push_back(fanout_loc);
-                break;
-            }
-        }
-        if(findfanout) {
-            break;
-        }
-    }
-    // deploy other blks: gen ramdom pts, connect it
-    if (size > 1){
-        auto dst = randomPointWithManhattanDistance(this->row, this->col, fanout_loc.first, fanout_loc.second, size-1);
-        // add_connection(fanout_loc, dst, connect_type::SIMD);
-        // std::cout << "from (" << fanout_loc.first << ", " << fanout_loc.second << ") to (" << dst.first << ", " << dst.second << std::endl;
-        int deltax = dst.first > fanout_loc.first ? 1 : -1;
-        int deltay = dst.second > fanout_loc.second ? 1 : -1;
-        while((fanout_loc.first != dst.first) || (fanout_loc.second != dst.second)){
-            if(fanout_loc.second != dst.second){
-                fanout_loc.second += deltay;
-                locations.push_back(fanout_loc);
-                // std::cout << "push (" << fanout_loc.first << ", " << fanout_loc.second << std::endl;
-                continue;
-            }
-            fanout_loc.first += deltax;
-            locations.push_back(fanout_loc);
-            // std::cout << "push (" << fanout_loc.first << ", " << fanout_loc.second << std::endl;
-        }
-    }
-    // locations.size should be equal to baseblks
-    auto baseblks = blk.getBaseblks();
-    // std::cout << "size: " << locations.size() << " vs " << baseblks.size() << std::endl;
-    assert(locations.size() == baseblks.size());
-    for (int i=0; i<locations.size(); i++){
-        int x = locations[i].first;
-        int y = locations[i].second;
-        tiles[x][y].allocate_blk(1);
-        tiles[x][y].map_blk(baseblks[i]);
-    }
-    // bool findfanout = false;
-    // std::pair<int, int> fanout_loc{};
-    // // find fan out location
-    // for(int i = 0; i < tiles.size(); ++i) {
-    //     for (int j = 0; j < tiles[i].size(); ++j) {
-    //         auto &tile = tiles[i][j];
-    //         if((tile.get_portnum(connect_type::SRAM) >= fanout) && (!tile.allocate_blk(1))){
-    //             fanout_loc = std::make_pair(i, j);
-    //             findfanout = true;
-    //             locations.push_back(fanout_loc);
-    //             break;
-    //         }
-    //     }
-    //     if(findfanout) {
-    //         break;
-    //     }
-    // }
-}
+//     // 生成行索引的随机顺序
+//     std::vector<int> rowIndexes(tiles.size());
+//     std::iota(rowIndexes.begin(), rowIndexes.end(), 0); // 填充0到tiles.size()-1
+//     std::shuffle(rowIndexes.begin(), rowIndexes.end(), engine);
+//     bool findfanout = false;
+//     std::pair<int, int> fanout_loc{};
+//     for(int row : rowIndexes) {
+//         // 生成列索引的随机顺序
+//         std::vector<int> colIndexes(tiles[row].size());
+//         std::iota(colIndexes.begin(), colIndexes.end(), 0); // 填充0到tiles[row].size()-1
+//         std::shuffle(colIndexes.begin(), colIndexes.end(), engine);
+//         for(int col : colIndexes) {
+//             auto &tile = tiles[row][col];
+//             if((tile.get_portnum(connect_type::SRAM) >= fanout) && (!tile.allocate_blk(1))){
+//                 fanout_loc = std::make_pair(row, col);
+//                 findfanout = true;
+//                 blk.setFanoutloc(fanout_loc);
+//                 locations.push_back(fanout_loc);
+//                 break;
+//             }
+//         }
+//         if(findfanout) {
+//             break;
+//         }
+//     }
+//     // deploy other blks: gen ramdom pts, connect it
+//     if (size > 1){
+//         auto dst = randomPointWithManhattanDistance(this->row, this->col, fanout_loc.first, fanout_loc.second, size-1);
+//         // add_connection(fanout_loc, dst, connect_type::SIMD);
+//         // std::cout << "from (" << fanout_loc.first << ", " << fanout_loc.second << ") to (" << dst.first << ", " << dst.second << std::endl;
+//         int deltax = dst.first > fanout_loc.first ? 1 : -1;
+//         int deltay = dst.second > fanout_loc.second ? 1 : -1;
+//         while((fanout_loc.first != dst.first) || (fanout_loc.second != dst.second)){
+//             if(fanout_loc.second != dst.second){
+//                 fanout_loc.second += deltay;
+//                 locations.push_back(fanout_loc);
+//                 // std::cout << "push (" << fanout_loc.first << ", " << fanout_loc.second << std::endl;
+//                 continue;
+//             }
+//             fanout_loc.first += deltax;
+//             locations.push_back(fanout_loc);
+//             // std::cout << "push (" << fanout_loc.first << ", " << fanout_loc.second << std::endl;
+//         }
+//     }
+//     // locations.size should be equal to baseblks
+//     auto baseblks = blk.getBaseblks();
+//     // std::cout << "size: " << locations.size() << " vs " << baseblks.size() << std::endl;
+//     assert(locations.size() == baseblks.size());
+//     for (int i=0; i<locations.size(); i++){
+//         int x = locations[i].first;
+//         int y = locations[i].second;
+//         tiles[x][y].allocate_blk(1);
+//         tiles[x][y].map_blk(baseblks[i]);
+//     }
+//     // bool findfanout = false;
+//     // std::pair<int, int> fanout_loc{};
+//     // // find fan out location
+//     // for(int i = 0; i < tiles.size(); ++i) {
+//     //     for (int j = 0; j < tiles[i].size(); ++j) {
+//     //         auto &tile = tiles[i][j];
+//     //         if((tile.get_portnum(connect_type::SRAM) >= fanout) && (!tile.allocate_blk(1))){
+//     //             fanout_loc = std::make_pair(i, j);
+//     //             findfanout = true;
+//     //             locations.push_back(fanout_loc);
+//     //             break;
+//     //         }
+//     //     }
+//     //     if(findfanout) {
+//     //         break;
+//     //     }
+//     // }
+// }
 
 // based on SIMDblk is sorted by ascending order of SIMD.layer
 void PIM_chip::map_DFG() {
     // TODO: impl me
+    if(!deploySIMDhandler) {
+        std::cout << "No func handler provided!\n";
+        return;
+    }
     auto SIMDblks = this->dfg.get_SIMDblk();
     for (auto it = SIMDblks.begin(); it!= SIMDblks.end(); ++it){
         // int cursize = it->getBaseblks().size();
@@ -341,7 +345,7 @@ void PIM_chip::map_DFG() {
         //         fanin.emplace_back(parent->getFanoutloc());
         //     }
         // }
-        deploySIMD(*it);
+        deploySIMDhandler(*it);
         // auto index = getNodeIndex(fanin, cursize, fanout);
     }
 }
