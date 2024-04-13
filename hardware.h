@@ -77,8 +77,8 @@ class PIM_chip{
         // std::vector<std::pair<int, int>> getNodeIndex(std::vector<std::pair<int, int>> fanins, int size, int fanout);
         void map_DFG(); // impl DFG->tile mapping
         friend std::ostream& operator<<(std::ostream& out,const PIM_chip& chip);
-        void printDFG(){this->dfg.print_baseblks();}
-        void printSIMD(){this->dfg.print_SIMDblks();}
+        void printDFG(){this->dfg.printBaseblks();}
+        void printSIMD(){this->dfg.printSIMDblks();}
         void print_mappedblks() const;
         // get tile index to be allocated to SIMDblk
 };

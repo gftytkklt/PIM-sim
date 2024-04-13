@@ -237,7 +237,7 @@ void PIM_chip::free_blk(int xdst, int ydst, int num) {
 //         }
 //     }
 // }
-// under layer by layer deploy logic
+// // under layer by layer deploy logic
 // void PIM_chip::deploySIMD(SIMDblk &blk) {
 //     int size = blk.getBaseblks().size();
 //     std::cout << "size: " << size << std::endl;
@@ -333,7 +333,7 @@ void PIM_chip::map_DFG() {
         std::cout << "No func handler provided!\n";
         return;
     }
-    auto SIMDblks = this->dfg.get_SIMDblk();
+    auto SIMDblks = this->dfg.getSIMDblk();
     for (auto it = SIMDblks.begin(); it!= SIMDblks.end(); ++it){
         // int cursize = it->getBaseblks().size();
         // int fanout = it->getFanout();

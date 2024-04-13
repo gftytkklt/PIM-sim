@@ -2,7 +2,9 @@
 #include "hardware.h"
 // #include "sim.h"
 // #include "module.h"
-#include "sequential/seq.h"
+// #include "sequential/seq.h"
+#include "strategy/mapping.h"
+
 
 void deploySIMD(SIMDblk &blk){
     std::cout << "impl me!\n";

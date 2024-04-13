@@ -6,7 +6,7 @@
 Baseblk::Baseblk(int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel)
     : layer{layer}, in_channel{in_channel}, out_channel{out_channel}, fmap_size{0}, location{} {}
 
-void Baseblk::set_location(std::pair<int, int> coord) {
+void Baseblk::setLocation(std::pair<int, int> coord) {
     this->location = coord;
 }
 
@@ -23,16 +23,17 @@ SIMDblk::SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int
 
 DFG::DFG(std::vector<Convkernel> kernels={}, std::pair<int, int> maxbaseblk={})
     : kernels{kernels}, maxbaseblk{maxbaseblk} {
-    create_baseblk();
-    create_SIMDblk();
-    connect_SIMDblk();
+    createBaseblk();
+    createSIMDblk();
+    connectSIMDblk();
+    connectBaseblk();
 }
 // steps: 
 // 1. decomp w*h to A*3*3
 // 2. decomp in channel to 128*B
 // 3. decomp out channnel to 256*C
 // 4. baseblk = {A*B*C} elems' set for each layer
-void DFG::create_baseblk(){
+void DFG::createBaseblk(){
     const int maxInChannels = this->maxbaseblk.first/9;
     const int maxOutChannels = this->maxbaseblk.second;
     for(auto &kernel : this->kernels){
@@ -54,7 +55,7 @@ void DFG::create_baseblk(){
 }
 // rules: merge baseblk with same layer and in channel
 // must exec after create_baseblk()
-void DFG::create_SIMDblk() {
+void DFG::createSIMDblk() {
     // store extra info of SIMD blk
     struct SIMDInfo {
         std::vector<Baseblk> baseblks;
@@ -93,7 +94,7 @@ void DFG::create_SIMDblk() {
 
 
 // based on SIMDblk is sorted by ascending order of SIMD.layer
-void DFG::connect_SIMDblk() {
+void DFG::connectSIMDblk() {
     for (auto it = this->SIMDblks.begin(); it != this->SIMDblks.end(); ++it) {
         int cur_layer = it->getLayer();
         auto parent_channel = it->getOutChannel();
@@ -120,17 +121,26 @@ void DFG::connect_SIMDblk() {
     }
 }
 
-std::pair<int, int> DFG::get_blksize() const{
+// 1. get each baseblk in SIMDblk
+// 2. get child SIMDblk of parent SIMDblk
+// 3. check corresponding relationship
+void DFG::connectBaseblk(){
+    // std::cout << "test\n";
+    // this->printBaseblks();
+    // std::cout << "test end\n";
+}
+
+std::pair<int, int> DFG::getBlksize() const{
     return this->maxbaseblk;
 }
 
-void DFG::print_baseblks() const{
+void DFG::printBaseblks() const{
     for (const auto& blk : baseblks) {
         blk.printBaseblkInfo();
     }
 }
 
-void DFG::print_SIMDblks() const {
+void DFG::printSIMDblks() const {
     int i = 0;
     for (const auto& simdBlk : SIMDblks) {
         std::cout << "SIMD blk: " << ++i << std::endl;
