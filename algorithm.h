@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include <iostream>
 
 struct Convkernel {
     // for data dependency
@@ -19,29 +20,34 @@ class Baseblk {
         std::pair<int, int> in_channel, out_channel; // conv channel
         int fmap_size; // fmap size
         std::pair<int, int> location; // location on PIM-tile array
-        std::vector<Baseblk> successor; // indicate data dependency
+        std::vector<Baseblk*> successors; // indicate data dependency
     public:
         Baseblk(int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel);
         void setLocation(std::pair<int, int> coord);
         int getLayer() const { return layer; }
-        void addSuccessor(Baseblk blk) { successor.push_back(blk); }
+        void addSuccessor(Baseblk* blk) { 
+            successors.push_back(blk);
+            // std::cout << "size: " << successors.size() << "\n";
+        }
         std::pair<int, int> getInChannel() const { return in_channel; }
         std::pair<int, int> getOutChannel() const { return out_channel; }
         void printBaseblkInfo() const;
+        void printSuccessorInfo() const;
 };
 
 class SIMDblk {
     private:
         int layer;
         std::pair<int, int> in_channel, out_channel;
-        std::vector<Baseblk> baseblks;
+        std::vector<Baseblk*> baseblks;
         std::vector<SIMDblk*> parents, children;
         int fanout;
         std::pair<int, int> fanout_loc;
         bool ismapped;
     public:
-        SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel);
-        const std::vector<Baseblk>& getBaseblks() const {return baseblks;}
+        SIMDblk(const std::vector<Baseblk*> blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel);
+        auto& getBaseblks() { return baseblks; }
+        const auto& getBaseblks() const {return baseblks;}
         int getLayer() const {return layer;}
         std::pair<int, int> getInChannel() const {return in_channel;}
         std::pair<int, int> getOutChannel() const {return out_channel;}
@@ -53,6 +59,7 @@ class SIMDblk {
         int getFanout() const {return fanout;}
         std::pair<int, int> getFanoutloc() const {return fanout_loc;}
         void setFanoutloc(std::pair<int, int> loc) {fanout_loc = loc;}
+        void connectBaseblk();
 };
 
 class DFG {

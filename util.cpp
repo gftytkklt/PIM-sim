@@ -10,7 +10,7 @@ std::pair<int, int> getOverlap(const std::pair<int, int>& range1, const std::pai
     // 计算重叠区间的起始和终止点
     int start = std::max(range1.first, range2.first);
     int end = std::min(range1.second, range2.second);
-
+    // std::cout << "overlap: " << start << ", " << end << std::endl;
     // 检查区间是否真的有重叠
     if (start <= end) {
         return {start, end};

@@ -14,12 +14,38 @@ void Baseblk::printBaseblkInfo() const {
     std::cout << "Layer: " << this->getLayer()
                   << ", In Channel: " << this->getInChannel().first << " - " << this->getInChannel().second
                   << ", Out Channel: " << this->getOutChannel().first << " - " << this->getOutChannel().second
-                  << std::endl;
+                  << ", child size: " << this->successors.size() << std::endl;
 }
 
-SIMDblk::SIMDblk(const std::vector<Baseblk>& blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel)
+void Baseblk::printSuccessorInfo() const {
+    for(const auto& successor : successors){
+        successor->printBaseblkInfo();
+    }
+}
+
+SIMDblk::SIMDblk(const std::vector<Baseblk*> blks, int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel)
     : baseblks{blks}, layer{layer}, in_channel{in_channel}, out_channel{out_channel},
     parents{}, children{}, fanout{0}, fanout_loc{std::make_pair(-1, -1)}, ismapped{false}{}
+
+void SIMDblk::connectBaseblk(){
+    for(auto it = baseblks.begin(); it < baseblks.end()-1 ; ++it){
+        (*it)->addSuccessor(*(it+1));
+    }
+    auto outblk = baseblks.end()-1;
+    // std::cout << "test outblk info:\n";
+    // (*outblk)->printBaseblkInfo();
+    // std::cout << "test childblk info:\n";
+    for(auto child : children){
+        for(auto childblk : child->getBaseblks()){
+            if(getOverlap(childblk->getInChannel(), (*outblk)->getOutChannel()) != std::make_pair(0, 0)){
+                // childblk->printBaseblkInfo();
+                (*outblk)->addSuccessor(childblk);
+            }
+        }
+    }
+    // std::cout << "test final outblk info:\n";
+    // (*outblk)->printBaseblkInfo();
+}
 
 DFG::DFG(std::vector<Convkernel> kernels={}, std::pair<int, int> maxbaseblk={})
     : kernels{kernels}, maxbaseblk{maxbaseblk} {
@@ -58,7 +84,7 @@ void DFG::createBaseblk(){
 void DFG::createSIMDblk() {
     // store extra info of SIMD blk
     struct SIMDInfo {
-        std::vector<Baseblk> baseblks;
+        std::vector<Baseblk*> baseblks;
         int layer;
         std::pair<int, int> inChannel;
         std::pair<int, int> outChannel;
@@ -66,10 +92,10 @@ void DFG::createSIMDblk() {
     // use layer(int) & out_channel(std::pair<int, int>) for labelling
     std::map<std::pair<int, std::pair<int, int>>, SIMDInfo> groupedBlks;
 
-    for (const auto& blk : baseblks) {
+    for (auto& blk : baseblks) {
         auto key = std::make_pair(blk.getLayer(), blk.getOutChannel());
         auto& info = groupedBlks[key];
-        info.baseblks.push_back(blk);
+        info.baseblks.push_back(&blk);
 
         // init layer & in channel
         info.layer = blk.getLayer();
@@ -128,6 +154,9 @@ void DFG::connectBaseblk(){
     // std::cout << "test\n";
     // this->printBaseblks();
     // std::cout << "test end\n";
+    for (auto& simdBlk : SIMDblks) {
+        simdBlk.connectBaseblk();
+    }
 }
 
 std::pair<int, int> DFG::getBlksize() const{
@@ -136,7 +165,10 @@ std::pair<int, int> DFG::getBlksize() const{
 
 void DFG::printBaseblks() const{
     for (const auto& blk : baseblks) {
+        std::cout << "Node: \n";
         blk.printBaseblkInfo();
+        std::cout << "successor :\n";
+        blk.printSuccessorInfo();
     }
 }
 
@@ -149,9 +181,14 @@ void DFG::printSIMDblks() const {
                   << ", Out Channel: " << simdBlk.getOutChannel().first << " - " << simdBlk.getOutChannel().second
                   << ", Fanout: " << simdBlk.getFanout()
                   << std::endl;
+        // for (const auto& it : simdBlk.getBaseblks()){
+        //     std::cout << "info in simdblks\n";
+        //     it->printBaseblkInfo();
+        // }
+        
         const auto parent = simdBlk.getParent();
         int j = 0;
-        for(const auto p : parent) {
+        for(const auto& p : parent) {
             if(p){
                 std::cout << "parent" << ++j << ", Layer: " << p->getLayer()
                 << ", In Channel: " << p->getInChannel().first << " - " << p->getInChannel().second
@@ -161,7 +198,7 @@ void DFG::printSIMDblks() const {
         }
         const auto child = simdBlk.getChild();
         int k = 0;
-        for(const auto p : child) {
+        for(const auto& p : child) {
             if(p){
                 std::cout << "child" << ++k << ", Layer: " << p->getLayer()
                 << ", In Channel: " << p->getInChannel().first << " - " << p->getInChannel().second
