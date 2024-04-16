@@ -76,6 +76,7 @@ class DFG {
         void connectSIMDblk(); // build dependence map
         void connectBaseblk(); // build baseblk level connection abstration
         std::pair<int, int> getBlksize() const;
+        std::vector<Baseblk>& getBaseblk() {return this->baseblks;}
         std::vector<SIMDblk> getSIMDblk() const {return this->SIMDblks;}
         void printBaseblks() const;
         void printSIMDblks() const;

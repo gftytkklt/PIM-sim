@@ -10,58 +10,58 @@ PIM_tile::PIM_tile(int memsize=0, int blk_num=0, std::pair<int, int> blk_size = 
     : memsize{memsize}, blk_num{blk_num}, available_blk{blk_num}, blk_size{blk_size},
     available_mem{memsize}, SIMD_connect{}, SRAM_connect{}, mapped_blks{}{}
 
-int PIM_tile::get_memsize() const {
+int PIM_tile::getMemsize() const {
     return this->memsize;
 }
 
-int PIM_tile::get_blknum() const {
+int PIM_tile::getBlknum() const {
     return this->blk_num;
 }
 
-int PIM_tile::get_freeblk() const {
+int PIM_tile::getFreeblk() const {
     return this->available_blk;
 }
 
-int PIM_tile::get_freemem() const {
+int PIM_tile::getFreemem() const {
     return this->available_mem;
 }
 
-int PIM_tile::get_portnum(connect_type type) const {
+int PIM_tile::getPortnum(connect_type type) const {
     return (type == connect_type::SIMD) ? this->SIMD_connect.num : this->SRAM_connect.num;
 }
 
-std::pair<int, int> PIM_tile::get_blksize() const {
+std::pair<int, int> PIM_tile::getBlksize() const {
     return this->blk_size;
 }
 
-int PIM_tile::allocate_blk(int num) {
+bool PIM_tile::allocateBlk(int num) {
     if (num > this->available_blk){
         std::cout << "Failed: out of free blk!" << std::endl;
-        return -1;
+        return false;
     }
     this->available_blk -= num;
-    return 0;
+    return true;
 }
 
-void PIM_tile::allocate_mem(int size) {
+void PIM_tile::allocateMem(int size) {
     if (size > this->available_mem){std::cout << "Failed: out of free mem!" << std::endl;}
     else {this->available_mem -= size;}
 }
 
-void PIM_tile::free_blk(int num) {
+void PIM_tile::freeBlk(int num) {
     int new_num = num + this->available_blk;
     if(new_num > this->blk_num){std::cout << "Failed: invalid free blk" << std::endl;}
     else {this->available_blk = new_num;}
 }
 
-void PIM_tile::free_mem(int size) {
+void PIM_tile::freeMem(int size) {
     int new_size = size + this->available_mem;
     if(new_size > this->memsize){std::cout << "Failed: invalid free mem" << std::endl;}
     else {this->available_mem = new_size;}
 }
 
 // ith row, jth col with in row*col tile array
-void PIM_tile::init_connection(int i, int j, int row, int col) {
+void PIM_tile::initConnection(int i, int j, int row, int col) {
     // not top row, add up connection
     if (i > 0) {
         this->SIMD_connect.port[Direction::Top] = 0;
@@ -92,7 +92,7 @@ void PIM_tile::init_connection(int i, int j, int row, int col) {
     }
 }
 
-void PIM_tile::inc_connection(Direction direct, connect_type type) {
+void PIM_tile::incConnection(Direction direct, connect_type type) {
     auto &info = (type == connect_type::SIMD) ? this->SIMD_connect.port : this->SRAM_connect.port;
     auto it = info.find(direct);
     if ((it != info.end()) && ((it->second == 0) || type == connect_type::SRAM)) {
@@ -101,7 +101,7 @@ void PIM_tile::inc_connection(Direction direct, connect_type type) {
     else std::cout << "Failed: No available path exist!" << std::endl;
 }
 
-void PIM_tile::del_connection(Direction direct, connect_type type) {
+void PIM_tile::delConnection(Direction direct, connect_type type) {
     auto &info = (type == connect_type::SIMD) ? this->SIMD_connect.port : this->SRAM_connect.port;
     auto it = info.find(direct);
     if (it != info.end()) {
@@ -110,7 +110,7 @@ void PIM_tile::del_connection(Direction direct, connect_type type) {
     else std::cout << "Failed: No path to delete! " << toString(direct) << std::endl;
 }
 
-void PIM_tile::clr_connection(){
+void PIM_tile::clrConnection(){
     for (auto& it : SIMD_connect.port){
         it.second = 0;
     }
@@ -119,51 +119,51 @@ void PIM_tile::clr_connection(){
     }
 }
 
-void PIM_tile::map_blk(Baseblk &blk) {
-    this->mapped_blks.push_back(blk);
+void PIM_tile::mapBlk(Baseblk &blk) {
+    this->mapped_blks.push_back(&blk);
 }
 
 void PIM_tile::printMappedblks() const {
     for(const auto& it: mapped_blks) {
-        it.printBaseblkInfo();
+        it->printBaseblkInfo();
     }
 }
 
 // tile array impl
 PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {}, std::function<void(SIMDblk&)> func = {})
     : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{memsize, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize}, deploySIMDhandler{func} {
-    init_connection();
-    map_DFG();
+    initConnection();
+    mapDFG();
     // for debug
     // auto size = this->dfg.get_blksize();
     // std::cout << "DFG: " << size.first << " " << size.second << std::endl;
 }
 
-std::pair<int, int> PIM_chip::get_shape() const {
+std::pair<int, int> PIM_chip::getShape() const {
     return std::make_pair(this->row, this->col);
 }
 
-void PIM_chip::init_connection() {
+void PIM_chip::initConnection() {
     for (int i = 0; i < row; ++i) {
         for (int j = 0; j < col; ++j) {
-            tiles[i][j].init_connection(i, j, row, col);
+            tiles[i][j].initConnection(i, j, row, col);
         }
     }
 }
 
 // default strategy for debug: vertical first, hori next
-void PIM_chip::add_connection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
+void PIM_chip::addConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
     //TODO: impl applicable func
     std::vector<std::pair<int, int>> path;
     path.push_back(src);
     for (int i=src.first; i<dst.first; i++) {
-        this->tiles[i][src.second].inc_connection(Direction::Bottom, type);
-        this->tiles[i+1][src.second].inc_connection(Direction::Top, type);
+        this->tiles[i][src.second].incConnection(Direction::Bottom, type);
+        this->tiles[i+1][src.second].incConnection(Direction::Top, type);
         path.push_back(std::make_pair(i+1, src.second));
     }
     for (int j=src.second; j<dst.second; j++){
-        this->tiles[dst.first][j].inc_connection(Direction::Right, type);
-        this->tiles[dst.first][j+1].inc_connection(Direction::Left, type);
+        this->tiles[dst.first][j].incConnection(Direction::Right, type);
+        this->tiles[dst.first][j+1].incConnection(Direction::Left, type);
         path.push_back(std::make_pair(dst.first, j+1));
     }
     this->paths.push_back(path);
@@ -186,7 +186,7 @@ std::pair<Direction, Direction> getDirection(const std::pair<int, int>& delta) {
 }
 
 // remove connection of adjacent tiles in a path
-void PIM_chip::remove_connection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
+void PIM_chip::removeConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
     for (auto it = paths.begin(); it != paths.end(); ) {
         // non-empty list && <src, dest> match
         if (!it->empty() && it->front() == src && it->back() == dst) {
@@ -199,8 +199,8 @@ void PIM_chip::remove_connection(std::pair<int, int> src, std::pair<int, int> ds
                 auto &tile_start = this->tiles[start.first][start.second];
                 auto &tile_end = this->tiles[end.first][end.second];
                 std::cout << "direction: " << toString(direct.first) << ", " << toString(direct.second) << std::endl;
-                tile_start.del_connection(direct.first, type);
-                tile_end.del_connection(direct.second, type);
+                tile_start.delConnection(direct.first, type);
+                tile_end.delConnection(direct.second, type);
             }
             it = paths.erase(it);
             return;
@@ -210,21 +210,21 @@ void PIM_chip::remove_connection(std::pair<int, int> src, std::pair<int, int> ds
     std::cout << "Failed: No such connection!" << std::endl;
 }
 
-void PIM_chip::alloc_mem(int xdst, int ydst, int size) {
+void PIM_chip::allocMem(int xdst, int ydst, int size) {
     auto &tile = this->tiles[xdst][ydst];
-    tile.allocate_mem(size);
+    tile.allocateMem(size);
 }
-void PIM_chip::free_mem(int xdst, int ydst, int size) {
+void PIM_chip::freeMem(int xdst, int ydst, int size) {
     auto &tile = this->tiles[xdst][ydst];
-    tile.free_mem(size);
+    tile.freeMem(size);
 }
-int PIM_chip::alloc_blk(int xdst, int ydst, int num) {
+bool PIM_chip::allocBlk(int xdst, int ydst, int num) {
     auto &tile = this->tiles[xdst][ydst];
-    return tile.allocate_blk(num);
+    return tile.allocateBlk(num);
 }
-void PIM_chip::free_blk(int xdst, int ydst, int num) {
+void PIM_chip::freeBlk(int xdst, int ydst, int num) {
     auto &tile = this->tiles[xdst][ydst];
-    tile.free_blk(num);
+    tile.freeBlk(num);
 } 
 // // impl allocate freeblk here
 // std::vector<std::pair<int, int>> PIM_chip::getNodeIndex(std::vector<std::pair<int, int>> fanins, int size, int fanout) {
@@ -326,9 +326,24 @@ void PIM_chip::free_blk(int xdst, int ydst, int num) {
 //     // }
 // }
 
-// based on SIMDblk is sorted by ascending order of SIMD.layer
-void PIM_chip::map_DFG() {
+// rand strategy now
+// impl hardware data struct now
+// TODO: impl DFG data struct
+// algorithm preprocess may depend on DFG struct only
+void PIM_chip::mapDFG() {
     // TODO: impl me
+    if (1) {
+        auto [x, y] = this->getShape();
+        auto size = x*y;
+        auto i = 0;
+        for(auto& blk : dfg.getBaseblk()){
+            auto cur_index = (i++) % size;
+            auto cur_x = cur_index / y;
+            auto cur_y = cur_index % y;
+            mapBaseblk(blk, cur_x, cur_y);
+        }
+        return;
+    }
     if(!deploySIMDhandler) {
         std::cout << "No func handler provided!\n";
         return;
@@ -350,7 +365,15 @@ void PIM_chip::map_DFG() {
     }
 }
 
-void PIM_chip::print_mappedblks() const {
+bool PIM_chip::mapBaseblk(Baseblk& blk, int x, int y){
+    if(allocBlk(x, y, 1)){
+        tiles[x][y].mapBlk(blk);
+        return true;
+    }
+    return false;
+}
+
+void PIM_chip::printMappedblks() const {
     for (size_t i = 0; i < tiles.size(); ++i) {
         for (size_t j = 0; j < tiles[i].size(); ++j) {
             std::cout << "tile(" << i << ", " << j << "): " << std::endl;
@@ -376,7 +399,7 @@ std::string toString(Direction dir) {
 }
 
 std::ostream& operator<<(std::ostream& out,const PIM_chip& chip) {
-    auto shape = chip.get_shape();
+    auto shape = chip.getShape();
     for (int i = 0; i < shape.first; ++i){
         for(int j = 0; j < shape.second; ++j){
             out << "tile: (" << i << ", " << j << ")" << std::endl << chip.tiles[i][j] << std::endl;
@@ -398,6 +421,6 @@ std::ostream& operator<<(std::ostream& out,const PIM_tile& tile) {
         if(it.second > 0)
             out << toString(it.first) << ": " << it.second << " connected" << std::endl;
     }
-    out << "freeblk: " << tile.get_freeblk() << ", freemem: " << tile.get_freemem() << std::endl;
+    out << "freeblk: " << tile.getFreeblk() << ", freemem: " << tile.getFreemem() << std::endl;
     return out;
 }

@@ -62,7 +62,7 @@ int main(){
     chip.printSIMD();
     // TEST5: test SIMD blk mapping
     std::cout << "mappedblks: \n";
-    chip.print_mappedblks();
+    chip.printMappedblks();
     
     /*
     // TEST6: test module inst
