@@ -54,7 +54,8 @@ int main(){
     struct Convkernel kernel1{1, 3, 3, 1, 256, 384};
     struct Convkernel kernel2{2, 3, 3, 1, 384, 384};
     struct Convkernel kernel3{3, 3, 3, 1, 384, 256};
-    PIM_chip chip(3, 3, 10, 4, std::make_pair(1152, 256), std::vector<Convkernel>{kernel1, kernel2, kernel3}, deploySIMD);
+    // PIM_chip chip(3, 3, 10, 4, std::make_pair(1152, 256), std::vector<Convkernel>{kernel1, kernel2, kernel3}, deploySIMD);
+    PIM_chip chip(3, 3, 4, std::make_pair(1152, 256), std::vector<Convkernel>{kernel1, kernel2, kernel3}, std::make_pair(256, 256));
     std::cout << "DFG: \n";
     chip.printDFG();
     // TEST4: test SIMD blk init
@@ -63,6 +64,7 @@ int main(){
     // TEST5: test SIMD blk mapping
     std::cout << "mappedblks: \n";
     chip.printMappedblks();
+
     
     /*
     // TEST6: test module inst
@@ -131,4 +133,5 @@ int main(){
     std::cout << "goodbye main!" << std::endl;
     return 0;
     */
+
 }

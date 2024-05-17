@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include <iostream>
+#include <unordered_map>
 
 struct Convkernel {
     // for data dependency
@@ -12,17 +13,26 @@ struct Convkernel {
     int w, h; // window shape
     int stride; // stride
     int in_channel, out_channel; // kernel channel num
+    int pooling_factor = 2; // downsampling factor, default = 2(for debugging)
+};
+
+struct path {
+    std::vector<std::pair<int, int>> route; // hardware connection
+    int data_size; // communication data amount
 };
 
 class Baseblk {
     private:
         int layer; // conv layer
         std::pair<int, int> in_channel, out_channel; // conv channel
-        int fmap_size; // fmap size
+        std::pair<int, int> fmap_size; // fmap size
         std::pair<int, int> location; // location on PIM-tile array
         std::vector<Baseblk*> successors; // indicate data dependency
+        // std::unordered_map<Baseblk*, int> dataflow; // data transformation amount
+        // hardware mapping info
+        std::unordered_map<Baseblk*, path> dataflow; // path[successors].xxx = ...
     public:
-        Baseblk(int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel);
+        Baseblk(int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel, std::pair<int, int> fmap_size);
         void setLocation(std::pair<int, int> coord);
         int getLayer() const { return layer; }
         void addSuccessor(Baseblk* blk) { 
@@ -31,6 +41,7 @@ class Baseblk {
         }
         std::pair<int, int> getInChannel() const { return in_channel; }
         std::pair<int, int> getOutChannel() const { return out_channel; }
+        std::pair<int, int> getFmapSize() const {return fmap_size;}
         void printBaseblkInfo() const;
         void printSuccessorInfo() const;
 };
@@ -68,8 +79,10 @@ class DFG {
         std::vector<Baseblk> baseblks;
         std::vector<SIMDblk> SIMDblks;
         std::pair<int, int> maxbaseblk; // <WL, BL> PIM array shape
+        std::pair<int, int> input_size; // w*h
     public:
         DFG(std::vector<Convkernel> kernels, std::pair<int, int> maxbaseblk);
+        DFG(std::vector<Convkernel> kernels, std::pair<int, int> maxbaseblk, std::pair<int, int> input_size);
         // connection impl, split each step for generalize
         void createBaseblk(); // init blks
         void createSIMDblk(); // init SIMDblks

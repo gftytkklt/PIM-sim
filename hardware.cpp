@@ -139,6 +139,12 @@ PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<
     // std::cout << "DFG: " << size.first << " " << size.second << std::endl;
 }
 
+PIM_chip::PIM_chip(int row=0, int col=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {}, std::pair<int, int> input_size={})
+    : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{0, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize, input_size}, input_size{input_size} {
+    initConnection();
+    mapDFG();
+}
+
 std::pair<int, int> PIM_chip::getShape() const {
     return std::make_pair(this->row, this->col);
 }

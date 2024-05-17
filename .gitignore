@@ -6,3 +6,4 @@
 !*.h
 !.gitignore
 !Makefile
+/boost_1_85_0/

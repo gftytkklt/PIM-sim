@@ -3,8 +3,8 @@
 #include <iostream>
 #include <map>
 
-Baseblk::Baseblk(int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel)
-    : layer{layer}, in_channel{in_channel}, out_channel{out_channel}, fmap_size{0}, location{} {}
+Baseblk::Baseblk(int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel, std::pair<int, int> fmap_size)
+    : layer{layer}, in_channel{in_channel}, out_channel{out_channel}, fmap_size{fmap_size}, location{} {}
 
 void Baseblk::setLocation(std::pair<int, int> coord) {
     this->location = coord;
@@ -14,7 +14,8 @@ void Baseblk::printBaseblkInfo() const {
     std::cout << "Layer: " << this->getLayer()
                   << ", In Channel: " << this->getInChannel().first << " - " << this->getInChannel().second
                   << ", Out Channel: " << this->getOutChannel().first << " - " << this->getOutChannel().second
-                  << ", child size: " << this->successors.size() << std::endl;
+                  << ", Input fmap size: (" << this->getFmapSize().first << " , " << this->getFmapSize().second
+                  << "), child size: " << this->successors.size() << std::endl;
 }
 
 void Baseblk::printSuccessorInfo() const {
@@ -54,14 +55,24 @@ DFG::DFG(std::vector<Convkernel> kernels={}, std::pair<int, int> maxbaseblk={})
     connectSIMDblk();
     connectBaseblk();
 }
+
+DFG::DFG(std::vector<Convkernel> kernels={}, std::pair<int, int> maxbaseblk={}, std::pair<int, int> input_size = {})
+    : kernels{kernels}, maxbaseblk{maxbaseblk}, input_size{input_size} {
+    createBaseblk();
+    createSIMDblk();
+    connectSIMDblk();
+    connectBaseblk();
+}
 // steps: 
 // 1. decomp w*h to A*3*3
 // 2. decomp in channel to 128*B
 // 3. decomp out channnel to 256*C
 // 4. baseblk = {A*B*C} elems' set for each layer
+// new feature: build (input) fmap_size for each baseblk
 void DFG::createBaseblk(){
     const int maxInChannels = this->maxbaseblk.first/9;
     const int maxOutChannels = this->maxbaseblk.second;
+    auto fmap_size = this->input_size;
     for(auto &kernel : this->kernels){
         // impl step 1
         int layer_id = kernel.layer;
@@ -73,10 +84,12 @@ void DFG::createBaseblk(){
                 for(int k=0; k<numOutSplits; k++){
                     std::pair<int, int> in_id = std::make_pair(j*maxInChannels+1, std::min((j+1)*maxInChannels, kernel.in_channel));
                     std::pair<int, int> out_id = std::make_pair(k*maxOutChannels+1, std::min((k+1)*maxOutChannels, kernel.out_channel));
-                    this->baseblks.emplace_back(layer_id, in_id, out_id);
+                    this->baseblks.emplace_back(layer_id, in_id, out_id, fmap_size);
                 }
             }
         }
+        fmap_size.first = fmap_size.first / kernel.stride / kernel.pooling_factor;
+        fmap_size.second = fmap_size.second / kernel.stride / kernel.pooling_factor;
     }
 }
 // rules: merge baseblk with same layer and in channel

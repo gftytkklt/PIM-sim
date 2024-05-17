@@ -61,8 +61,20 @@ class PIM_chip{
         std::vector<std::vector<PIM_tile>> tiles; // tile array, wrapped by std::vector
         std::list<std::vector<std::pair<int, int>>> paths; // paths 
         DFG dfg; // TODO: use kernels to init dfg
+        std::pair<int, int> input_size; // input fmap size
     public:
         explicit PIM_chip(int row, int col, int memsize, int blknum, std::pair<int, int> blksize, std::vector<Convkernel> &&kernels, std::function<void(SIMDblk&)> func); // ctor
+        /**
+         * @brief Construct a new pim chip object
+         * 
+         * @param row 
+         * @param col 
+         * @param blknum 
+         * @param blksize 
+         * @param kernels 
+         * @param input_size input_w * input_h is enough
+         */
+        explicit PIM_chip(int row, int col, int blknum, std::pair<int, int> blksize, std::vector<Convkernel> &&kernels, std::pair<int, int> input_size); /// ctor for mapping test
         std::pair<int, int> getShape() const; // w, h pair
         void initConnection(); // init connection between tiles
         void addConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type);// TODO: add connection from src to dst
