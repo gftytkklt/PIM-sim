@@ -19,6 +19,15 @@ struct Convkernel {
 struct path {
     std::vector<std::pair<int, int>> route; // hardware connection
     int data_size; // communication data amount
+    path(){}; // for complation
+    path(int data_size) : data_size{data_size}{};
+    friend std::ostream& operator<<(std::ostream& os, const path& p) {
+        os << "Data size: " << p.data_size << ", Route: ";
+        for (const auto& coord : p.route) {
+            os << "(" << coord.first << ", " << coord.second << ") ";
+        }
+        return os;
+    }
 };
 
 class Baseblk {
@@ -35,8 +44,18 @@ class Baseblk {
         Baseblk(int layer, std::pair<int, int> in_channel, std::pair<int, int> out_channel, std::pair<int, int> fmap_size);
         void setLocation(std::pair<int, int> coord);
         int getLayer() const { return layer; }
-        void addSuccessor(Baseblk* blk) { 
+        /**
+         * @brief add child & data_size
+         * 
+         * @param blk child object
+         * @param intralayer use parent out_channel
+         */
+        void addSuccessor(Baseblk* blk, bool intralayer) { 
             successors.push_back(blk);
+            auto [in1, in2] = intralayer ? getOutChannel() : blk->getInChannel();
+            auto [w, h] = blk->getFmapSize();
+            auto data_size = (in2 - in1 + 1) * w * h;
+            dataflow[blk] = path(data_size);
             // std::cout << "size: " << successors.size() << "\n";
         }
         std::pair<int, int> getInChannel() const { return in_channel; }
@@ -44,6 +63,7 @@ class Baseblk {
         std::pair<int, int> getFmapSize() const {return fmap_size;}
         void printBaseblkInfo() const;
         void printSuccessorInfo() const;
+        
 };
 
 class SIMDblk {

@@ -18,9 +18,20 @@ void Baseblk::printBaseblkInfo() const {
                   << "), child size: " << this->successors.size() << std::endl;
 }
 
+/**
+ * @brief In principle, find will always return valid key,
+ * this is guaranteed by addSuccessor() func,
+ * however, if code structure is changed,
+ * this condition may not be guaranteed in the future
+ */
 void Baseblk::printSuccessorInfo() const {
+    auto i = 0;
     for(const auto& successor : successors){
-        successor->printBaseblkInfo();
+        auto it = dataflow.find(successor);
+        if (it != dataflow.end()) {
+            std::cout << "Successor " << i++ << ": " << it->second << ", ";
+            successor->printBaseblkInfo();
+        }
     }
 }
 
@@ -28,9 +39,13 @@ SIMDblk::SIMDblk(const std::vector<Baseblk*> blks, int layer, std::pair<int, int
     : baseblks{blks}, layer{layer}, in_channel{in_channel}, out_channel{out_channel},
     parents{}, children{}, fanout{0}, fanout_loc{std::make_pair(-1, -1)}, ismapped{false}{}
 
-void SIMDblk::connectBaseblk(){
+/**
+ * @brief create connection relationship & data amount
+ * 
+ */
+void SIMDblk::connectBaseblk() {
     for(auto it = baseblks.begin(); it < baseblks.end()-1 ; ++it){
-        (*it)->addSuccessor(*(it+1));
+        (*it)->addSuccessor(*(it+1), true);
     }
     auto outblk = baseblks.end()-1;
     // std::cout << "test outblk info:\n";
@@ -40,7 +55,7 @@ void SIMDblk::connectBaseblk(){
         for(auto childblk : child->getBaseblks()){
             if(getOverlap(childblk->getInChannel(), (*outblk)->getOutChannel()) != std::make_pair(0, 0)){
                 // childblk->printBaseblkInfo();
-                (*outblk)->addSuccessor(childblk);
+                (*outblk)->addSuccessor(childblk, false);
             }
         }
     }
@@ -180,7 +195,7 @@ void DFG::printBaseblks() const{
     for (const auto& blk : baseblks) {
         std::cout << "Node: \n";
         blk.printBaseblkInfo();
-        std::cout << "successor :\n";
+        std::cout << "successor: \n";
         blk.printSuccessorInfo();
     }
 }
