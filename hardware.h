@@ -88,6 +88,7 @@ class PIM_chip{
         // void deploySIMD(SIMDblk &blk);
         // std::vector<std::pair<int, int>> getNodeIndex(std::vector<std::pair<int, int>> fanins, int size, int fanout);
         void mapDFG(); // impl DFG->tile mapping
+        void addHWConnection(){dfg.addHWConnection();} // build NoC dataflow for opt
         bool mapBaseblk(Baseblk& blk, int x, int y);
         friend std::ostream& operator<<(std::ostream& out,const PIM_chip& chip);
         void printDFG(){this->dfg.printBaseblks();}

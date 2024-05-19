@@ -61,6 +61,7 @@ class Baseblk {
         std::pair<int, int> getInChannel() const { return in_channel; }
         std::pair<int, int> getOutChannel() const { return out_channel; }
         std::pair<int, int> getFmapSize() const {return fmap_size;}
+        std::pair<int, int> getLocation() const {return location;}
         void printBaseblkInfo() const;
         void printSuccessorInfo() const;
         
@@ -108,6 +109,7 @@ class DFG {
         void createSIMDblk(); // init SIMDblks
         void connectSIMDblk(); // build dependence map
         void connectBaseblk(); // build baseblk level connection abstration
+        void addHWConnection(); // HW connection impl entry
         std::pair<int, int> getBlksize() const;
         std::vector<Baseblk>& getBaseblk() {return this->baseblks;}
         std::vector<SIMDblk> getSIMDblk() const {return this->SIMDblks;}

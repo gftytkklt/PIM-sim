@@ -14,8 +14,9 @@ void Baseblk::printBaseblkInfo() const {
     std::cout << "Layer: " << this->getLayer()
                   << ", In Channel: " << this->getInChannel().first << " - " << this->getInChannel().second
                   << ", Out Channel: " << this->getOutChannel().first << " - " << this->getOutChannel().second
-                  << ", Input fmap size: (" << this->getFmapSize().first << " , " << this->getFmapSize().second
-                  << "), child size: " << this->successors.size() << std::endl;
+                  << ", Input fmap size: (" << this->getFmapSize().first << ", " << this->getFmapSize().second
+                  << "), child size: " << this->successors.size() 
+                  << ", Location: (" << this->getLocation().first << ", " << this->getLocation().second << ")" << std::endl;
 }
 
 /**
@@ -184,6 +185,12 @@ void DFG::connectBaseblk(){
     // std::cout << "test end\n";
     for (auto& simdBlk : SIMDblks) {
         simdBlk.connectBaseblk();
+    }
+}
+
+void DFG::addHWConnection(){
+    for (auto& baseBlk : baseblks){
+        // baseBlk.
     }
 }
 

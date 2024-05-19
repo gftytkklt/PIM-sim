@@ -374,6 +374,7 @@ void PIM_chip::mapDFG() {
 bool PIM_chip::mapBaseblk(Baseblk& blk, int x, int y){
     if(allocBlk(x, y, 1)){
         tiles[x][y].mapBlk(blk);
+        blk.setLocation(std::make_pair(x, y));
         return true;
     }
     return false;
