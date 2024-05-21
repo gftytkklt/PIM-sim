@@ -58,10 +58,18 @@ class Baseblk {
             dataflow[blk] = path(data_size);
             // std::cout << "size: " << successors.size() << "\n";
         }
+
+        void addRoute(Baseblk* blk, std::vector<std::pair<int, int>> route){
+            auto it = dataflow.find(blk);
+            if(it != dataflow.end()){
+                dataflow[blk].route = route;
+            }
+        }
         std::pair<int, int> getInChannel() const { return in_channel; }
         std::pair<int, int> getOutChannel() const { return out_channel; }
         std::pair<int, int> getFmapSize() const {return fmap_size;}
         std::pair<int, int> getLocation() const {return location;}
+        auto getSuccessors() const {return successors;}
         void printBaseblkInfo() const;
         void printSuccessorInfo() const;
         

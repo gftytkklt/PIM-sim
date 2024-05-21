@@ -59,7 +59,7 @@ class PIM_chip{
     private:
         int row, col;// w*h tiles are deployed
         std::vector<std::vector<PIM_tile>> tiles; // tile array, wrapped by std::vector
-        std::list<std::vector<std::pair<int, int>>> paths; // paths 
+        std::list<std::vector<std::pair<int, int>>> paths; // paths
         DFG dfg; // TODO: use kernels to init dfg
         std::pair<int, int> input_size; // input fmap size
     public:

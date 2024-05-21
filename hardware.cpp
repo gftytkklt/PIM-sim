@@ -143,6 +143,7 @@ PIM_chip::PIM_chip(int row=0, int col=0, int blknum=0, std::pair<int, int> blksi
     : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{0, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize, input_size}, input_size{input_size} {
     initConnection();
     mapDFG();
+    addHWConnection();
 }
 
 std::pair<int, int> PIM_chip::getShape() const {
