@@ -17,13 +17,13 @@ struct Convkernel {
 };
 
 struct path {
-    std::vector<std::pair<int, int>> route; // hardware connection
+    std::shared_ptr<std::vector<std::pair<int, int>>> route; // hardware connection
     int data_size; // communication data amount
     path(){}; // for complation
     path(int data_size) : data_size{data_size}{};
     friend std::ostream& operator<<(std::ostream& os, const path& p) {
         os << "Data size: " << p.data_size << ", Route: ";
-        for (const auto& coord : p.route) {
+        for (const auto& coord : *p.route) {
             os << "(" << coord.first << ", " << coord.second << ") ";
         }
         return os;
@@ -59,7 +59,7 @@ class Baseblk {
             // std::cout << "size: " << successors.size() << "\n";
         }
 
-        void addRoute(Baseblk* blk, std::vector<std::pair<int, int>> route){
+        void addRoute(Baseblk* blk, std::shared_ptr<std::vector<std::pair<int, int>>> route){
             auto it = dataflow.find(blk);
             if(it != dataflow.end()){
                 dataflow[blk].route = route;
@@ -117,7 +117,7 @@ class DFG {
         void createSIMDblk(); // init SIMDblks
         void connectSIMDblk(); // build dependence map
         void connectBaseblk(); // build baseblk level connection abstration
-        void addHWConnection(); // HW connection impl entry
+        // void addHWConnection(); // HW connection impl entry
         std::pair<int, int> getBlksize() const;
         std::vector<Baseblk>& getBaseblk() {return this->baseblks;}
         std::vector<SIMDblk> getSIMDblk() const {return this->SIMDblks;}

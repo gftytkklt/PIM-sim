@@ -59,7 +59,7 @@ class PIM_chip{
     private:
         int row, col;// w*h tiles are deployed
         std::vector<std::vector<PIM_tile>> tiles; // tile array, wrapped by std::vector
-        std::list<std::vector<std::pair<int, int>>> paths; // paths
+        std::list<std::shared_ptr<std::vector<std::pair<int, int>>>> paths; // paths, use list for insert & delete
         DFG dfg; // TODO: use kernels to init dfg
         std::pair<int, int> input_size; // input fmap size
     public:
@@ -77,8 +77,8 @@ class PIM_chip{
         explicit PIM_chip(int row, int col, int blknum, std::pair<int, int> blksize, std::vector<Convkernel> &&kernels, std::pair<int, int> input_size); /// ctor for mapping test
         std::pair<int, int> getShape() const; // w, h pair
         void initConnection(); // init connection between tiles
-        void addConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type);// TODO: add connection from src to dst
-        void removeConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type);// TODO: delete connection from src to dst
+        // void addConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type);// TODO: add connection from src to dst
+        // void removeConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type);// TODO: delete connection from src to dst
         void clrConnection();
         void allocMem(int xdst, int ydst, int size); // alloc mem for conv
         void freeMem(int xdst, int ydst, int size); // free mem
@@ -88,8 +88,10 @@ class PIM_chip{
         // void deploySIMD(SIMDblk &blk);
         // std::vector<std::pair<int, int>> getNodeIndex(std::vector<std::pair<int, int>> fanins, int size, int fanout);
         void mapDFG(); // impl DFG->tile mapping
-        void addHWConnection(){dfg.addHWConnection();} // build NoC dataflow for opt
+        // void addHWConnection(){dfg.addHWConnection();} // build NoC dataflow for opt
+        void addHWConnection();// this func must be implmented in chip level, not DFG level
         bool mapBaseblk(Baseblk& blk, int x, int y);
+        void addPath(std::shared_ptr<std::vector<std::pair<int, int>>> path){paths.push_back(path);}
         friend std::ostream& operator<<(std::ostream& out,const PIM_chip& chip);
         void printDFG(){this->dfg.printBaseblks();}
         void printSIMD(){this->dfg.printSIMDblks();}

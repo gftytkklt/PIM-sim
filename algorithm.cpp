@@ -188,35 +188,20 @@ void DFG::connectBaseblk(){
     }
 }
 
-std::vector<std::pair<int, int>> initXYRouting(std::pair<int, int> src, std::pair<int, int> dst){
-    std::vector<std::pair<int, int>> route;
-    if(src == dst){return route;}
-    auto [srcx, srcy] = src;
-    auto [dstx, dsty] = dst;
-    int deltax = srcx > dstx ? -1 : 1;
-    int deltay = srcy > dsty ? -1 : 1;
-    route.emplace_back(src);
-    while(srcx != dstx){
-        srcx += deltax;
-        route.emplace_back(srcx, srcy);
-    }
-    while(srcy != dsty){
-        srcy += deltay;
-        route.emplace_back(dstx, srcy);
-    }
-    return route;
-}
-
-void DFG::addHWConnection(){
-    for (auto& baseblk : baseblks){
-        // baseBlk
-        auto src = baseblk.getLocation();
-        for (auto& successor: baseblk.getSuccessors()){
-            auto dst = successor->getLocation();
-            baseblk.addRoute(successor, initXYRouting(src, dst));
-        }
-    }
-}
+/**
+ * @brief node on path must have direct connection
+ * 
+ */
+// void DFG::addHWConnection(){
+//     for (auto& baseblk : baseblks){
+//         // baseBlk
+//         auto src = baseblk.getLocation();
+//         for (auto& successor: baseblk.getSuccessors()){
+//             auto dst = successor->getLocation();
+//             baseblk.addRoute(successor, initXYRouting(src, dst));
+//         }
+//     }
+// }
 
 std::pair<int, int> DFG::getBlksize() const{
     return this->maxbaseblk;

@@ -158,64 +158,64 @@ void PIM_chip::initConnection() {
     }
 }
 
-// default strategy for debug: vertical first, hori next
-void PIM_chip::addConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
-    //TODO: impl applicable func
-    std::vector<std::pair<int, int>> path;
-    path.push_back(src);
-    for (int i=src.first; i<dst.first; i++) {
-        this->tiles[i][src.second].incConnection(Direction::Bottom, type);
-        this->tiles[i+1][src.second].incConnection(Direction::Top, type);
-        path.push_back(std::make_pair(i+1, src.second));
-    }
-    for (int j=src.second; j<dst.second; j++){
-        this->tiles[dst.first][j].incConnection(Direction::Right, type);
-        this->tiles[dst.first][j+1].incConnection(Direction::Left, type);
-        path.push_back(std::make_pair(dst.first, j+1));
-    }
-    this->paths.push_back(path);
-}
+// // default strategy for debug: vertical first, hori next
+// void PIM_chip::addConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
+//     //TODO: impl applicable func
+//     std::vector<std::pair<int, int>> path;
+//     path.push_back(src);
+//     for (int i=src.first; i<dst.first; i++) {
+//         this->tiles[i][src.second].incConnection(Direction::Bottom, type);
+//         this->tiles[i+1][src.second].incConnection(Direction::Top, type);
+//         path.push_back(std::make_pair(i+1, src.second));
+//     }
+//     for (int j=src.second; j<dst.second; j++){
+//         this->tiles[dst.first][j].incConnection(Direction::Right, type);
+//         this->tiles[dst.first][j+1].incConnection(Direction::Left, type);
+//         path.push_back(std::make_pair(dst.first, j+1));
+//     }
+//     this->paths.push_back(path);
+// }
 
-std::pair<Direction, Direction> getDirection(const std::pair<int, int>& delta) {
-    static const std::map<std::pair<int, int>, std::pair<Direction, Direction>> directionMap = {
-        {{0, 1}, {Direction::Left, Direction::Right}},
-        {{0, -1}, {Direction::Right, Direction::Left}},
-        {{1, 0}, {Direction::Top, Direction::Bottom}},
-        {{-1, 0}, {Direction::Bottom, Direction::Top}}
-    };
+// std::pair<Direction, Direction> getDirection(const std::pair<int, int>& delta) {
+//     static const std::map<std::pair<int, int>, std::pair<Direction, Direction>> directionMap = {
+//         {{0, 1}, {Direction::Left, Direction::Right}},
+//         {{0, -1}, {Direction::Right, Direction::Left}},
+//         {{1, 0}, {Direction::Top, Direction::Bottom}},
+//         {{-1, 0}, {Direction::Bottom, Direction::Top}}
+//     };
 
-    auto it = directionMap.find(delta);
-    if (it != directionMap.end()) {
-        return it->second;
-    }
+//     auto it = directionMap.find(delta);
+//     if (it != directionMap.end()) {
+//         return it->second;
+//     }
 
-    throw std::runtime_error("Invalid delta value");
-}
+//     throw std::runtime_error("Invalid delta value");
+// }
 
-// remove connection of adjacent tiles in a path
-void PIM_chip::removeConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
-    for (auto it = paths.begin(); it != paths.end(); ) {
-        // non-empty list && <src, dest> match
-        if (!it->empty() && it->front() == src && it->back() == dst) {
-            auto path = *it;
-            for (size_t i = 0; i < path.size() - 1; ++i) {
-                auto start = path[i];
-                auto end = path[i+1];
-                auto delta = std::make_pair(start.first-end.first, start.second-end.second);
-                auto direct = getDirection(delta);
-                auto &tile_start = this->tiles[start.first][start.second];
-                auto &tile_end = this->tiles[end.first][end.second];
-                std::cout << "direction: " << toString(direct.first) << ", " << toString(direct.second) << std::endl;
-                tile_start.delConnection(direct.first, type);
-                tile_end.delConnection(direct.second, type);
-            }
-            it = paths.erase(it);
-            return;
-        }
-        ++it;
-    }
-    std::cout << "Failed: No such connection!" << std::endl;
-}
+// // remove connection of adjacent tiles in a path
+// void PIM_chip::removeConnection(std::pair<int, int> src, std::pair<int, int> dst, connect_type type) {
+//     for (auto it = paths.begin(); it != paths.end(); ) {
+//         // non-empty list && <src, dest> match
+//         if (!it->empty() && it->front() == src && it->back() == dst) {
+//             auto path = *it;
+//             for (size_t i = 0; i < path.size() - 1; ++i) {
+//                 auto start = path[i];
+//                 auto end = path[i+1];
+//                 auto delta = std::make_pair(start.first-end.first, start.second-end.second);
+//                 auto direct = getDirection(delta);
+//                 auto &tile_start = this->tiles[start.first][start.second];
+//                 auto &tile_end = this->tiles[end.first][end.second];
+//                 std::cout << "direction: " << toString(direct.first) << ", " << toString(direct.second) << std::endl;
+//                 tile_start.delConnection(direct.first, type);
+//                 tile_end.delConnection(direct.second, type);
+//             }
+//             it = paths.erase(it);
+//             return;
+//         }
+//         ++it;
+//     }
+//     std::cout << "Failed: No such connection!" << std::endl;
+// }
 
 void PIM_chip::allocMem(int xdst, int ydst, int size) {
     auto &tile = this->tiles[xdst][ydst];
@@ -372,6 +372,23 @@ void PIM_chip::mapDFG() {
     }
 }
 
+/**
+ * @brief notice that chip.paths & baseblk.dataflow.path.route is different lists
+ * so add/remove elements of two lists should occur together
+ * 
+ */
+void PIM_chip::addHWConnection(){
+    auto& blks = dfg.getBaseblk();
+    for (auto& blk: blks){
+        auto src = blk.getLocation();
+        for (auto& successor: blk.getSuccessors()){
+            auto dst = successor->getLocation();
+            auto path = initXYRouting(src, dst);
+            blk.addRoute(successor, path);
+        }
+    }
+}
+
 bool PIM_chip::mapBaseblk(Baseblk& blk, int x, int y){
     if(allocBlk(x, y, 1)){
         tiles[x][y].mapBlk(blk);
@@ -415,7 +432,7 @@ std::ostream& operator<<(std::ostream& out,const PIM_chip& chip) {
     }
     for (const auto& path : chip.paths) {
         std::cout << "Path:" << std::endl;
-        for (const auto& p : path) {
+        for (const auto& p : *path) {
             std::cout << "(" << p.first << ", " << p.second << ") -> ";
         }
         std::cout << "end" << std::endl;

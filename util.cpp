@@ -52,3 +52,23 @@ std::pair<int, int> randomPointWithManhattanDistance(int m, int n, int startX, i
 
     return candidates[index];
 }
+
+std::shared_ptr<std::vector<std::pair<int, int>>> initXYRouting(std::pair<int, int> src, std::pair<int, int> dst){
+    std::vector<std::pair<int, int>> route;
+    if(src != dst){
+        auto [srcx, srcy] = src;
+        auto [dstx, dsty] = dst;
+        int deltax = srcx > dstx ? -1 : 1;
+        int deltay = srcy > dsty ? -1 : 1;
+        route.emplace_back(src);
+        while(srcx != dstx){
+            srcx += deltax;
+            route.emplace_back(srcx, srcy);
+        }
+        while(srcy != dsty){
+            srcy += deltay;
+            route.emplace_back(dstx, srcy);
+        }
+    }
+    return std::make_shared<std::vector<std::pair<int, int>>>(route);
+}
