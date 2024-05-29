@@ -58,12 +58,15 @@ int main(){
     PIM_chip chip(3, 3, 4, std::make_pair(1152, 256), std::vector<Convkernel>{kernel1, kernel2, kernel3}, std::make_pair(256, 256));
     std::cout << "DFG: \n";
     chip.printDFG();
-    // TEST4: test SIMD blk init
-    std::cout << "SIMD: \n";
-    chip.printSIMD();
-    // TEST5: test SIMD blk mapping
-    std::cout << "mappedblks: \n";
-    chip.printMappedblks();
+    // // TEST4: test SIMD blk init
+    // std::cout << "SIMD: \n";
+    // chip.printSIMD();
+    // // TEST5: test SIMD blk mapping
+    // std::cout << "mappedblks: \n";
+    // chip.printMappedblks();
+    std::cout << "chip: \n";
+    // std::cout << chip << std::endl;
+    chip.printTransMatrix();
 
     
     /*

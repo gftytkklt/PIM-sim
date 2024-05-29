@@ -19,8 +19,9 @@ struct Convkernel {
 struct path {
     std::shared_ptr<std::vector<std::pair<int, int>>> route; // hardware connection
     int data_size; // communication data amount
-    path(){}; // for complation
+    path(){}; // for compilation
     path(int data_size) : data_size{data_size}{};
+    path(std::shared_ptr<std::vector<std::pair<int, int>>> route, int data_size) : route{route}, data_size{data_size}{};
     friend std::ostream& operator<<(std::ostream& os, const path& p) {
         os << "Data size: " << p.data_size << ", Route: ";
         for (const auto& coord : *p.route) {
@@ -34,7 +35,7 @@ class Baseblk {
     private:
         int layer; // conv layer
         std::pair<int, int> in_channel, out_channel; // conv channel
-        std::pair<int, int> fmap_size; // fmap size
+        std::pair<int, int> fmap_size; // input fmap size
         std::pair<int, int> location; // location on PIM-tile array
         std::vector<Baseblk*> successors; // indicate data dependency
         // std::unordered_map<Baseblk*, int> dataflow; // data transformation amount
@@ -50,6 +51,14 @@ class Baseblk {
          * @param blk child object
          * @param intralayer use parent out_channel
          */
+        
+        auto getInChannel() const { return in_channel; }
+        auto getOutChannel() const { return out_channel; }
+        auto getFmapSize() const {return fmap_size;}
+        auto getLocation() const {return location;}
+        auto getSuccessors() const {return successors;}
+        void printBaseblkInfo() const;
+        void printSuccessorInfo() const;
         void addSuccessor(Baseblk* blk, bool intralayer) { 
             successors.push_back(blk);
             auto [in1, in2] = intralayer ? getOutChannel() : blk->getInChannel();
@@ -65,13 +74,14 @@ class Baseblk {
                 dataflow[blk].route = route;
             }
         }
-        std::pair<int, int> getInChannel() const { return in_channel; }
-        std::pair<int, int> getOutChannel() const { return out_channel; }
-        std::pair<int, int> getFmapSize() const {return fmap_size;}
-        std::pair<int, int> getLocation() const {return location;}
-        auto getSuccessors() const {return successors;}
-        void printBaseblkInfo() const;
-        void printSuccessorInfo() const;
+
+        auto getDatasize(Baseblk* blk) const {
+            auto it = dataflow.find(blk);
+            if(it != dataflow.end()){
+                return it->second.data_size;
+            }
+            return -1;
+        }
         
 };
 

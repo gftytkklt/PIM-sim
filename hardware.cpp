@@ -35,7 +35,7 @@ std::pair<int, int> PIM_tile::getBlksize() const {
 }
 
 bool PIM_tile::allocateBlk(int num) {
-    if (num > this->available_blk){
+    if (num > this->available_blk) {
         std::cout << "Failed: out of free blk!" << std::endl;
         return false;
     }
@@ -130,20 +130,22 @@ void PIM_tile::printMappedblks() const {
 }
 
 // tile array impl
-PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {}, std::function<void(SIMDblk&)> func = {})
-    : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{memsize, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize}, deploySIMDhandler{func} {
-    initConnection();
-    mapDFG();
-    // for debug
-    // auto size = this->dfg.get_blksize();
-    // std::cout << "DFG: " << size.first << " " << size.second << std::endl;
-}
+// DEPRECATED NOW, DON'T USE IT!
+// PIM_chip::PIM_chip(int row=0, int col=0, int memsize=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {}, std::function<void(SIMDblk&)> func = {})
+//     : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{memsize, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize}, deploySIMDhandler{func} {
+//     initConnection();
+//     mapDFG();
+//     // for debug
+//     // auto size = this->dfg.get_blksize();
+//     // std::cout << "DFG: " << size.first << " " << size.second << std::endl;
+// }
 
 PIM_chip::PIM_chip(int row=0, int col=0, int blknum=0, std::pair<int, int> blksize={}, std::vector<Convkernel> &&kernels = {}, std::pair<int, int> input_size={})
-    : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{0, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize, input_size}, input_size{input_size} {
+    : row{row}, col{col}, tiles(row, std::vector<PIM_tile>(col, PIM_tile{0, blknum, blksize})), paths{}, dfg{std::move(kernels), blksize, input_size}, input_size{input_size}, transfer_matrix{std::vector<std::vector<int>>(row*col, std::vector<int>(row*col, 0))} {
     initConnection();
     mapDFG();
     addHWConnection();
+    setTransMatrix();
 }
 
 std::pair<int, int> PIM_chip::getShape() const {
@@ -385,6 +387,7 @@ void PIM_chip::addHWConnection(){
             auto dst = successor->getLocation();
             auto path = initXYRouting(src, dst);
             blk.addRoute(successor, path);
+            addPath(path, blk.getDatasize(successor));
         }
     }
 }
@@ -403,6 +406,17 @@ void PIM_chip::printMappedblks() const {
         for (size_t j = 0; j < tiles[i].size(); ++j) {
             std::cout << "tile(" << i << ", " << j << "): " << std::endl;
             tiles[i][j].printMappedblks();
+        }
+    }
+}
+
+void PIM_chip::setTransMatrix() {
+    for(auto& path: paths){
+        auto& route = *path.route;
+        for(size_t i = 0; i < route.size() - 1; ++i){
+            auto start = route[i];
+            auto end = route[i+1];
+            transfer_matrix[start.first*col+start.second][end.first*col+end.second] += path.data_size;
         }
     }
 }
@@ -431,11 +445,11 @@ std::ostream& operator<<(std::ostream& out,const PIM_chip& chip) {
         }
     }
     for (const auto& path : chip.paths) {
-        std::cout << "Path:" << std::endl;
-        for (const auto& p : *path) {
+        std::cout << "Path: " << std::endl;
+        for (const auto& p : *path.route) {
             std::cout << "(" << p.first << ", " << p.second << ") -> ";
         }
-        std::cout << "end" << std::endl;
+        std::cout << "end, " << "data size: " << path.data_size << std::endl;
     }
     return out;
 }

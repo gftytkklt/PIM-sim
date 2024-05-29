@@ -59,11 +59,13 @@ class PIM_chip{
     private:
         int row, col;// w*h tiles are deployed
         std::vector<std::vector<PIM_tile>> tiles; // tile array, wrapped by std::vector
-        std::list<std::shared_ptr<std::vector<std::pair<int, int>>>> paths; // paths, use list for insert & delete
+        // std::list<std::shared_ptr<std::vector<std::pair<int, int>>>> paths; // paths, use list for insert & delete
+        std::list<path> paths;
         DFG dfg; // TODO: use kernels to init dfg
         std::pair<int, int> input_size; // input fmap size
+        std::vector<std::vector<int>> transfer_matrix; // transfer matrix for dataflow
     public:
-        explicit PIM_chip(int row, int col, int memsize, int blknum, std::pair<int, int> blksize, std::vector<Convkernel> &&kernels, std::function<void(SIMDblk&)> func); // ctor
+        // explicit PIM_chip(int row, int col, int memsize, int blknum, std::pair<int, int> blksize, std::vector<Convkernel> &&kernels, std::function<void(SIMDblk&)> func); // ctor
         /**
          * @brief Construct a new pim chip object
          * 
@@ -91,11 +93,22 @@ class PIM_chip{
         // void addHWConnection(){dfg.addHWConnection();} // build NoC dataflow for opt
         void addHWConnection();// this func must be implmented in chip level, not DFG level
         bool mapBaseblk(Baseblk& blk, int x, int y);
-        void addPath(std::shared_ptr<std::vector<std::pair<int, int>>> path){paths.push_back(path);}
+        void addPath(std::shared_ptr<std::vector<std::pair<int, int>>> path, int data_size){paths.emplace_back(path, data_size);}
         friend std::ostream& operator<<(std::ostream& out,const PIM_chip& chip);
         void printDFG(){this->dfg.printBaseblks();}
         void printSIMD(){this->dfg.printSIMDblks();}
         void printMappedblks() const;
+        auto& getTransMatrix() const {return transfer_matrix;}
+        void setTransMatrix();
+        auto& getPaths() const {return paths;}
+        void printTransMatrix() const{
+            for (const auto& row : transfer_matrix) {
+                for (const auto& col : row) {
+                    std::cout << col << " ";
+                }
+                std::cout << std::endl;
+            }
+        };
         // get tile index to be allocated to SIMDblk
 };
 

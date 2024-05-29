@@ -6,6 +6,7 @@
 #include <random>
 #include <chrono>
 #include <cstdlib>
+
 std::pair<int, int> getOverlap(const std::pair<int, int>& range1, const std::pair<int, int>& range2) {
     // 计算重叠区间的起始和终止点
     int start = std::max(range1.first, range2.first);
