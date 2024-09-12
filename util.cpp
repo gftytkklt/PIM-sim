@@ -73,3 +73,19 @@ std::shared_ptr<std::vector<std::pair<int, int>>> initXYRouting(std::pair<int, i
     }
     return std::make_shared<std::vector<std::pair<int, int>>>(route);
 }
+
+int shortestPathNum(std::pair<int, int> src, std::pair<int, int> dst){
+    int steps = twoDdist(src, dst);
+    int k = std::abs(src.first - dst.first);
+    int ysteps = std::abs(src.second - dst.second);
+    if(k > ysteps){
+        k = ysteps;
+    }
+    int pathnum = 1;
+    int divisor = 1;
+    for(int i=1; i<=k; i++){
+        pathnum *= (steps - i + 1);
+        divisor *= i;
+    }
+    return pathnum / divisor;
+}
