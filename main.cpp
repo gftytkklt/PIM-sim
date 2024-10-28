@@ -1,8 +1,17 @@
 #include <iostream>
 #include "hardware.h"
-#include "sim.h"
+// #include "sim.h"
 // #include "module.h"
+// #include "sequential/seq.h"
+#include "strategy/mapping.h"
+
+
+void deploySIMD(SIMDblk &blk){
+    std::cout << "impl me!\n";
+}
+
 int main(){
+    std::cout << "hello main!\n";
     /*
     // TEST1: test tile func impl(tile may become private class of chip)
     PIM_tile tile(5, 4);
@@ -40,59 +49,74 @@ int main(){
     chip.remove_connection(std::make_pair(0, 1), std::make_pair(1, 1), connect_type::SIMD);
     std::cout << "remove: " << std::endl << chip << std::endl;
     */
-    /*
+    
     // TEST3: test conv kernel init
     struct Convkernel kernel1{1, 3, 3, 1, 256, 384};
     struct Convkernel kernel2{2, 3, 3, 1, 384, 384};
     struct Convkernel kernel3{3, 3, 3, 1, 384, 256};
-    PIM_chip chip(3, 3, 10, 4, std::make_pair(1152, 256), std::vector<Convkernel>{kernel1, kernel2, kernel3});
+    // PIM_chip chip(3, 3, 10, 4, std::make_pair(1152, 256), std::vector<Convkernel>{kernel1, kernel2, kernel3}, deploySIMD);
+    PIM_chip chip(3, 3, 4, std::make_pair(1152, 256), std::vector<Convkernel>{kernel1, kernel2, kernel3}, std::make_pair(256, 256));
+    std::cout << "DFG: \n";
     chip.printDFG();
-    // TEST4: test SIMD blk init
-    chip.printSIMD();
-    // TEST5: test SIMD blk mapping
-    chip.print_mappedblks();
-    */
+    // // TEST4: test SIMD blk init
+    // std::cout << "SIMD: \n";
+    // chip.printSIMD();
+    // // TEST5: test SIMD blk mapping
+    // std::cout << "mappedblks: \n";
+    // chip.printMappedblks();
+    std::cout << "chip: \n";
+    // std::cout << chip << std::endl;
+    chip.printTransMatrix();
+
+    
+    /*
     // TEST6: test module inst
     class Task{
-        public:
+    public:
         Task(){std::cout<<"Hello task"<<std::endl;}
+        struct Inst{
+            int data;
+            bool isAdd;
+            int src1, src2, dest;
+        };
     };
     class Memory{
-        public:
+    public:
         Memory(){std::cout<<"Hello mem\n"<<std::endl;}
     };
-    class testmodule{
+    // class testmodule{
+    // public:
+    //     std::string name;
+    //     std::vector<std::shared_ptr<testmodule>> next; // 指向后续模块的列表
+    //     testmodule(std::string n) : name(std::move(n)) {}
+
+    //     void addNext(std::shared_ptr<testmodule> module) {
+    //         next.push_back(module);
+    //     }
+
+    //     virtual void exec() {
+    //         // 模拟执行模块的功能
+    //         std::cout << "Executing " << name << std::endl;
+    //     }
+    // };
+
+    class testmodule2 : public Module{
     public:
-        std::string name;
-        std::vector<std::shared_ptr<testmodule>> next; // 指向后续模块的列表
-        testmodule(std::string n) : name(std::move(n)) {}
-
-        void addNext(std::shared_ptr<testmodule> module) {
-            next.push_back(module);
-        }
-
-        virtual void exec() {
-            // 模拟执行模块的功能
-            std::cout << "Executing " << name << std::endl;
-        }
-    };
-
-    class testmodule2 : public testmodule{
-    public:
-        testmodule2(std::string n) : testmodule(n) {}
+        testmodule2(std::string n, Module* parent) : Module(n, parent) {}
         void exec() override{
-            std::cout << "xxx exec " << name << std::endl;
+            std::cout << "xxx exec " << this->getName() << std::endl;
         }
     };
 
-    auto root = std::make_shared<testmodule>("root");
-    auto A = std::make_shared<testmodule>("A");
-    auto B = std::make_shared<testmodule>("B");
-    auto C = std::make_shared<testmodule>("C");
-    auto D = std::make_shared<testmodule2>("D");
-    auto E = std::make_shared<testmodule>("E");
-    auto F = std::make_shared<testmodule>("F");
-    root->addNext(A);
+    // auto root = std::make_shared<testmodule>("root");
+    PerfModel<Task> model("root");
+    auto A = std::make_shared<Module>("A", model.root.get());
+    auto B = std::make_shared<Module>("B", model.root.get());
+    auto C = std::make_shared<Module>("C", model.root.get());
+    auto D = std::make_shared<testmodule2>("D", model.root.get());
+    auto E = std::make_shared<Module>("E", model.root.get());
+    auto F = std::make_shared<Module>("F", model.root.get());
+    // root->addNext(A);
     A->addNext(B);
     A->addNext(C);
     B->addNext(C);
@@ -101,8 +125,16 @@ int main(){
     C->addNext(E);
     C->addNext(F);
 
-    PerfModel<Task, Memory, testmodule> model(root);
+    model.init();
     model.run();
-
+    */
+    /*
+    // test 7: test seq module run(in new abstraction)
+    SeqPipeline seq("seq", 10);
+    seq.init();
+    seq.run();
+    std::cout << "goodbye main!" << std::endl;
     return 0;
+    */
+
 }

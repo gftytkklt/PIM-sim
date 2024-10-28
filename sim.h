@@ -6,7 +6,8 @@
 #include <unordered_map>
 #include "module.h"
 // abstract basemodel, define base tile programming status
-template<typename Task>
+// task abstraction
+template<TaskConcept Task>
 class BasePIMModel{
 public:
     BasePIMModel() = default;
@@ -22,7 +23,8 @@ public:
 };
 
 // abstract functional tile model, define base tile resources
-template<typename Task, typename Memory>
+// memory abstraction
+template<TaskConcept Task>
 class Simtile : public BasePIMModel<Task>{
 public:
     Simtile() = default;
@@ -33,8 +35,8 @@ public:
 };
 
 // abstract timing-tile model, define base clock behavior
-template<typename Task, typename Memory>
-class TimingSimtile : public Simtile<Task, Memory>{
+template<TaskConcept Task>
+class TimingSimtile : public Simtile<Task>{
 public:
     virtual void clock() = 0;
     static std::shared_ptr<TimingSimtile> create_simtile();
@@ -46,17 +48,22 @@ enum class NodeState {
     Visiting,
     Visited
 };
-template<typename Task, typename Memory, ModuleConcept Module>
-class PerfModel : public TimingSimtile<Task, Memory>{
+template<TaskConcept Task>
+class PerfModel : public TimingSimtile<Task>, public Module{
 public:
-    explicit PerfModel(std::shared_ptr<Module> root) : root(std::move(root)) {topologicalSort();}
-    void clock() final;// run modl
-    void run() final;
+    using Inst = typename Task::Inst;
+    std::shared_ptr<Module> root = std::make_shared<Module>("root");// root of hardware DAG(data fwd resolved by global data individually)
+    explicit PerfModel(std::string n) : Module(n){}
+    void clock() final;// sim sequence
+    virtual void run();// run wrapper
+    virtual void init(){topologicalSort();}
+    uint64_t get_cycle() const {return cur_cycle;}
+    void incr_cycle(){cur_cycle++;}
 private:
-    std::shared_ptr<Module> root;// root of hardware DAG(data fwd resolved by global data individually)
     std::vector<std::shared_ptr<Module>> simList;// sim order of module list
     uint64_t cur_cycle = 0;// sim time counter
     void topologicalSort();
+    // void dfs(Module* node, std::unordered_map<Module*, NodeState>& states);
     void dfs(std::shared_ptr<Module> node, std::unordered_map<Module*, NodeState>& states);
 };
 

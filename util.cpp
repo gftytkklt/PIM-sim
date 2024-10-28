@@ -6,11 +6,12 @@
 #include <random>
 #include <chrono>
 #include <cstdlib>
+
 std::pair<int, int> getOverlap(const std::pair<int, int>& range1, const std::pair<int, int>& range2) {
     // 计算重叠区间的起始和终止点
     int start = std::max(range1.first, range2.first);
     int end = std::min(range1.second, range2.second);
-
+    // std::cout << "overlap: " << start << ", " << end << std::endl;
     // 检查区间是否真的有重叠
     if (start <= end) {
         return {start, end};
@@ -51,4 +52,40 @@ std::pair<int, int> randomPointWithManhattanDistance(int m, int n, int startX, i
     int index = dist(engine);
 
     return candidates[index];
+}
+
+std::shared_ptr<std::vector<std::pair<int, int>>> initXYRouting(std::pair<int, int> src, std::pair<int, int> dst){
+    std::vector<std::pair<int, int>> route;
+    if(src != dst){
+        auto [srcx, srcy] = src;
+        auto [dstx, dsty] = dst;
+        int deltax = srcx > dstx ? -1 : 1;
+        int deltay = srcy > dsty ? -1 : 1;
+        route.emplace_back(src);
+        while(srcx != dstx){
+            srcx += deltax;
+            route.emplace_back(srcx, srcy);
+        }
+        while(srcy != dsty){
+            srcy += deltay;
+            route.emplace_back(dstx, srcy);
+        }
+    }
+    return std::make_shared<std::vector<std::pair<int, int>>>(route);
+}
+
+int shortestPathNum(std::pair<int, int> src, std::pair<int, int> dst){
+    int steps = twoDdist(src, dst);
+    int k = std::abs(src.first - dst.first);
+    int ysteps = std::abs(src.second - dst.second);
+    if(k > ysteps){
+        k = ysteps;
+    }
+    int pathnum = 1;
+    int divisor = 1;
+    for(int i=1; i<=k; i++){
+        pathnum *= (steps - i + 1);
+        divisor *= i;
+    }
+    return pathnum / divisor;
 }
