@@ -2,11 +2,15 @@
 算子映射前端代码框架，工程结构如下所示（随开发进度更新）
 ```bash
 .
-
 ├── src/                    # 源文件
+│   └── CMakeLists.txt      # CMake 配置文件
 ├── include/                # 头文件
 │   │   ├── graph.hpp       # 模板类实现
-│   │   └── graph.h         # 数据流图模板类声明
+│   │   ├── graph.h         # 数据流图模板类声明
+├── test/                   # 测试文件
+│   └── CMakeLists.txt      # CMake 配置文件
+├── build.sh                # gpt生成的模板
+├── CMakeLists.txt          # CMake 配置文件
 ├── README.md               # 项目说明文件
 ├── tepmlate.md             # gpt生成的模板
 └── .gitignore              # Git 忽略文件
