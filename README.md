@@ -1,39 +1,21 @@
 # PIMapping工程结构
-该工程的代码结构如下所示（后续需要修改为真正的代码结构）
+算子映射前端代码框架，工程结构如下所示（随开发进度更新）
 ```bash
 .
-├── ref code/               # 之前工程的参考代码（避免打乱框架代码结构）
-├── src/
-│   ├── main.cpp            # 程序入口
-│   ├── main.cpp            # 程序入口
 
+├── src/                    # 源文件
+├── include/                # 头文件
+│   │   ├── graph.hpp       # 模板类实现
+│   │   └── graph.h         # 数据流图模板类声明
 ├── README.md               # 项目说明文件
+├── tepmlate.md             # gpt生成的模板
 └── .gitignore              # Git 忽略文件
 ```
-## 类名：`MyClass`
+结合论文内容，相关数据结构如下所示：
+## 类名：`BaseGraph`
 
 ### 类介绍
-`MyClass` 是一个示例类，展示如何创建并管理类的成员变量和方法。它实现了一个基本的接口，可以存储和操作数据。该类包含了一个整数成员、一个字符串成员，以及一个整数向量成员。
-
-### 成员变量
-- `int data`：存储整数数据，表示类的某个关键数值。
-- `std::string name`：存储类实例的名称，用于标识对象。
-- `std::vector<int> values`：存储一系列整数值，用于存放额外的数据。
-
-### 方法
-
-#### `MyClass(int data, const std::string& name)`
-构造函数，初始化类实例的成员变量。
-
-```cpp
-MyClass::MyClass(int data, const std::string& name)
-    : data(data), name(name) {}
-```
-
-## 类名：`NNAlgorithm`
-
-### 类介绍
-`NNAlgorithm` 是用来存储NN算法MVM数据流关系的结构，
+`BaseGraph` 是基于BGL（Boost Graph Library）提供的接口构造的图模板类。不同数据流图需要为该模板类提供权重结构体
 
 ### 成员变量
 - `int data`：存储整数数据，表示类的某个关键数值。
