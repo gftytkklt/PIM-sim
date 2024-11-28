@@ -5,6 +5,7 @@
 #include <cmath>
 #include <vector>
 #include <memory>
+#include <bits/algorithmfwd.h>
 // get overlap between blk in layer & blk layer in layer+1
 std::pair<int, int> getOverlap(const std::pair<int, int>& range1, const std::pair<int, int>& range2);
 // Manhattan dist between two blk
