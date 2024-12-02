@@ -64,7 +64,7 @@ public:
     using NodeProperty = boost::property<boost::vertex_property_tag, NodePropertyType>;
     using EdgeProperty = boost::property<boost::edge_property_tag, EdgePropertyType>;
 
-    using Graph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, NodeProperty, EdgeProperty>;
+    using Graph = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, NodeProperty, EdgeProperty>;
 
     using Node = boost::graph_traits<Graph>::vertex_descriptor;
     using Edge = boost::graph_traits<Graph>::edge_descriptor;
@@ -77,6 +77,7 @@ public:
     // add vertices and edges
     void add_node(const NodeProperty& node_prop, Graph& g) {
         boost::add_vertex(node_prop, g);
+        std::cout << "add node" << std::endl;
     }
 
     void add_edge(int v1, int v2, const EdgeProperty& edge_prop, Graph& g) {
@@ -92,12 +93,15 @@ public:
         boost::remove_edge(v1, v2, g);
     }
 
-    // // vertices and edges getter
-    // const NodeProperty& get_node_property(int v, const Graph& g) const {
-    //     Node n = boost::vertex(v, g);
-    //     return g[n];
-    //     // return g[v];
-    // }
+    // graph getter
+    virtual const Graph& get_graph() const = 0;
+
+    // vertices and edges getter
+    const auto& get_node_property(int v, const Graph& g) const {
+        Node n = boost::vertex(v, g);
+        // return n.m_property.m_value;
+        return g.m_vertices[n].m_property.m_value;
+    } 
 
     // const EdgeProperty& get_edge_property(int v1, int v2, const Graph& g) const {
     //     Edge e;
@@ -160,13 +164,13 @@ public:
 
     // // print graph
     // virtual void print_graph_info(const Graph& cg) const {
-    //     // 遍历所有节点
+    //     // traverse all nodes
     //     for (auto vp = boost::vertices(cg); vp.first != vp.second; ++vp.first) {
     //         auto v = *vp.first;
     //         std::cout << "Node " << v << ": " << get_node_property(v, cg) << std::endl;
     //     }
 
-    //     // 遍历所有边
+    //     // traverse all edges
     //     for (auto ep = boost::edges(cg); ep.first != ep.second; ++ep.first) {
     //         auto e = *ep.first;
     //         std::cout << "Edge (" << boost::source(e, cg) << ", " << boost::target(e, cg) << "): " 
@@ -180,6 +184,22 @@ public:
     CGraph(const std::vector<NNkernel>& kernels);
     void analysis() override {
         std::cout << "Analysis of CGraph" << std::endl;
+    }
+    const Graph& get_graph() const {
+        return cg;
+    }
+    Graph& get_graph() {
+        return cg;
+    }
+    const auto get_node_property(int v) const {
+        Node n = boost::vertex(v, cg);
+        std::cout << "node" << n << std::endl;
+        // return n.m_property.m_value;
+        // return cg.m_vertices[n].m_property.m_value;
+        // auto sth = boost::get(boost::vertex_property_tag(), cg, n);
+        // return sth;
+        const auto property_map = boost::get(boost::vertex_property_tag(), cg);
+        return property_map[n];
     }
     // void print_graph_info() const{
     //     BaseGraph<CNode, CEdge>::print_graph_info(cg);

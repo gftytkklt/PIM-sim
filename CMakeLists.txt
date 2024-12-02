@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.10)
 
-# 设置项目名称
+# project name
 project(PIMapping)
 
-# 设置 C++ 标准
+# C++ standard
 set(CMAKE_CXX_STANDARD 20)
 
-# 启用测试
+# enable testing
 enable_testing()
 
-# 设置源代码和头文件目录
+# src and test directories
 add_subdirectory(src)
 add_subdirectory(test)
