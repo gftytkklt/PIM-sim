@@ -1,5 +1,5 @@
 # 自动收集 test 目录下的所有 .cpp 文件
-file(GLOB_RECURSE TEST_SOURCES "test/*.cpp")
+file(GLOB_RECURSE TEST_SOURCES "${CMAKE_SOURCE_DIR}/test/*.cpp")
 
 # 对每个测试文件，创建一个可执行文件并注册为测试
 foreach(test_file ${TEST_SOURCES})
@@ -14,4 +14,7 @@ foreach(test_file ${TEST_SOURCES})
 
     # 注册为 CTest 测试
     add_test(NAME ${test_name} COMMAND ${test_name})
+    # add_test(NAME ${test_name} WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test COMMAND ${test_name})
+    # add_test(NAME ${test_name} COMMAND ${CMAKE_BINARY_DIR}/test/${test_name})
+    # add_test(NAME ${test_name} COMMAND ${test_name})
 endforeach()

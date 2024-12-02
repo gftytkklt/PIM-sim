@@ -23,13 +23,16 @@ struct CNode {
     int layer;                          // Layer index
     std::pair<int,int> size;            // (WL, BL) of xbar
     int ofmap_size;                     // Ofm size
-    std::pair<int,int> id_cin, id_cout; // (cin, cout) channel index  
+    std::pair<int,int> id_cin, id_cout; // (cin, cout) channel index
 };
+std::ostream& operator<<(std::ostream& os, const CNode& cnode);
 
 struct CEdge {
     DepType c_type;
     int datavolume;
 };
+
+std::ostream& operator<<(std::ostream& os, const CEdge& cedge);
 
 struct TNode {
 
@@ -89,59 +92,87 @@ public:
         boost::remove_edge(v1, v2, g);
     }
 
-    // vertices and edges getter
-    const NodeProperty& get_node_property(int v, const Graph& g) const {
-        Node n = boost::vertex(v, g);
-        return g[n];
-        // return g[v];
-    }
+    // // vertices and edges getter
+    // const NodeProperty& get_node_property(int v, const Graph& g) const {
+    //     Node n = boost::vertex(v, g);
+    //     return g[n];
+    //     // return g[v];
+    // }
 
-    const EdgeProperty& get_edge_property(int v1, int v2, const Graph& g) const {
-        Edge e;
-        bool found;
-        boost::tie(e, found) = boost::edge(v1, v2, g);
-        if (found) {
-            return g[e];
-        }
-        return EdgeProperty();
-    }
+    // const EdgeProperty& get_edge_property(int v1, int v2, const Graph& g) const {
+    //     Edge e;
+    //     bool found;
+    //     boost::tie(e, found) = boost::edge(v1, v2, g);
+    //     if (found) {
+    //         auto data = g[e];
+    //         return g[e];
+    //     }
+    //     return EdgeProperty();
+    // }
 
-    // vertices and edges attributes setter
-    void set_node_property(int v, const NodeProperty& node_prop, Graph& g) {
-        Node n = boost::vertex(v, g);
-        g[n] = node_prop;
-    }
+    // // vertex & edge input getter
+    // const NodePropertyType& get_node_property(Node v, const Graph& g) const {
+    //     return boost::get<NodePropertyType>(g, v);
+    //     // return g[v];
+    // }
 
-    void set_edge_property(int v1, int v2, const EdgeProperty& edge_prop, Graph& g) {
-        Edge e;
-        bool found;
-        boost::tie(e, found) = boost::edge(v1, v2, g);
-        if (found) {
-            g[e] = edge_prop;
-        }
-    }
+    // const EdgePropertyType& get_edge_property(Edge e, const Graph& g) const {
+    //     return boost::get<EdgePropertyType>(g, e);
+    //     // return g[e];
+    // }
 
-    // get adjacent vertices and edges
-    std::vector<int> get_adjacent_nodes(int v, const Graph& g) const {
-        std::vector<int> adj_nodes;
-        boost::graph_traits<Graph>::adjacency_iterator ai, ai_end;
-        for (boost::tie(ai, ai_end) = boost::adjacent_nodes(v, g); ai != ai_end; ++ai) {
-            adj_nodes.push_back(*ai);
-        }
-        return adj_nodes;
-    }
+    // // vertices and edges attributes setter
+    // void set_node_property(int v, const NodeProperty& node_prop, Graph& g) {
+    //     Node n = boost::vertex(v, g);
+    //     g[n] = node_prop;
+    // }
 
-    std::vector<int> get_adjacent_edges(int v, const Graph& g) const {
-        std::vector<int> adj_edges;
-        boost::graph_traits<Graph>::out_edge_iterator ei, ei_end;
-        for (boost::tie(ei, ei_end) = boost::out_edges(v, g); ei != ei_end; ++ei) {
-            adj_edges.push_back(*ei);
-        }
-        return adj_edges;
-    }
+    // void set_edge_property(int v1, int v2, const EdgeProperty& edge_prop, Graph& g) {
+    //     Edge e;
+    //     bool found;
+    //     boost::tie(e, found) = boost::edge(v1, v2, g);
+    //     if (found) {
+    //         g[e] = edge_prop;
+    //     }
+    // }
+
+    // // get adjacent vertices and edges
+    // std::vector<int> get_adjacent_nodes(int v, const Graph& g) const {
+    //     std::vector<int> adj_nodes;
+    //     boost::graph_traits<Graph>::adjacency_iterator ai, ai_end;
+    //     for (boost::tie(ai, ai_end) = boost::adjacent_nodes(v, g); ai != ai_end; ++ai) {
+    //         adj_nodes.push_back(*ai);
+    //     }
+    //     return adj_nodes;
+    // }
+
+    // std::vector<int> get_adjacent_edges(int v, const Graph& g) const {
+    //     std::vector<int> adj_edges;
+    //     boost::graph_traits<Graph>::out_edge_iterator ei, ei_end;
+    //     for (boost::tie(ei, ei_end) = boost::out_edges(v, g); ei != ei_end; ++ei) {
+    //         adj_edges.push_back(*ei);
+    //     }
+    //     return adj_edges;
+    // }
 
     // analysis func interface
     virtual void analysis() = 0;
+
+    // // print graph
+    // virtual void print_graph_info(const Graph& cg) const {
+    //     // 遍历所有节点
+    //     for (auto vp = boost::vertices(cg); vp.first != vp.second; ++vp.first) {
+    //         auto v = *vp.first;
+    //         std::cout << "Node " << v << ": " << get_node_property(v, cg) << std::endl;
+    //     }
+
+    //     // 遍历所有边
+    //     for (auto ep = boost::edges(cg); ep.first != ep.second; ++ep.first) {
+    //         auto e = *ep.first;
+    //         std::cout << "Edge (" << boost::source(e, cg) << ", " << boost::target(e, cg) << "): " 
+    //                   << get_edge_property(e, cg) << std::endl;
+    //     }
+    // }
 };
 
 class CGraph : public BaseGraph<CNode, CEdge> {
@@ -150,6 +181,9 @@ public:
     void analysis() override {
         std::cout << "Analysis of CGraph" << std::endl;
     }
+    // void print_graph_info() const{
+    //     BaseGraph<CNode, CEdge>::print_graph_info(cg);
+    // }
 private:
     Graph cg;
 };
@@ -190,5 +224,5 @@ private:
     std::shared_ptr<const CGraph> cg_ref;
 };
 
-#include "graph.hpp"
+// #include "graph.hpp"
 #endif

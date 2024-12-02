@@ -27,9 +27,11 @@ make
 if [ -z "$1" ]; then
   # 如果没有提供参数，执行回归测试
   echo "No test specified. Running all tests (regression tests)..."
-  ctest
+  ctest -N
+  # ctest
 else
   # 如果提供了测试名称，则只运行指定的测试
   echo "Running specific test: $1"
-  ctest -R "$1"
+  # ctest -N -R "$1"
+  ctest -R "$1" -V
 fi
