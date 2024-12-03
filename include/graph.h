@@ -68,6 +68,7 @@ public:
 
     using Graph = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, NodeProperty, EdgeProperty>;
     using UGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, NodeProperty, EdgeProperty>;
+    using BiGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS, NodeProperty, EdgeProperty>;
     using Node = boost::graph_traits<Graph>::vertex_descriptor;
     using Edge = boost::graph_traits<Graph>::edge_descriptor;
 
@@ -91,11 +92,21 @@ public:
 
     // remove vertices and edges
     void remove_node(int v, Graph& g) {
+        auto ei = edges(g);
+        for (auto e = ei.first; e != ei.second; ++e) {
+            if (target(*e, g) == v) { // out-edges are deleted automatically
+                remove_edge(*e, g);  // delete in-edges mauanlly
+            }
+        }
         boost::remove_vertex(v, g);
     }
 
     void remove_edge(int v1, int v2, Graph& g) {
         boost::remove_edge(v1, v2, g);
+    }
+
+    void remove_edge(const Edge& e, Graph& g) {
+        boost::remove_edge(e, g);
     }
 
     // graph getter

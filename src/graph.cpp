@@ -3,7 +3,7 @@
 
 #include "graph.h"
 CGraph::CGraph(const std::vector<NNkernel>& kernels) : cg{} {
-    int layer=0;
+    int layer=80;
     for (const auto& kernel : kernels) {
         CNode cnode;
         cnode.layer = layer++;
