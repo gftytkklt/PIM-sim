@@ -6,7 +6,7 @@ CGraph::CGraph(const std::vector<NNkernel>& kernels) : cg{} {
     int layer=0;
     for (const auto& kernel : kernels) {
         CNode cnode;
-        
+        cnode.layer = layer++;
         cnode.size = kernel.wsize;
         cnode.ofmap_size = kernel.scaling_factor;
         cnode.id_cin = kernel.channel;
