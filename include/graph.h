@@ -62,7 +62,7 @@ struct DEdge {
 
 template <typename NodeProperty, typename EdgeProperty>
 class BaseGraph {
-public:
+protected:
     // using NodeProperty = boost::property<boost::vertex_property_tag, NodePropertyType>;
     // using EdgeProperty = boost::property<boost::edge_property_tag, EdgePropertyType>;
 

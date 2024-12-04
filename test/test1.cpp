@@ -1,6 +1,7 @@
 #include "graph.h"
 #include <gtest/gtest.h>
 
+// deprecated test because graph op is setted to protected
 class GraphTest : public ::testing::Test {
 protected:
     std::vector<NNkernel> kernels = { { {3,3}, {256,384}, 1 }, { {3,3}, {384,384}, 2 } };
@@ -33,18 +34,18 @@ protected:
 //     cg->print_graph_info();
 // }
 
-TEST_F(GraphTest, TEST02) {
-    cg->add_edge(0, 1,  CEdge{DepType::Accum, 100}, graph);
-    cg->add_edge(1, 0,  CEdge{DepType::Accum, 200}, graph);
-    cg->remove_node(0, graph);
-    // auto data = cg->get_adjacent_nodes(0, graph);
-    // for (auto& d : data) {
-    //     std::cout << "fuck" << d << std::endl;
-    // }
-    // auto edges = cg->get_adjacent_edges(1, graph);
-    // std::cout << edges.size() << std::endl;
-    cg->print_graph_info();
-}
+// TEST_F(GraphTest, TEST02) {
+//     cg->add_edge(0, 1,  CEdge{DepType::Accum, 100}, graph);
+//     cg->add_edge(1, 0,  CEdge{DepType::Accum, 200}, graph);
+//     cg->remove_node(0, graph);
+//     // auto data = cg->get_adjacent_nodes(0, graph);
+//     // for (auto& d : data) {
+//     //     std::cout << "fuck" << d << std::endl;
+//     // }
+//     // auto edges = cg->get_adjacent_edges(1, graph);
+//     // std::cout << edges.size() << std::endl;
+//     cg->print_graph_info();
+// }
 
 // TEST_F(GraphTest, TEST1){
 //     ASSERT_EQ(2, boost::num_vertices(graph));

@@ -45,7 +45,26 @@
 #### `MyClass(int data, const std::string& name)`
 构造函数，初始化类实例的成员变量。
 
+#### `addNode()`
+
+该成员函数用于向图中添加一个新节点。
+
+##### **参数**
+- **node_id (int)**: 新节点的唯一标识符。
+- **node_data (NodeData)**: 与节点关联的数据对象。
+
+##### **返回值**
+- **bool**: 如果节点成功添加到图中，返回 `true`；否则返回 `false`。
+
+##### **示例**
 ```cpp
-MyClass::MyClass(int data, const std::string& name)
-    : data(data), name(name) {}
+bool Graph::addNode(int node_id, NodeData node_data) {
+    if (nodes.find(node_id) != nodes.end()) {
+        // 节点ID已存在
+        return false;
+    }
+    // 向图中添加新节点
+    nodes[node_id] = node_data;
+    return true;
+}
 ```
