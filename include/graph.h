@@ -12,6 +12,8 @@ struct NNkernel {
     std::pair<int,int> wsize;   // (w, h) of kernel
     std::pair<int,int> channel; // (in, out) of stride
     int scaling_factor;         // stride * pooling stride, fmap reducing factor
+    std::pair<int,int> depinfo; // (dep_layer, dep_channel_num)
+    int fmap_size;              // fmap size(w*h*c)
 };
 
 enum class DepType {
@@ -23,10 +25,12 @@ enum class DepType {
 
 struct CNode {
     int layer;                          // Layer index
-    std::pair<int,int> size;            // (WL, BL) of xbar
+    // std::pair<int,int> size;            // (WL, BL) of xbar
     int ofmap_size;                     // Ofm size
     std::pair<int,int> id_cin, id_cout; // (cin, cout) channel index
+    std::pair<int,int> depinfo;         // (dep_layer, dep_channel_num)
 };
+
 std::ostream& operator<<(std::ostream& os, const CNode& cnode);
 
 struct CEdge {
@@ -63,9 +67,6 @@ struct DEdge {
 template <typename NodeProperty, typename EdgeProperty>
 class BaseGraph {
 protected:
-    // using NodeProperty = boost::property<boost::vertex_property_tag, NodePropertyType>;
-    // using EdgeProperty = boost::property<boost::edge_property_tag, EdgePropertyType>;
-
     using Graph = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, NodeProperty, EdgeProperty>;
     using UGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, NodeProperty, EdgeProperty>;
     using BiGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS, NodeProperty, EdgeProperty>;
@@ -74,8 +75,6 @@ protected:
 
     // default ctor
     BaseGraph() = default;
-    // virtual void add_node(const NodeProperty& node_prop) = 0;
-    // virtual void add_edge(int v1, int v2, const EdgeProperty& edge_prop) = 0;
 
     // add vertices and edges
     void add_node(const NodeProperty& node_prop, Graph& g) {
@@ -154,7 +153,7 @@ protected:
         g[e] = edge_prop;
     }
 
-    // get adjacent vertices and edges
+    // get adjacent vertices
     std::vector<int> get_adjacent_nodes(int v, const Graph& g) const {
         std::vector<int> adj_nodes;
         typename boost::graph_traits<Graph>::adjacency_iterator ai, ai_end;
@@ -164,63 +163,54 @@ protected:
         return adj_nodes;
     }
 
-    std::vector<Edge> get_adjacent_edges(int v, const Graph& g) const {
-        std::vector<Edge> adj_edges;
-        typename boost::graph_traits<Graph>::out_edge_iterator ei, ei_end;
-        for (boost::tie(ei, ei_end) = boost::out_edges(v, g); ei != ei_end; ++ei) {
-            adj_edges.push_back(*ei);
-        }
-        return adj_edges;
-    }
+    // deprecated because only out-edges are stored and can be determined by adjacent vertices
+    // std::vector<int> get_adjacent_edges(int v, const Graph& g) const {
+    //     std::vector<int> adj_edges;
+    //     typename boost::graph_traits<Graph>::out_edge_iterator ei, ei_end;
+    //     for (boost::tie(ei, ei_end) = boost::out_edges(v, g); ei != ei_end; ++ei) {
+    //         // adj_edges.push_back(*ei);
+    //         adj_edges.push_back(boost::target(*ei, g));
+    //     }
+    //     return adj_edges;
+    // }
 
     // analysis func interface
     virtual void analysis() = 0;
 
     // print graph
-    virtual void print_graph_info(const Graph& cg) const {
+    virtual void print_graph_info(const Graph& g) const {
         // traverse all nodes
-        for (auto vp = boost::vertices(cg); vp.first != vp.second; ++vp.first) {
+        for (auto vp = boost::vertices(g); vp.first != vp.second; ++vp.first) {
             auto v = *vp.first;
-            std::cout << "Node " << v << ": " << get_node_property(v, cg) << std::endl;
+            std::cout << "Node " << v << ": " << get_node_property(v, g) << std::endl;
         }
 
         // traverse all edges
-        for (auto ep = boost::edges(cg); ep.first != ep.second; ++ep.first) {
+        for (auto ep = boost::edges(g); ep.first != ep.second; ++ep.first) {
             auto e = *ep.first;
-            std::cout << "Edge (" << boost::source(e, cg) << ", " << boost::target(e, cg) << "): " 
-                      << get_edge_property(e, cg) << std::endl;
+            std::cout << "Edge (" << boost::source(e, g) << ", " << boost::target(e, g) << "): " 
+                      << get_edge_property(e, g) << std::endl;
         }
     }
 };
 
 class CGraph : public BaseGraph<CNode, CEdge> {
 public:
-    CGraph(const std::vector<NNkernel>& kernels);
-    void analysis() override {
-        std::cout << "Analysis of CGraph" << std::endl;
-    }
+    CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size);
+    void analysis() final;
     const Graph& get_graph() const {
         return cg;
     }
     Graph& get_graph() {
         return cg;
     }
-    // const auto get_node_property(int v) const {
-        
-    //     // Node n = boost::vertex(v, cg);
-    //     // return cg[n];
-    //     // std::cout << "node" << n << std::endl;
-    //     // return cg.m_vertices[n].m_property.m_value;
-    //     // auto sth = boost::get(boost::vertex_property_tag(), cg, n);
-    //     // return sth;
-    //     // const auto property_map = boost::get(boost::vertex_property_tag(), cg);
-    //     // return property_map[n];
-    // }
     void print_graph_info() const{
         BaseGraph<CNode, CEdge>::print_graph_info(cg);
     }
 private:
+    const std::vector<NNkernel>& kernels;
     Graph cg;
+    std::pair<int, int> CNode_size; // (W, H) of node
 };
 
 class TGraph : public BaseGraph<TNode, TEdge> {
@@ -230,8 +220,8 @@ public:
         std::cout << "Analysis of TGraph" << std::endl;
     }
 private:
-    Graph tg;
-    std::shared_ptr<const CGraph> cg_ref;
+    Graph tg; // T-VDFG
+    std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
 };
 
 class HGraph : public BaseGraph<HNode, HEdge> {
@@ -241,9 +231,9 @@ public:
         std::cout << "Analysis of HGraph" << std::endl;
     }
 private:
-    Graph hg;
-    std::shared_ptr<const TGraph> tg_ref;
-    std::shared_ptr<const CGraph> cg_ref;
+    Graph hg; // HCG
+    std::shared_ptr<const TGraph> tg_ref; // T-VDFG for HCG inference
+    std::shared_ptr<const CGraph> cg_ref; // C-VDFG for HCG inference
 };
 
 class DGraph : public BaseGraph<DNode, DEdge> {
@@ -253,10 +243,10 @@ public:
         std::cout << "Analysis of DGraph" << std::endl;
     }
 private:
-    Graph dg;
-    std::shared_ptr<const HGraph> hg_ref;
-    std::shared_ptr<const TGraph> tg_ref;
-    std::shared_ptr<const CGraph> cg_ref;
+    Graph dg; // DHCG
+    std::shared_ptr<const HGraph> hg_ref; // HCG for DHCG inference
+    std::shared_ptr<const TGraph> tg_ref; // T-VDFG for DHCG inference
+    std::shared_ptr<const CGraph> cg_ref; // C-VDFG for DHCG inference  
 };
 
 // #include "graph.hpp"

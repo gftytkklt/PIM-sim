@@ -11,6 +11,11 @@ protected:
     //     graph = cg->get_graph();
     // }
 };
+
+TEST_F(GraphTest, DEPRECATED){
+    std::cout << "##### deprecated test for protected graph operations in debug mode #####" << std::endl;
+}   
+
 // TEST_F(GraphTest, TEST0){
 //     ASSERT_EQ(2, boost::num_vertices(graph));
 //     ASSERT_EQ(0, boost::num_edges(graph));
