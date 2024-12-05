@@ -9,8 +9,9 @@
 #include <optional>
 
 struct NNkernel {
+    int layer;
     std::pair<int,int> wsize;   // (w, h) of kernel
-    std::pair<int,int> channel; // (in, out) of stride
+    std::pair<int,int> channel; // (in, out) of channel
     int scaling_factor;         // stride * pooling stride, fmap reducing factor
     std::pair<int,int> depinfo; // (dep_layer, dep_channel_num)
     int fmap_size;              // fmap size(w*h*c)

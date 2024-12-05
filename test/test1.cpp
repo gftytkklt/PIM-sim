@@ -4,17 +4,25 @@
 // deprecated test because graph op is setted to protected
 class GraphTest : public ::testing::Test {
 protected:
-    std::vector<NNkernel> kernels = { { {3,3}, {256,384}, 1 }, { {3,3}, {384,384}, 2 } };
-    std::shared_ptr<CGraph> cg = std::make_shared<CGraph>(kernels);
+    std::vector<NNkernel> kernels = { 
+    {1, {3,3}, {256,384}, 1, {2,384},1000 }, 
+    {2, {3,3}, {384,384}, 1, {3,384},2000 },
+    {3, {3,3}, {384,384}, 1, {0,0},3000 } 
+    };
+    std::shared_ptr<CGraph> cg = std::make_shared<CGraph>(kernels, std::make_pair(1152, 256));
     decltype(cg->get_graph()) graph = cg->get_graph();
     // void SetUp() override {
     //     graph = cg->get_graph();
     // }
 };
 
-TEST_F(GraphTest, DEPRECATED){
-    std::cout << "##### deprecated test for protected graph operations in debug mode #####" << std::endl;
-}   
+TEST_F(GraphTest, TESTMAP){
+    cg->analysis();
+}
+
+// TEST_F(GraphTest, DEPRECATED){
+//     std::cout << "##### deprecated test for protected graph operations in debug mode #####" << std::endl;
+// }   
 
 // TEST_F(GraphTest, TEST0){
 //     ASSERT_EQ(2, boost::num_vertices(graph));
