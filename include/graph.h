@@ -134,8 +134,8 @@ protected:
         if (found) {
             return g[e];
         }
-        static const EdgeProperty default_edge_property{};  // 静态常量，避免多次构造
-        return default_edge_property;  // 返回默认属性的常量引用
+        static const EdgeProperty default_edge_property{};
+        return default_edge_property;
     }
 
     const EdgeProperty& get_edge_property(const Edge& e, const Graph& g) const {

@@ -68,11 +68,41 @@ void CGraph::create_cnodes(){
 }
 
 void CGraph::conn_accblk(){
-
+    for (const auto& v : dep_infos){
+        for (const auto& blk : v.acc_blks){
+            const auto& vertexs = blk.vertex_id;
+            auto blk_num = vertexs.size();
+            // skip conn for empty(should not happen) or single node group
+            if (blk_num <= 1) {continue;}
+            auto cur_ofm = vertexs[0];
+            // TODO: impl fmap cal
+            for (int i=0;i<blk_num-1;i++){
+                // since input channel are impl in order
+                // and accum is interchangable
+                add_edge(vertexs[i], vertexs[i+1], CEdge{DepType::Accum,255},cg);
+            }
+        }
+    }
 }
 
 void CGraph::inter_layer_conn(){
-
+    for (const auto& v : dep_infos){
+        // get acc blks and dep info
+        const auto& dep_id = v.dep_info;
+        for (const auto& src : v.acc_blks){
+            for (const auto& index : dep_id) {
+                const auto& dst_layer = dep_infos[index.dep_layer];
+                for (const auto& dst_blk: dst_layer.acc_blks){
+                    for (const auto& dst_node: dst_blk.vertex_id){
+                        // get node cin
+                        // connect overlap channel
+                        // TODO: impl overlap func
+                        // TODO: add edge via overlap number
+                    }
+                }
+            }
+        }
+    }
 }
 
 void CGraph::print_graph_info() const{ 
