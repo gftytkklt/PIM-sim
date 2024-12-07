@@ -8,13 +8,19 @@
 #include <memory>
 #include <optional>
 
+// Dep info of a kernel dep
+struct Depinfo{
+    int dep_layer;
+    std::pair<int,int> dep_chan;
+};
+
 struct NNkernel {
     int layer;
     std::pair<int,int> wsize;   // (w, h) of kernel
     std::pair<int,int> channel; // (in, out) of channel
-    int scaling_factor;         // stride * pooling stride, fmap reducing factor
-    std::pair<int,int> depinfo; // (dep_layer, dep_channel_num)
-    int fmap_size;              // fmap size(w*h*c)
+    // int scaling_factor;         // stride * pooling stride, fmap reducing factor
+    std::vector<Depinfo> depinfo; // (dep_layer, dep_channel_num)
+    int fmap_size;              // ofmap size(w*h*c)
 };
 
 enum class DepType {
@@ -29,7 +35,7 @@ struct CNode {
     // std::pair<int,int> size;            // (WL, BL) of xbar
     int ofmap_size;                     // Ofm size
     std::pair<int,int> id_cin, id_cout; // (cin, cout) channel index
-    std::pair<int,int> depinfo;         // (dep_layer, dep_channel_num)
+    // std::pair<int,int> depinfo;         // (dep_layer, dep_channel_num)
 };
 
 std::ostream& operator<<(std::ostream& os, const CNode& cnode);
@@ -78,16 +84,17 @@ protected:
     BaseGraph() = default;
 
     // add vertices and edges
-    void add_node(const NodeProperty& node_prop, Graph& g) {
-        boost::add_vertex(node_prop, g);
-        std::cout << "add node" << std::endl;
+    auto add_node(const NodeProperty& node_prop, Graph& g) {
+        // auto sth = boost::add_vertex(node_prop, g);
+        return boost::add_vertex(node_prop, g);
+        // std::cout << "add node" << std::endl;
     }
 
     void add_edge(int v1, int v2, const EdgeProperty& edge_prop, Graph& g) {
         // auto n1 = boost::vertex(v1, g);
         // auto n2 = boost::vertex(v2, g);
         boost::add_edge(v1, v2, edge_prop, g);
-        std::cout << "add edge" << std::endl;
+        // std::cout << "add edge" << std::endl;
     }
 
     // remove vertices and edges
@@ -197,21 +204,37 @@ protected:
 
 class CGraph : public BaseGraph<CNode, CEdge> {
 public:
+    // acc cnodes group with in a NN kernel
+    struct AccBlk{
+        std::vector<Node> vertex_id;
+        std::pair<int, int> cout_id;
+    };
+
+    // Dep struct for a NN kernel
+    struct CDep{
+        std::vector<AccBlk> acc_blks;
+        int layer;
+        std::vector<Depinfo> dep_info;
+    };
+
     CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size);
     void analysis() final;
-    const Graph& get_graph() const {
-        return cg;
-    }
-    Graph& get_graph() {
-        return cg;
-    }
-    void print_graph_info() const{
-        BaseGraph<CNode, CEdge>::print_graph_info(cg);
-    }
+    const Graph& get_graph() const { return cg; }
+    Graph& get_graph() { return cg; }
+    void print_graph_info() const;
+    
+    // debug interface
+    void debug();
 private:
     const std::vector<NNkernel>& kernels;
     Graph cg;
     std::pair<int, int> CNode_size; // (W, H) of node
+    std::vector<CDep> dep_infos;
+    // create and connect accblk kernel-wise
+    void create_cnodes();
+    void conn_accblk();
+    void inter_layer_conn();
+
 };
 
 class TGraph : public BaseGraph<TNode, TEdge> {

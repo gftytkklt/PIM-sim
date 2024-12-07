@@ -5,9 +5,9 @@
 class GraphTest : public ::testing::Test {
 protected:
     std::vector<NNkernel> kernels = { 
-    {1, {3,3}, {256,384}, 1, {2,384},1000 }, 
-    {2, {3,3}, {384,384}, 1, {3,384},2000 },
-    {3, {3,3}, {384,384}, 1, {0,0},3000 } 
+    {1, {3,3}, {256,384}, std::vector<Depinfo>{{2,std::make_pair(1,384)}},1000 }, 
+    {2, {3,3}, {384,384}, std::vector<Depinfo>{{3,std::make_pair(1,384)}},2000 },
+    {3, {3,3}, {384,256}, std::vector<Depinfo>{{0,std::make_pair(0,0)}},3000 } 
     };
     std::shared_ptr<CGraph> cg = std::make_shared<CGraph>(kernels, std::make_pair(1152, 256));
     decltype(cg->get_graph()) graph = cg->get_graph();
@@ -17,7 +17,8 @@ protected:
 };
 
 TEST_F(GraphTest, TESTMAP){
-    cg->analysis();
+    cg->debug();
+    cg->print_graph_info();
 }
 
 // TEST_F(GraphTest, DEPRECATED){

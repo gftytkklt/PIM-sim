@@ -3,20 +3,94 @@
 
 #include "graph.h"
 #include <boost/graph/dijkstra_shortest_paths.hpp>
-CGraph::CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size) : cg{}, kernels{kernels}, CNode_size{CNode_size} {
-    for (int i = 0; i < kernels.size(); i++) {
-        add_node(CNode{i, kernels[i].fmap_size, std::make_pair(1, kernels[i].channel.first), std::make_pair(1, kernels[i].channel.second),kernels[i].depinfo},cg);
+CGraph::CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size) 
+    : cg{}, kernels{kernels}, CNode_size{CNode_size}, dep_infos{} {
+    analysis();
+    // for (int i = 0; i < kernels.size(); i++) {
+    //     add_node(CNode{i, kernels[i].fmap_size, std::make_pair(1, kernels[i].channel.first), std::make_pair(1, kernels[i].channel.second)},cg);
+    // }
+    // for (int i = 0; i < kernels.size(); i++) {
+    //     for (int j = 0; j < kernels.size(); j++) {
+    //         if (i != j) {
+    //             add_edge(i, j, CEdge{DepType::Prop, i+10*j},cg);
+    //         }
+    //     }
+    // }
+}
+
+void CGraph::analysis() {
+    create_cnodes();
+    conn_accblk();
+    inter_layer_conn();
+}
+
+void CGraph::create_cnodes(){
+    // create cnodes kernel-wise
+    for (const auto& i: kernels) {
+        // determine in/out chan num of a cnode
+        int window_size = i.wsize.first * i.wsize.second;
+        int in_chan = (CNode_size.first + window_size - 1) / window_size;
+        int out_chan = CNode_size.second;
+        // cur layer info
+        auto [ker_in, ker_out] = i.channel;
+        auto cur_l = i.layer;
+        auto cur_dep = i.depinfo;
+        auto cur_ofm = i.fmap_size;
+        // construct nodes under the size constraints of (in_chan, out_chan)
+        int co_begin = 0;
+        std::vector<AccBlk> accblks{};
+        while (co_begin < ker_out) {
+            // create the segmentation along the output channel dimension
+            int co_end = std::min(co_begin + out_chan, ker_out);
+            auto co_id = std::make_pair(co_begin+1, co_end);
+            int ci_begin = 0;
+            std::vector<Node> accblk{};
+            while(ci_begin < ker_in){
+                // create the segmentation along the input channel dimension
+                int ci_end = std::min(ci_begin + in_chan, ker_in);
+                auto ci_id = std::make_pair(ci_begin+1, ci_end);
+                // instantiate a cnode
+                // TODO: impl ofm calculation
+                auto cnode = CNode{cur_l, cur_ofm, ci_id, co_id};
+                // add node to accblk
+                accblk.emplace_back(add_node(cnode, cg));
+                // update ci_begin
+                ci_begin = ci_end;
+            }
+            // add accblk to accblks group
+            accblks.emplace_back(AccBlk{accblk, co_id});
+            // update co_begin
+            co_begin = co_end;
+        }
+        // add accblks gropu to dep_infos
+        dep_infos.emplace_back(CDep{accblks, cur_l, cur_dep});
     }
-    for (int i = 0; i < kernels.size(); i++) {
-        for (int j = 0; j < kernels.size(); j++) {
-            if (i != j) {
-                add_edge(i, j, CEdge{DepType::Prop, i+10*j},cg);
+}
+
+void CGraph::conn_accblk(){
+
+}
+
+void CGraph::inter_layer_conn(){
+
+}
+
+void CGraph::print_graph_info() const{ 
+    std::cout << "Graph info:" << std::endl;
+    BaseGraph<CNode, CEdge>::print_graph_info(cg);
+    std::cout << "Dep info:" << std::endl;
+    for(const auto&v : dep_infos){
+        std::cout << "Layer: " << v.layer << std::endl;
+        for(const auto& blk : v.acc_blks){
+            std::cout << "AccBlk: " << blk.cout_id.first << " - " << blk.cout_id.second << std::endl;
+            for(const auto& node : blk.vertex_id){
+                std::cout << "Node: " << node << std::endl;
             }
         }
     }
 }
 
-void CGraph::analysis(){
+void CGraph::debug(){
     auto coords_map = boost::get(&CNode::id_cin, cg);
     for(auto v : boost::make_iterator_range(vertices(cg))){
         auto sth = coords_map[v]; // attribute getter
@@ -62,7 +136,8 @@ std::ostream& operator<<(std::ostream& os, const CNode& cnode) {
     os << "Layer: " << cnode.layer << std::endl;
     // os << "Size: (" << cnode.size.first << ", " << cnode.size.second << ")" << std::endl;
     os << "Ofmap size: " << cnode.ofmap_size << std::endl;
-    os << "Channel index: (" << cnode.id_cin.first << ", " << cnode.id_cin.second << ")" << std::endl;
+    os << "In Channel index: (" << cnode.id_cin.first << ", " << cnode.id_cin.second << ")" << std::endl;
+    os << "Out Channel index: (" << cnode.id_cout.first << ", " << cnode.id_cout.second << ")" << std::endl;
     return os;
 }
 
