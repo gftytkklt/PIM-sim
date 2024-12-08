@@ -35,7 +35,8 @@ void CGraph::create_cnodes(){
         auto [ker_in, ker_out] = i.channel;
         auto cur_l = i.layer;
         auto cur_dep = i.depinfo;
-        auto cur_ofm = i.fmap_size;
+        auto cur_ifm = i.ifmap_size;
+        auto cur_ofm = i.ofmap_size;
         // construct nodes under the size constraints of (in_chan, out_chan)
         int co_begin = 0;
         std::vector<AccBlk> accblks{};
@@ -51,7 +52,7 @@ void CGraph::create_cnodes(){
                 auto ci_id = std::make_pair(ci_begin+1, ci_end);
                 // instantiate a cnode
                 // TODO: impl ofm calculation
-                auto cnode = CNode{cur_l, cur_ofm, ci_id, co_id};
+                auto cnode = CNode{cur_l, -1, ci_id, co_id};
                 // add node to accblk
                 accblk.emplace_back(add_node(cnode, cg));
                 // update ci_begin
@@ -108,7 +109,7 @@ void CGraph::inter_layer_conn(){
 void CGraph::print_graph_info() const{ 
     std::cout << "Graph info:" << std::endl;
     BaseGraph<CNode, CEdge>::print_graph_info(cg);
-    std::cout << "Dep info:" << std::endl;
+    std::cout << "AccBlk info:" << std::endl;
     for(const auto&v : dep_infos){
         std::cout << "Layer: " << v.layer << std::endl;
         for(const auto& blk : v.acc_blks){

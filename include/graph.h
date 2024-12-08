@@ -20,7 +20,7 @@ struct NNkernel {
     std::pair<int,int> channel; // (in, out) of channel
     // int scaling_factor;         // stride * pooling stride, fmap reducing factor
     std::vector<Depinfo> depinfo; // (dep_layer, dep_channel_num)
-    int fmap_size;              // ofmap size(w*h*c)
+    std::pair<int,int> ifmap_size, ofmap_size;  // ofmap size(w, h)
 };
 
 enum class DepType {
