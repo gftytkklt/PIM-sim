@@ -6,16 +6,6 @@
 CGraph::CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size) 
     : cg{}, kernels{kernels}, CNode_size{CNode_size}, dep_infos{} {
     analysis();
-    // for (int i = 0; i < kernels.size(); i++) {
-    //     add_node(CNode{i, kernels[i].fmap_size, std::make_pair(1, kernels[i].channel.first), std::make_pair(1, kernels[i].channel.second)},cg);
-    // }
-    // for (int i = 0; i < kernels.size(); i++) {
-    //     for (int j = 0; j < kernels.size(); j++) {
-    //         if (i != j) {
-    //             add_edge(i, j, CEdge{DepType::Prop, i+10*j},cg);
-    //         }
-    //     }
-    // }
 }
 
 void CGraph::analysis() {
@@ -88,7 +78,7 @@ void CGraph::conn_accblk(){
             // TODO: impl fmap cal
             for (int i=0;i<node_num-1;i++){
                 // since input channel are impl in order
-                // and accum is interchangable
+                // and accum order is commutable
                 add_edge(vertexs[i], vertexs[i+1], CEdge{DepType::Accum,cur_ofm},cg);
             }
         }
@@ -102,8 +92,9 @@ void CGraph::inter_layer_conn(){
         for (const auto& src : v.acc_blks){
             // get cur data volume and output channel id
             auto src_node = src.vertex_id.back();
-            auto cur_datavolume = get_node_property(src_node,cg).ofmap_size;
-            auto cur_cin_num = get_node_property(src_node,cg).id_cin.second - get_node_property(src_node,cg).id_cin.first + 1;
+            const auto src_property = get_node_property(src_node,cg);
+            auto cur_datavolume = src_property.ofmap_size;
+            auto cur_cin_num = src_property.id_cin.second - src_property.id_cin.first + 1;
             auto co_src = src.cout_id;
             // get dst node
             for (const auto& dep : deps){
@@ -121,21 +112,7 @@ void CGraph::inter_layer_conn(){
                         }
                     }
                 }
-                // get dst acc blks
-
             }
-                
-            // for (const auto& index : dep_id) {
-            //     const auto& dst_layer = dep_infos[index.dep_layer];
-            //     for (const auto& dst_blk: dst_layer.acc_blks){
-            //         for (const auto& dst_node: dst_blk.vertex_id){
-            //             // get node cin
-            //             // connect overlap channel
-            //             // TODO: impl overlap func
-            //             // TODO: add edge via overlap number
-            //         }
-            //     }
-            // }
         }
     }
 }
@@ -165,7 +142,6 @@ void CGraph::debug(){
             cg[v].ofmap_size += 1; // setter
             std::cout << get_node_property(v,cg) << std::endl;
         }
-        // std::cout << "Node " << v << " : input channel" << coords_map[v].first << coords_map[v].second << std::endl;
     }
     std::vector<int> dist(boost::num_vertices(cg));
     std::vector<Node> pred(num_vertices(cg));
@@ -173,8 +149,6 @@ void CGraph::debug(){
     auto source = boost::vertex(0, cg);
 
     boost::dijkstra_shortest_paths(cg, source, 
-            // boost::predecessor_map(boost::make_iterator_property_map(pred.begin(), boost::get(boost::vertex_index, cg)))
-            // .distance_map(boost::make_iterator_property_map(dist.begin(), boost::get(boost::vertex_index, cg)))
             boost::predecessor_map(&pred[0])
             .distance_map(&dist[0])
             .weight_map(weight_map)
@@ -185,7 +159,7 @@ void CGraph::debug(){
         std::cout << "Node " << i + 1 << ": " << dist[i] << std::endl;
     }
 
-    // 输出路径
+    // output paths
     std::cout << "Paths:" << std::endl;
     for (size_t i = 0; i < pred.size(); ++i) {
         std::cout << "Node " << i + 1 << ": ";
@@ -199,7 +173,6 @@ void CGraph::debug(){
 
 std::ostream& operator<<(std::ostream& os, const CNode& cnode) {
     os << "Layer: " << cnode.layer << std::endl;
-    // os << "Size: (" << cnode.size.first << ", " << cnode.size.second << ")" << std::endl;
     os << "Ofmap size: " << cnode.ofmap_size << std::endl;
     os << "In Channel index: (" << cnode.id_cin.first << ", " << cnode.id_cin.second << ")" << std::endl;
     os << "Out Channel index: (" << cnode.id_cout.first << ", " << cnode.id_cout.second << ")" << std::endl;
@@ -223,4 +196,3 @@ std::ostream& operator<<(std::ostream& os, const CEdge& cedge) {
     os << "Data volume: " << cedge.datavolume << std::endl;
     return os;
 }
-// #endif

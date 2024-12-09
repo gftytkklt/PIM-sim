@@ -1,7 +1,7 @@
 #include "graph.h"
 #include <gtest/gtest.h>
 
-// deprecated test because graph op is setted to protected
+// test C-VDFG generation
 class GraphTest : public ::testing::Test {
 protected:
     std::vector<NNkernel> kernels = { 
@@ -16,10 +16,12 @@ protected:
     // }
 };
 
-TEST_F(GraphTest, TESTMAP){
+TEST_F(GraphTest, TESTCG){
     cg->debug();
     cg->print_graph_info();
 }
+
+// deprecated test because graph op is setted to protected
 
 // TEST_F(GraphTest, DEPRECATED){
 //     std::cout << "##### deprecated test for protected graph operations in debug mode #####" << std::endl;

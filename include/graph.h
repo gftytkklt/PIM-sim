@@ -6,7 +6,6 @@
 #include <iostream>
 #include <vector>
 #include <memory>
-#include <optional>
 
 // Dep info of a kernel dep
 struct Depinfo{
@@ -18,7 +17,6 @@ struct NNkernel {
     int layer;
     std::pair<int,int> wsize;   // (w, h) of kernel
     std::pair<int,int> channel; // (in, out) of channel
-    // int scaling_factor;         // stride * pooling stride, fmap reducing factor
     std::vector<Depinfo> depinfo; // (dep_layer, dep_channel_num)
     std::pair<int,int> ifmap_size, ofmap_size;  // ofmap size(w, h)
 };
@@ -27,15 +25,14 @@ enum class DepType {
     ErrorType,
     Accum,  // intra-layer accumulation
     Prop,   // inter-layer propagation
+    Mixed,  // tile-level deptype
     // ...
 };
 
 struct CNode {
     int layer;                          // Layer index
-    // std::pair<int,int> size;            // (WL, BL) of xbar
     int ofmap_size;                     // Ofm size
     std::pair<int,int> id_cin, id_cout; // (cin, cout) channel index
-    // std::pair<int,int> depinfo;         // (dep_layer, dep_channel_num)
 };
 
 std::ostream& operator<<(std::ostream& os, const CNode& cnode);
@@ -48,11 +45,14 @@ struct CEdge {
 std::ostream& operator<<(std::ostream& os, const CEdge& cedge);
 
 struct TNode {
-
+    std::vector<size_t> cnode_id; // original cnode id
+    std::vector<CNode> super_nodes; // merged cnodes info
 };
 
-struct TEdge {
+std::ostream& operator<<(std::ostream& os, const TNode& tnode);
 
+struct TEdge {
+    int datavolume;
 };
 
 struct HNode {
@@ -85,14 +85,11 @@ protected:
 
     // add vertices and edges
     auto add_node(const NodeProperty& node_prop, Graph& g) {
-        // auto sth = boost::add_vertex(node_prop, g);
         return boost::add_vertex(node_prop, g);
         // std::cout << "add node" << std::endl;
     }
 
     void add_edge(int v1, int v2, const EdgeProperty& edge_prop, Graph& g) {
-        // auto n1 = boost::vertex(v1, g);
-        // auto n2 = boost::vertex(v2, g);
         boost::add_edge(v1, v2, edge_prop, g);
         // std::cout << "add edge" << std::endl;
     }
@@ -123,7 +120,7 @@ protected:
     const NodeProperty& get_node_property(int v, const Graph& g) const {
         auto n = boost::vertex(v, g);
         return g[n];
-        // return n.m_property.m_value;
+        // method deprecated but works
         // return g.m_vertices[n].m_property.m_value;
     } 
 
@@ -239,10 +236,14 @@ private:
 
 class TGraph : public BaseGraph<TNode, TEdge> {
 public:
-    TGraph(std::shared_ptr<const CGraph> cg);
-    void analysis() override {
-        std::cout << "Analysis of TGraph" << std::endl;
-    }
+    TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num);
+    void analysis() final;
+    const Graph& get_graph() const { return tg; }
+    Graph& get_graph() { return tg; }
+    void print_graph_info() const;
+
+    // debug interface
+    void debug();
 private:
     Graph tg; // T-VDFG
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
@@ -273,5 +274,4 @@ private:
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for DHCG inference  
 };
 
-// #include "graph.hpp"
 #endif
