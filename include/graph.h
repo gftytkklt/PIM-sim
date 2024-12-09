@@ -55,6 +55,8 @@ struct TEdge {
     int datavolume;
 };
 
+std::ostream& operator<<(std::ostream& os, const TEdge& tedge);
+
 struct HNode {
 
 };
@@ -218,6 +220,8 @@ public:
     void analysis() final;
     const Graph& get_graph() const { return cg; }
     Graph& get_graph() { return cg; }
+    const auto& get_dep_infos() const { return dep_infos; }
+    auto& get_dep_infos() { return dep_infos; }
     void print_graph_info() const;
     
     // debug interface
@@ -226,7 +230,7 @@ private:
     const std::vector<NNkernel>& kernels;
     Graph cg;
     std::pair<int, int> CNode_size; // (W, H) of node
-    std::vector<CDep> dep_infos;
+    std::vector<CDep> dep_infos; // kernel-wise dep list
     // create and connect accblk kernel-wise
     void create_cnodes();
     void conn_accblk();
@@ -236,7 +240,7 @@ private:
 
 class TGraph : public BaseGraph<TNode, TEdge> {
 public:
-    TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num);
+    TGraph(const CGraph& cg, int tile_xbar_num);
     void analysis() final;
     const Graph& get_graph() const { return tg; }
     Graph& get_graph() { return tg; }
@@ -247,6 +251,10 @@ public:
 private:
     Graph tg; // T-VDFG
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
+    int tile_xbar_num; // number of xbar in a tile
+    void create_tnodes();
+    void merge_nodeinfo();
+    void inter_tile_conn();
 };
 
 class HGraph : public BaseGraph<HNode, HEdge> {

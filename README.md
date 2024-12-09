@@ -4,18 +4,20 @@
 
 ```bash
 .
-├── src/                    # 源文件
-│   ├── graph.cpp           # 目前只有<<操作符重载
-│   └── CMakeLists.txt      # CMake 配置文件
 ├── include/                # 头文件
-│   └── graph.h             # 数据流图类声明
+│   ├── graph.h             # 数据流图类声明
+│   └── util.h              # 与数据流图无关的辅助函数声明
+├── src/                    # 源文件
+│   ├── graph.cpp           # 数据流图成员函数实现
+│   ├── util.cpp            # 与数据流图无关的辅助函数
+│   └── CMakeLists.txt      # CMake 配置文件
 ├── test/                   # 测试文件
 │   ├── test1.cpp           # 测试基本成员函数的功能
+│   ├── test2.cpp           # 测试uniformsplit
 │   └── CMakeLists.txt      # CMake 配置文件
-├── build.sh                # gpt生成的模板
+├── build.sh                # 测试脚本
 ├── CMakeLists.txt          # CMake 配置文件
 ├── README.md               # 项目说明文件
-├── tepmlate.md             # gpt生成的模板
 └── .gitignore              # Git 忽略文件
 ```
 

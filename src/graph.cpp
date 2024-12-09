@@ -132,6 +132,30 @@ void CGraph::print_graph_info() const{
     }
 }
 
+TGraph::TGraph(const CGraph& cg, int tile_xbar_num) 
+    : tg{}, cg_ref{std::make_shared<const CGraph>(cg)}, tile_xbar_num{tile_xbar_num} {
+    analysis();
+}
+
+void TGraph::analysis() {
+    create_tnodes();
+    merge_nodeinfo();
+    inter_tile_conn();
+}
+
+void TGraph::create_tnodes() {
+    
+    // IMPL
+}
+
+void TGraph::merge_nodeinfo() {
+    // IMPL
+}
+
+void TGraph::inter_tile_conn() {
+    // IMPL
+}
+
 void CGraph::debug(){
     auto coords_map = boost::get(&CNode::id_cin, cg);
     for(auto v : boost::make_iterator_range(vertices(cg))){
@@ -164,7 +188,7 @@ void CGraph::debug(){
     for (size_t i = 0; i < pred.size(); ++i) {
         std::cout << "Node " << i + 1 << ": ";
         if (pred[i] != boost::graph_traits<Graph>::null_vertex()) {
-            std::cout << pred[i] + 1 << std::endl;  // 打印前驱节点
+            std::cout << pred[i] + 1 << std::endl;  // unexpected output
         } else {
             std::cout << "No predecessor (source node)" << std::endl;
         }
@@ -194,5 +218,23 @@ std::ostream& operator<<(std::ostream& os, const CEdge& cedge) {
     }
     os << std::endl;
     os << "Data volume: " << cedge.datavolume << std::endl;
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const TNode& tnode){
+    os << "CNode id: ";
+    for (const auto& i : tnode.cnode_id) {
+        os << i << " ";
+    }
+    os << std::endl;
+    os << "Super nodes: " << std::endl;
+    for (const auto& i : tnode.super_nodes) {
+        os << i << std::endl;
+    }
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const TEdge& tedge){
+    os << "Data volume: " << tedge.datavolume << std::endl;
     return os;
 }
