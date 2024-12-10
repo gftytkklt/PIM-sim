@@ -47,6 +47,8 @@ std::ostream& operator<<(std::ostream& os, const CEdge& cedge);
 struct TNode {
     std::vector<size_t> cnode_id; // original cnode id
     std::vector<CNode> super_nodes; // merged cnodes info
+    TNode(std::vector<size_t> cnode_id)
+    : cnode_id(cnode_id), super_nodes{} {}
 };
 
 std::ostream& operator<<(std::ostream& os, const TNode& tnode);

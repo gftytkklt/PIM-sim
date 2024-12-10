@@ -11,7 +11,7 @@ using namespace std;
  * @param K Maximum number of nodes each box can contain.
  * @return A vector of boxes, where each box is a vector of (m, n) node indices.
  */
-vector<vector<pair<int, int>>> partitionNodes(int M, int N, int K) {
+vector<vector<pair<int, int>>> uniformsplit(int M, int N, int K) {
     // Vector to store all boxes
     vector<vector<pair<int, int>>> boxes;
     
@@ -87,65 +87,4 @@ vector<vector<pair<int, int>>> partitionNodes(int M, int N, int K) {
     }
     
     return boxes;
-}
-
-/**
- * @brief Utility function to print the boxes and their contained nodes.
- *
- * @param boxes The vector of boxes to be printed.
- */
-void printBoxes(const vector<vector<pair<int, int>>> &boxes){
-    for(int i = 0; i < boxes.size(); ++i){
-        cout << "Box " << i+1 << " contains nodes: ";
-        for(auto &node : boxes[i]){
-            cout << "(" << node.first << ", " << node.second << ") ";
-        }
-        cout << endl;
-    }
-}
-
-/**
- * @brief Utility function to generate node indices for a given column.
- *
- * @param M Number of rows.
- * @param n Column index.
- * @return A vector of (m, n) pairs representing nodes in the column.
- */
-vector<pair<int, int>> generateColumn(int M, int n){
-    vector<pair<int, int>> column;
-    for(int m = 0; m < M; ++m){
-        column.emplace_back(make_pair(m, n));
-    }
-    return column;
-}
-
-int main(){
-    // Example 1
-    cout << "=== Example 1 ===" << endl;
-    int M1 = 10; // Number of rows
-    int N1 = 3;  // Number of columns
-    int K1 = 4;  // Maximum nodes per box
-    
-    vector<vector<pair<int, int>>> boxes1 = partitionNodes(M1, N1, K1);
-    printBoxes(boxes1);
-    
-    cout << "\n=== Example 2 ===" << endl;
-    // Example 2
-    int M2 = 3;
-    int N2 = 5;
-    int K2 = 4;
-    
-    vector<vector<pair<int, int>>> boxes2 = partitionNodes(M2, N2, K2);
-    printBoxes(boxes2);
-    
-    cout << "\n=== Example 3 ===" << endl;
-    // Example 3
-    int M3 = 5;
-    int N3 = 4;
-    int K3 = 6;
-    
-    vector<vector<pair<int, int>>> boxes3 = partitionNodes(M3, N3, K3);
-    printBoxes(boxes3);
-    
-    return 0;
 }

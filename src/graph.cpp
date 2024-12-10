@@ -2,6 +2,7 @@
 // #define GRAPH_HPP
 
 #include "graph.h"
+#include "util.h"
 #include <boost/graph/dijkstra_shortest_paths.hpp>
 CGraph::CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size) 
     : cg{}, kernels{kernels}, CNode_size{CNode_size}, dep_infos{} {
@@ -144,8 +145,23 @@ void TGraph::analysis() {
 }
 
 void TGraph::create_tnodes() {
-    
-    // IMPL
+    const auto& cg = cg_ref->get_graph();
+    const auto& cdeps = cg_ref->get_dep_infos();
+    for (const auto& cdep: cdeps){
+        // get cnode size
+        auto col_size = cdep.acc_blks.size();
+        auto row_size = cdep.acc_blks[0].vertex_id.size();
+        // uniformsplit
+        auto split = uniformsplit(row_size, col_size, tile_xbar_num);
+        for(const auto& TNode : split){
+            // create TNode
+            std::vector<size_t> cnode_id{};
+            for(const auto& i : TNode){
+                cnode_id.emplace_back(cdep.acc_blks[i.second].vertex_id[i.first]);
+            }
+            add_node(TNode::TNode{cnode_id}, tg);
+        }
+    }
 }
 
 void TGraph::merge_nodeinfo() {
