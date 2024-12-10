@@ -138,6 +138,11 @@ TGraph::TGraph(const CGraph& cg, int tile_xbar_num)
     analysis();
 }
 
+TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num) 
+    : tg{}, cg_ref{cg}, tile_xbar_num{tile_xbar_num} ,tdep{}{
+    analysis();
+}
+
 void TGraph::analysis() {
     create_tnodes();
     merge_nodeinfo();
@@ -149,18 +154,34 @@ void TGraph::create_tnodes() {
     const auto& cdeps = cg_ref->get_dep_infos();
     for (const auto& cdep: cdeps){
         // get cnode size
+        std::vector<Node> tnode_id{};
         auto col_size = cdep.acc_blks.size();
         auto row_size = cdep.acc_blks[0].vertex_id.size();
         // uniformsplit
         auto split = uniformsplit(row_size, col_size, tile_xbar_num);
-        for(const auto& TNode : split){
-            // create TNode
+        // create TNode
+        for(const auto& cgroup : split){
+            // get cnode id of cur tnode
             std::vector<size_t> cnode_id{};
-            for(const auto& i : TNode){
+            // supernode info can be generated here
+            CNode supernode{};
+            auto mergenode = [&](Node node_id) {
+                auto cnode = cg_ref-> get_node_property(node_id, cg);
+                std::cout << "cnode: " << cnode << std::endl;
+                supernode.layer = cnode.layer;
+                supernode.ofmap_size += cnode.ofmap_size;
+                supernode.id_cin.first = std::min(supernode.id_cin.first, cnode.id_cin.first);
+                supernode.id_cin.second = std::max(supernode.id_cin.second, cnode.id_cin.second);
+                supernode.id_cout.first = std::min(supernode.id_cout.first, cnode.id_cout.first);
+                supernode.id_cout.second = std::max(supernode.id_cout.second, cnode.id_cout.second);
+            };
+            for(const auto& i : cgroup) {
                 cnode_id.emplace_back(cdep.acc_blks[i.second].vertex_id[i.first]);
+                mergenode(cnode_id.back());
             }
-            add_node(TNode::TNode{cnode_id}, tg);
+            tnode_id.emplace_back(add_node(TNode{cnode_id, std::vector<CNode>{supernode}}, tg));
         }
+        tdep.emplace_back(TDep{tnode_id, cdep.dep_info});
     }
 }
 
@@ -170,6 +191,11 @@ void TGraph::merge_nodeinfo() {
 
 void TGraph::inter_tile_conn() {
     // IMPL
+}
+
+void TGraph::print_graph_info() const { 
+    std::cout << "Graph info:" << std::endl;
+    BaseGraph<TNode, TEdge>::print_graph_info(tg);
 }
 
 void CGraph::debug(){

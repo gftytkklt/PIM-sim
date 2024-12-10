@@ -49,6 +49,9 @@ struct TNode {
     std::vector<CNode> super_nodes; // merged cnodes info
     TNode(std::vector<size_t> cnode_id)
     : cnode_id(cnode_id), super_nodes{} {}
+    TNode(std::vector<size_t> cnode_id, std::vector<CNode> super_nodes)
+    : cnode_id(cnode_id), super_nodes(super_nodes) {}
+    // TNode(std::vector<size_t> cnode_id);
 };
 
 std::ostream& operator<<(std::ostream& os, const TNode& tnode);
@@ -203,7 +206,13 @@ protected:
     }
 };
 
+class CGraph;
+class TGraph;
+class HGraph;
+class DGraph;
+
 class CGraph : public BaseGraph<CNode, CEdge> {
+    friend class TGraph;
 public:
     // acc cnodes group with in a NN kernel
     struct AccBlk{
@@ -219,7 +228,7 @@ public:
     };
 
     CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size);
-    void analysis() final;
+    void analysis() override final;
     const Graph& get_graph() const { return cg; }
     Graph& get_graph() { return cg; }
     const auto& get_dep_infos() const { return dep_infos; }
@@ -242,8 +251,14 @@ private:
 
 class TGraph : public BaseGraph<TNode, TEdge> {
 public:
+    // kernel-wise T-Dep info
+    struct TDep{
+        std::vector<Node> tnode_id;
+        std::vector<Depinfo> dep_info;
+    };
     TGraph(const CGraph& cg, int tile_xbar_num);
-    void analysis() final;
+    TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num);
+    void analysis() override final;
     const Graph& get_graph() const { return tg; }
     Graph& get_graph() { return tg; }
     void print_graph_info() const;
@@ -252,6 +267,7 @@ public:
     void debug();
 private:
     Graph tg; // T-VDFG
+    std::vector<TDep> tdep; // T-Dep info
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
     int tile_xbar_num; // number of xbar in a tile
     void create_tnodes();
