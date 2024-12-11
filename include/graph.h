@@ -47,6 +47,7 @@ std::ostream& operator<<(std::ostream& os, const CEdge& cedge);
 struct TNode {
     std::vector<size_t> cnode_id; // original cnode id
     std::vector<CNode> super_nodes; // merged cnodes info
+    TNode() = default;
     TNode(std::vector<size_t> cnode_id)
     : cnode_id(cnode_id), super_nodes{} {}
     TNode(std::vector<size_t> cnode_id, std::vector<CNode> super_nodes)
@@ -57,7 +58,9 @@ struct TNode {
 std::ostream& operator<<(std::ostream& os, const TNode& tnode);
 
 struct TEdge {
-    int datavolume;
+    DepType t_type; 
+    int accvolume;  
+    int propvolume; 
 };
 
 std::ostream& operator<<(std::ostream& os, const TEdge& tedge);
@@ -96,13 +99,13 @@ protected:
         // std::cout << "add node" << std::endl;
     }
 
-    void add_edge(int v1, int v2, const EdgeProperty& edge_prop, Graph& g) {
+    void add_edge(Node v1, Node v2, const EdgeProperty& edge_prop, Graph& g) {
         boost::add_edge(v1, v2, edge_prop, g);
         // std::cout << "add edge" << std::endl;
     }
 
     // remove vertices and edges
-    void remove_node(int v, Graph& g) {
+    void remove_node(Node v, Graph& g) {
         auto ei = edges(g);
         for (auto e = ei.first; e != ei.second; ++e) {
             if (target(*e, g) == v) { // out-edges are deleted automatically
@@ -112,7 +115,7 @@ protected:
         boost::remove_vertex(v, g);
     }
 
-    void remove_edge(int v1, int v2, Graph& g) {
+    void remove_edge(Node v1, Node v2, Graph& g) {
         boost::remove_edge(v1, v2, g);
     }
 
@@ -124,14 +127,14 @@ protected:
     virtual const Graph& get_graph() const = 0;
 
     // vertices and edges getter
-    const NodeProperty& get_node_property(int v, const Graph& g) const {
-        auto n = boost::vertex(v, g);
-        return g[n];
+    const NodeProperty& get_node_property(Node v, const Graph& g) const {
+        // auto n = boost::vertex(v, g);
+        return g[v];
         // method deprecated but works
         // return g.m_vertices[n].m_property.m_value;
     } 
 
-    const EdgeProperty& get_edge_property(int v1, int v2, const Graph& g) const {
+    const EdgeProperty& get_edge_property(Node v1, Node v2, const Graph& g) const {
         Edge e;
         bool found;
         boost::tie(e, found) = boost::edge(v1, v2, g);
@@ -147,12 +150,12 @@ protected:
     }
 
     // vertices and edges attributes setter
-    void set_node_property(int v, const NodeProperty& node_prop, Graph& g) {
-        Node n = boost::vertex(v, g);
-        g[n] = node_prop;
+    void set_node_property(Node v, const NodeProperty& node_prop, Graph& g) {
+        // Node n = boost::vertex(v, g);
+        g[v] = node_prop;
     }
 
-    void set_edge_property(int v1, int v2, const EdgeProperty& edge_prop, Graph& g) {
+    void set_edge_property(Node v1, Node v2, const EdgeProperty& edge_prop, Graph& g) {
         Edge e;
         bool found;
         boost::tie(e, found) = boost::edge(v1, v2, g);
@@ -166,7 +169,7 @@ protected:
     }
 
     // get adjacent vertices
-    std::vector<int> get_adjacent_nodes(int v, const Graph& g) const {
+    std::vector<Node> get_adjacent_nodes(Node v, const Graph& g) const {
         std::vector<int> adj_nodes;
         typename boost::graph_traits<Graph>::adjacency_iterator ai, ai_end;
         for (boost::tie(ai, ai_end) = boost::adjacent_vertices(v, g); ai != ai_end; ++ai) {
@@ -192,12 +195,14 @@ protected:
     // print graph
     virtual void print_graph_info(const Graph& g) const {
         // traverse all nodes
+        std::cout << "Node num: " << boost::num_vertices(g) << std::endl;
         for (auto vp = boost::vertices(g); vp.first != vp.second; ++vp.first) {
             auto v = *vp.first;
             std::cout << "Node " << v << ": " << get_node_property(v, g) << std::endl;
         }
 
         // traverse all edges
+        std::cout << "Edge num: " << boost::num_edges(g) << std::endl;
         for (auto ep = boost::edges(g); ep.first != ep.second; ++ep.first) {
             auto e = *ep.first;
             std::cout << "Edge (" << boost::source(e, g) << ", " << boost::target(e, g) << "): " 
@@ -251,28 +256,29 @@ private:
 
 class TGraph : public BaseGraph<TNode, TEdge> {
 public:
-    // kernel-wise T-Dep info
-    struct TDep{
-        std::vector<Node> tnode_id;
-        std::vector<Depinfo> dep_info;
-    };
+    // kernel-wise T-Dep info, deprecated
+    // struct TDep{
+    //     std::vector<Node> tnode_id;
+    //     std::vector<Depinfo> dep_info;
+    // };
     TGraph(const CGraph& cg, int tile_xbar_num);
     TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num);
     void analysis() override final;
     const Graph& get_graph() const { return tg; }
     Graph& get_graph() { return tg; }
     void print_graph_info() const;
-
     // debug interface
     void debug();
 private:
     Graph tg; // T-VDFG
-    std::vector<TDep> tdep; // T-Dep info
+    // std::vector<TDep> tdep; // T-Dep info
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
+    std::map<Node, Node> node_map; // map from cnode to tnode
     int tile_xbar_num; // number of xbar in a tile
     void create_tnodes();
-    void merge_nodeinfo();
+    // void merge_nodeinfo();
     void inter_tile_conn();
+    void update_tedges(Node src_t, Node dst_t, CEdge cedge);
 };
 
 class HGraph : public BaseGraph<HNode, HEdge> {

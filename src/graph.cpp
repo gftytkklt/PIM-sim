@@ -80,7 +80,7 @@ void CGraph::conn_accblk(){
             for (int i=0;i<node_num-1;i++){
                 // since input channel are impl in order
                 // and accum order is commutable
-                add_edge(vertexs[i], vertexs[i+1], CEdge{DepType::Accum,cur_ofm},cg);
+                add_edge(vertexs[i], vertexs[i+1], CEdge{DepType::Accum,cur_ofm}, cg);
             }
         }
     }
@@ -139,13 +139,13 @@ TGraph::TGraph(const CGraph& cg, int tile_xbar_num)
 }
 
 TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num) 
-    : tg{}, cg_ref{cg}, tile_xbar_num{tile_xbar_num} ,tdep{}{
+    : tg{}, cg_ref{cg}, tile_xbar_num{tile_xbar_num} {
     analysis();
 }
 
 void TGraph::analysis() {
     create_tnodes();
-    merge_nodeinfo();
+    // merge_nodeinfo();
     inter_tile_conn();
 }
 
@@ -154,8 +154,10 @@ void TGraph::create_tnodes() {
     const auto& cdeps = cg_ref->get_dep_infos();
     for (const auto& cdep: cdeps){
         // get cnode size
-        std::vector<Node> tnode_id{};
+        // std::vector<Node> tnode_id{};
+        // BL split
         auto col_size = cdep.acc_blks.size();
+        // WL split
         auto row_size = cdep.acc_blks[0].vertex_id.size();
         // uniformsplit
         auto split = uniformsplit(row_size, col_size, tile_xbar_num);
@@ -164,33 +166,86 @@ void TGraph::create_tnodes() {
             // get cnode id of cur tnode
             std::vector<size_t> cnode_id{};
             // supernode info can be generated here
+            // do not generate ofm info here
             CNode supernode{};
+            bool empty = true;
             auto mergenode = [&](Node node_id) {
                 auto cnode = cg_ref-> get_node_property(node_id, cg);
-                std::cout << "cnode: " << cnode << std::endl;
-                supernode.layer = cnode.layer;
-                supernode.ofmap_size += cnode.ofmap_size;
-                supernode.id_cin.first = std::min(supernode.id_cin.first, cnode.id_cin.first);
-                supernode.id_cin.second = std::max(supernode.id_cin.second, cnode.id_cin.second);
-                supernode.id_cout.first = std::min(supernode.id_cout.first, cnode.id_cout.first);
-                supernode.id_cout.second = std::max(supernode.id_cout.second, cnode.id_cout.second);
+                if(empty){
+                    supernode = cnode;
+                    empty = false;
+                } else {
+                    auto cout_num = supernode.id_cout.second - supernode.id_cout.first + 1;
+                    supernode.id_cin.first = std::min(supernode.id_cin.first, cnode.id_cin.first);
+                    supernode.id_cin.second = std::max(supernode.id_cin.second, cnode.id_cin.second);
+                    supernode.id_cout.first = std::min(supernode.id_cout.first, cnode.id_cout.first);
+                    supernode.id_cout.second = std::max(supernode.id_cout.second, cnode.id_cout.second);
+                }
             };
             for(const auto& i : cgroup) {
                 cnode_id.emplace_back(cdep.acc_blks[i.second].vertex_id[i.first]);
                 mergenode(cnode_id.back());
             }
-            tnode_id.emplace_back(add_node(TNode{cnode_id, std::vector<CNode>{supernode}}, tg));
+            // clear invalid supernode info
+            supernode.ofmap_size = 0;
+            auto tnode_id = add_node(TNode{cnode_id, std::vector<CNode>{supernode}}, tg);
+            // build node map, i is unique
+            for (const auto& i : cnode_id) {
+                node_map.emplace(i, tnode_id);
+            }
+            // tnode_id.emplace_back(add_node(TNode{cnode_id, std::vector<CNode>{supernode}}, tg));
         }
-        tdep.emplace_back(TDep{tnode_id, cdep.dep_info});
+        // tdep.emplace_back(TDep{tnode_id, cdep.dep_info});
     }
 }
 
-void TGraph::merge_nodeinfo() {
-    // IMPL
+// void TGraph::merge_nodeinfo() {
+//     // IMPL
+// }
+// merge inter-tile edges
+void TGraph::inter_tile_conn() {
+    // find inter-tile c-edges
+    const auto& cg = cg_ref->get_graph();
+    // traverse edges
+    for (const auto& e : boost::make_iterator_range(edges(cg))) {
+        // CEdge info
+        auto src = boost::source(e, cg);
+        auto dst = boost::target(e, cg);
+        // TNode info
+        Node src_t = node_map[src];
+        Node dst_t = node_map[dst];
+        // find inter-tile edges and update tedges
+        if(src_t != dst_t){
+            // std::cout << "CEdge: " << src << " -> " << dst << std::endl;
+            // std::cout << "TEdge: " << src_t << " -> " << dst_t << std::endl;
+            auto cedge = cg_ref->get_edge_property(e, cg);
+            // std::cout << get_node_property(src_t, tg) << std::endl;
+            // add_edge(src_t, dst_t, TEdge{cedge.c_type, cedge.datavolume, 0}, tg);
+            update_tedges(src_t, dst_t, cedge);
+        }
+    }
 }
 
-void TGraph::inter_tile_conn() {
-    // IMPL
+void TGraph::update_tedges(Node src_t, Node dst_t, CEdge cedge) {
+    auto cur_tedge = get_edge_property(src_t, dst_t, tg);
+    auto acc_num = cedge.datavolume * (cedge.c_type == DepType::Accum);
+    auto prop_num = cedge.datavolume * (cedge.c_type == DepType::Prop);
+    // if empty, create new edge
+    // std::cout << cedge << std::endl;
+    if (cur_tedge.t_type == DepType::ErrorType) {
+        std::cout << "Create new edge" << std::endl;
+        add_edge(src_t, dst_t, TEdge{cedge.c_type, acc_num, prop_num}, tg);
+    }
+    else {
+        // update edge
+        if(cur_tedge.t_type != cedge.c_type){
+            cur_tedge.t_type = DepType::Mixed;
+        }
+        cur_tedge.accvolume += acc_num;
+        cur_tedge.propvolume += prop_num;
+        set_edge_property(src_t, dst_t, cur_tedge, tg);
+    }
+    // std::cout << cur_tedge << std::endl;
 }
 
 void TGraph::print_graph_info() const { 
@@ -277,6 +332,24 @@ std::ostream& operator<<(std::ostream& os, const TNode& tnode){
 }
 
 std::ostream& operator<<(std::ostream& os, const TEdge& tedge){
-    os << "Data volume: " << tedge.datavolume << std::endl;
+    os << "Dependency type: ";
+    switch (tedge.t_type) {
+        case DepType::Accum:
+            os << "Accumulation";
+            break;
+        case DepType::Prop:
+            os << "Propagation";
+            break;
+        case DepType::Mixed:
+            os << "Mixed";
+            break;
+        default:
+            os << "Unknown";
+            break;
+    }
+    os << std::endl;
+    os << "Total Data volume: " << tedge.accvolume + tedge.propvolume << std::endl;
+    os << "Accumulation Data volume: " << tedge.accvolume << std::endl;
+    os << "Propagation Data volume: " << tedge.propvolume << std::endl;
     return os;
 }

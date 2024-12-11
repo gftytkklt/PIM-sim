@@ -18,6 +18,7 @@ protected:
 };
 
 TEST_F(GraphTest, TESTTG){
+    cg->print_graph_info();
     tg.print_graph_info();
     // std::cout << tg.get_graph().m_vertices.size() << std::endl;
 }
