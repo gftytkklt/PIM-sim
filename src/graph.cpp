@@ -145,7 +145,6 @@ TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num)
 
 void TGraph::analysis() {
     create_tnodes();
-    // merge_nodeinfo();
     inter_tile_conn();
 }
 
@@ -154,7 +153,6 @@ void TGraph::create_tnodes() {
     const auto& cdeps = cg_ref->get_dep_infos();
     for (const auto& cdep: cdeps){
         // get cnode size
-        // std::vector<Node> tnode_id{};
         // BL split
         auto col_size = cdep.acc_blks.size();
         // WL split
@@ -193,15 +191,10 @@ void TGraph::create_tnodes() {
             for (const auto& i : cnode_id) {
                 node_map.emplace(i, tnode_id);
             }
-            // tnode_id.emplace_back(add_node(TNode{cnode_id, std::vector<CNode>{supernode}}, tg));
         }
-        // tdep.emplace_back(TDep{tnode_id, cdep.dep_info});
     }
 }
 
-// void TGraph::merge_nodeinfo() {
-//     // IMPL
-// }
 // merge inter-tile edges
 void TGraph::inter_tile_conn() {
     // find inter-tile c-edges
@@ -233,7 +226,7 @@ void TGraph::update_tedges(Node src_t, Node dst_t, CEdge cedge) {
     // if empty, create new edge
     // std::cout << cedge << std::endl;
     if (cur_tedge.t_type == DepType::ErrorType) {
-        std::cout << "Create new edge" << std::endl;
+        // std::cout << "Create new edge" << std::endl;
         add_edge(src_t, dst_t, TEdge{cedge.c_type, acc_num, prop_num}, tg);
     }
     else {
@@ -254,6 +247,7 @@ void TGraph::print_graph_info() const {
 }
 
 void CGraph::debug(){
+    // test BGL builtin algorithm
     auto coords_map = boost::get(&CNode::id_cin, cg);
     for(auto v : boost::make_iterator_range(vertices(cg))){
         auto sth = coords_map[v]; // attribute getter
@@ -291,6 +285,8 @@ void CGraph::debug(){
         }
     }
 }
+
+void TGraph::debug(){}
 
 std::ostream& operator<<(std::ostream& os, const CNode& cnode) {
     os << "Layer: " << cnode.layer << std::endl;

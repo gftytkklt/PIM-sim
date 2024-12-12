@@ -66,11 +66,13 @@ struct TEdge {
 std::ostream& operator<<(std::ostream& os, const TEdge& tedge);
 
 struct HNode {
-
+    size_t tnode_id;
+    std::pair<int,int> tile_id;
+    
 };
 
 struct HEdge {
-
+    int datavolume;
 };
 
 struct DNode {
@@ -256,11 +258,6 @@ private:
 
 class TGraph : public BaseGraph<TNode, TEdge> {
 public:
-    // kernel-wise T-Dep info, deprecated
-    // struct TDep{
-    //     std::vector<Node> tnode_id;
-    //     std::vector<Depinfo> dep_info;
-    // };
     TGraph(const CGraph& cg, int tile_xbar_num);
     TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num);
     void analysis() override final;
@@ -271,26 +268,25 @@ public:
     void debug();
 private:
     Graph tg; // T-VDFG
-    // std::vector<TDep> tdep; // T-Dep info
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
     std::map<Node, Node> node_map; // map from cnode to tnode
+
     int tile_xbar_num; // number of xbar in a tile
     void create_tnodes();
-    // void merge_nodeinfo();
     void inter_tile_conn();
     void update_tedges(Node src_t, Node dst_t, CEdge cedge);
 };
 
 class HGraph : public BaseGraph<HNode, HEdge> {
 public:
-    HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg);
-    void analysis() override {
-        std::cout << "Analysis of HGraph" << std::endl;
-    }
+    HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size);
+    void analysis() override final;
+    void init_hw_setting(); // init hardware template
 private:
-    Graph hg; // HCG
+    UGraph hg; // HCG
     std::shared_ptr<const TGraph> tg_ref; // T-VDFG for HCG inference
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for HCG inference
+    std::pair<int, int> tile_size; // (W, H) of tile array
 };
 
 class DGraph : public BaseGraph<DNode, DEdge> {
