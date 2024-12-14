@@ -1,9 +1,8 @@
-// #ifndef GRAPH_HPP
-// #define GRAPH_HPP
-
 #include "graph.h"
 #include "util.h"
 #include <boost/graph/dijkstra_shortest_paths.hpp>
+#include <boost/graph/betweenness_centrality.hpp>
+
 CGraph::CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size) 
     : cg{}, kernels{kernels}, CNode_size{CNode_size}, dep_infos{} {
     analysis();
@@ -246,6 +245,26 @@ void TGraph::print_graph_info() const {
     BaseGraph<TNode, TEdge>::print_graph_info(tg);
 }
 
+HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size)
+    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size} {
+    if (tile_size.first * tile_size.second < tg_ref->num_nodes(tg_ref->get_graph())) {
+        throw std::invalid_argument("Tile size does not match the number of nodes in the TGraph.");
+    }
+    analysis();
+}
+
+HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg)
+    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{} {
+    auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
+    auto tile_x = static_cast<int>(std::ceil(std::sqrt(num_tile)));
+    tile_size = std::make_pair(tile_x, tile_x);
+    analysis();
+}
+
+void HGraph::analysis() {
+    std::cout << "Analysis HGraph" << std::endl;
+}
+
 void CGraph::debug(){
     // test BGL builtin algorithm
     auto coords_map = boost::get(&CNode::id_cin, cg);
@@ -286,7 +305,9 @@ void CGraph::debug(){
     }
 }
 
-void TGraph::debug(){}
+void TGraph::debug(){
+    // test bce func here?
+}
 
 std::ostream& operator<<(std::ostream& os, const CNode& cnode) {
     os << "Layer: " << cnode.layer << std::endl;
@@ -347,5 +368,22 @@ std::ostream& operator<<(std::ostream& os, const TEdge& tedge){
     os << "Total Data volume: " << tedge.accvolume + tedge.propvolume << std::endl;
     os << "Accumulation Data volume: " << tedge.accvolume << std::endl;
     os << "Propagation Data volume: " << tedge.propvolume << std::endl;
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const HNode& hnode){
+    os << "TNode id: " << hnode.tnode_id << std::endl;
+    os << "Tile id: (" << hnode.tile_id.first << ", " << hnode.tile_id.second << ")" << std::endl;
+    os << "Ofmap size: " << hnode.ofm_size << std::endl;
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const HEdge& hedge){
+    os << "Path id: ";
+    for (const auto& i : hedge.path_id) {
+        os << i << " ";
+    }
+    os << std::endl;
+    os << "Data volume: " << hedge.datavolume << std::endl;
     return os;
 }
