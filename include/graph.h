@@ -273,6 +273,7 @@ private:
 class TGraph : public BaseGraph<TNode, TEdge> {
     friend class HGraph;
 public:
+    using TDep = std::vector<std::set<Node>>; // TNode acctile info
     TGraph(const CGraph& cg, int tile_xbar_num);
     TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num);
     void analysis() override final;
@@ -285,9 +286,10 @@ private:
     Graph tg; // T-VDFG
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
     std::map<Node, Node> node_map; // map from cnode to tnode
-
+    TDep tdeps;
     int tile_xbar_num; // number of xbar in a tile
     void create_tnodes();
+    void create_TDep();
     void inter_tile_conn();
     void update_tedges(Node src_t, Node dst_t, CEdge cedge);
 };

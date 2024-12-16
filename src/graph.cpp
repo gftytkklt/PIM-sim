@@ -94,8 +94,9 @@ void CGraph::inter_layer_conn(){
             auto src_node = src.vertex_id.back();
             const auto src_property = get_node_property(src_node,cg);
             auto cur_datavolume = src_property.ofmap_size;
-            auto cur_cin_num = src_property.id_cin.second - src_property.id_cin.first + 1;
+            // auto cur_cin_num = src_property.id_cout.second - src_property.id_cout.first + 1;
             auto co_src = src.cout_id;
+            auto cur_cout_num = co_src.second - co_src.first + 1;
             // get dst node
             for (const auto& dep : deps){
                 // get dep layer info struct
@@ -108,7 +109,7 @@ void CGraph::inter_layer_conn(){
                         if(start <= end){
                             auto overlap = end - start + 1;
                             // add edge and corresponding data volume
-                            add_edge(src_node, dst_node, CEdge{DepType::Prop, cur_datavolume * overlap / cur_cin_num}, cg);
+                            add_edge(src_node, dst_node, CEdge{DepType::Prop, cur_datavolume * overlap / cur_cout_num}, cg);
                         }
                     }
                 }
@@ -144,6 +145,7 @@ TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num)
 
 void TGraph::analysis() {
     create_tnodes();
+    create_TDep();
     inter_tile_conn();
 }
 
@@ -191,6 +193,24 @@ void TGraph::create_tnodes() {
                 node_map.emplace(i, tnode_id);
             }
         }
+    }
+}
+
+void TGraph::create_TDep() {
+    // get cdep info
+    const auto& cdeps = cg_ref->get_dep_infos();
+    // create TDep
+    for (const auto& cdep : cdeps) {
+        // get cnode accblk index
+        const auto& accblks = cdep.acc_blks;
+        for(auto accblk : accblks) {
+            std::set<Node> tdep{};
+            for(auto node : accblk.vertex_id) {
+                tdep.emplace(node_map[node]);
+            }
+            tdeps.emplace_back(tdep);
+        }
+        
     }
 }
 
@@ -243,6 +263,15 @@ void TGraph::update_tedges(Node src_t, Node dst_t, CEdge cedge) {
 void TGraph::print_graph_info() const { 
     std::cout << "Graph info:" << std::endl;
     BaseGraph<TNode, TEdge>::print_graph_info(tg);
+    std::cout << "TDep info:" << std::endl;
+    int i = 0;
+    for(const auto& v : tdeps){
+        std::cout << "TDep: " << ++i << std::endl;
+        for(const auto& node : v){
+            std::cout << "Node: " << node << " ";
+        }
+        std::cout << std::endl;
+    }
 }
 
 HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size)
