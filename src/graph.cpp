@@ -4,7 +4,7 @@
 #include <boost/graph/betweenness_centrality.hpp>
 
 CGraph::CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size) 
-    : cg{}, kernels{kernels}, CNode_size{CNode_size}, dep_infos{} {
+    : cg{}, kernels{kernels}, CNode_size{CNode_size}, cdeps{} {
     analysis();
 }
 
@@ -62,13 +62,13 @@ void CGraph::create_cnodes() {
             // update co_begin
             co_begin = co_end;
         }
-        // add accblks gropu to dep_infos
-        dep_infos.emplace_back(CDep{accblks, cur_l, cur_dep});
+        // add accblks gropu to cdeps
+        cdeps.emplace_back(CDep{accblks, cur_l, cur_dep});
     }
 }
 
 void CGraph::conn_accblk() {
-    for (const auto& v : dep_infos) {
+    for (const auto& v : cdeps) {
         for (const auto& blk : v.acc_blks) {
             const auto vertexs = blk.vertex_id;
             auto node_num = vertexs.size();
@@ -88,7 +88,7 @@ void CGraph::conn_accblk() {
 }
 
 void CGraph::inter_layer_conn() {
-    for (const auto& v : dep_infos) {
+    for (const auto& v : cdeps) {
         // get acc blks and dep info
         const auto& deps = v.dep_info;
         for (const auto& src : v.acc_blks) {
@@ -102,7 +102,7 @@ void CGraph::inter_layer_conn() {
             // get dst node
             for (const auto& dep : deps) {
                 // get dep layer info struct
-                for (const auto& dst_layer : dep_infos[dep.dep_layer].acc_blks) {
+                for (const auto& dst_layer : cdeps[dep.dep_layer].acc_blks) {
                     for (const auto& dst_node : dst_layer.vertex_id) {
                         auto ci_dst = get_node_property(dst_node, cg).id_cin;
                         // get intersection num
@@ -124,7 +124,7 @@ void CGraph::print_graph_info() const{
     std::cout << "Graph info:" << std::endl;
     BaseGraph<CNode, CEdge>::print_graph_info(cg);
     std::cout << "AccBlk info:" << std::endl;
-    for(const auto&v : dep_infos) {
+    for(const auto&v : cdeps) {
         std::cout << "Layer: " << v.layer << std::endl;
         for(const auto& blk : v.acc_blks) {
             std::cout << "AccBlk: " << blk.cout_id.first << " - " << blk.cout_id.second << std::endl;
@@ -153,7 +153,7 @@ void TGraph::analysis() {
 
 void TGraph::create_tnodes() {
     const auto& cg = cg_ref->get_graph();
-    const auto& cdeps = cg_ref->get_dep_infos();
+    const auto& cdeps = cg_ref->get_cdep();
     for (const auto& cdep: cdeps) {
         // get cnode size
         // BL split
@@ -200,7 +200,7 @@ void TGraph::create_tnodes() {
 
 void TGraph::create_TDep() {
     // get cdep info
-    const auto& cdeps = cg_ref->get_dep_infos();
+    const auto& cdeps = cg_ref->get_cdep();
     // create TDep
     for (const auto& cdep : cdeps) {
         // get cnode accblk index
@@ -331,52 +331,106 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
     analysis();
 }
 
+void HGraph::init_hw_setting() {
+    // init tile array
+    for (int i = 0; i < tile_size.first; i++) {
+        for (int j = 0; j < tile_size.second; j++) {
+            auto hnode = HNode{0, std::make_pair(i, j), 0};
+            add_node(hnode, hg);
+        }
+    }
+    // 2D-mesh connection
+    std::cout << "Tile size: " << tile_size.first << " x " << tile_size.second << std::endl;
+    for (int i = 0; i < tile_size.first; i++) {
+        for (int j = 0; j < tile_size.second; j++) {
+            if (i > 0) {
+                add_edge(i * tile_size.second + j, (i - 1) * tile_size.second + j, HEdge{{}, 0}, hg);
+            }
+            if (j > 0) {
+                add_edge(i * tile_size.second + j, i * tile_size.second + j - 1, HEdge{{}, 0}, hg);
+            }
+        }
+    }
+}
+
 void HGraph::analysis() {
-    std::cout << "Analysis HGraph" << std::endl;
+    init_hw_setting();
+}
+
+void HGraph::print_graph_info() const {
+    std::cout << "HGraph info:" << std::endl;
+    BaseGraph<HNode, HEdge>::print_graph_info(hg);
 }
 
 void CGraph::debug() {
-    // test BGL builtin algorithm
-    auto coords_map = boost::get(&CNode::id_cin, cg);
-    for(auto v : boost::make_iterator_range(vertices(cg))) {
-        auto sth = coords_map[v]; // attribute getter
-        if(sth == std::make_pair(1,384)) {
-            std::cout << "Find Node: " << v << std::endl;
-            std::cout << get_node_property(v,cg) << std::endl;
-            cg[v].ofmap_size += 1; // setter
-            std::cout << get_node_property(v,cg) << std::endl;
-        }
-    }
-    std::vector<int> dist(boost::num_vertices(cg));
-    std::vector<Node> pred(num_vertices(cg));
-    auto weight_map = boost::get(&CEdge::datavolume, cg);
-    auto source = boost::vertex(0, cg);
+    // test all basegraph interface
+    add_node(CNode{1, 1, {1, 1}, {1, 1}}, cg);
+    add_node(CNode{1, 2, {1, 1}, {1, 1}}, cg);
+    add_node(CNode{1, 3, {1, 1}, {1, 1}}, cg);
+    add_edge(0, 1, CEdge{DepType::Accum, {1, 1}, 1}, cg);
+    add_edge(1, 0, CEdge{DepType::Prop, {1, 1}, 1}, cg);
+    add_edge(1, 2, CEdge{DepType::Accum, {1, 1}, 1}, cg);
+    add_edge(2, 1, CEdge{DepType::Prop, {1, 1}, 1}, cg);
+    remove_node(0, cg);
+    remove_edge(1, 0, cg);
+    std::cout << "Num of vertices: " << num_nodes(cg) << std::endl;
+    std::cout << "Num of edges: " << num_edges(cg) << std::endl;
+    std::cout << "Node info:" << get_node_property(0,cg) << std::endl;
+    std::cout << "Edge info:" << get_edge_property(1, 2, cg) << std::endl;
 
-    boost::dijkstra_shortest_paths(cg, source, 
-            boost::predecessor_map(&pred[0])
-            .distance_map(&dist[0])
-            .weight_map(weight_map)
-    );
+    // // test BGL builtin algorithm
+    // auto coords_map = boost::get(&CNode::id_cin, cg);
+    // for(auto v : boost::make_iterator_range(vertices(cg))) {
+    //     auto sth = coords_map[v]; // attribute getter
+    //     if(sth == std::make_pair(1,384)) {
+    //         std::cout << "Find Node: " << v << std::endl;
+    //         std::cout << get_node_property(v,cg) << std::endl;
+    //         cg[v].ofmap_size += 1; // setter
+    //         std::cout << get_node_property(v,cg) << std::endl;
+    //     }
+    // }
+    // std::vector<int> dist(boost::num_vertices(cg));
+    // std::vector<Node> pred(num_vertices(cg));
+    // auto weight_map = boost::get(&CEdge::datavolume, cg);
+    // auto source = boost::vertex(0, cg);
 
-    std::cout << "Distances from node 1:" << std::endl;
-    for (size_t i = 0; i < dist.size(); ++i) {
-        std::cout << "Node " << i + 1 << ": " << dist[i] << std::endl;
-    }
+    // boost::dijkstra_shortest_paths(cg, source, 
+    //         boost::predecessor_map(&pred[0])
+    //         .distance_map(&dist[0])
+    //         .weight_map(weight_map)
+    // );
 
-    // output paths
-    std::cout << "Paths:" << std::endl;
-    for (size_t i = 0; i < pred.size(); ++i) {
-        std::cout << "Node " << i + 1 << ": ";
-        if (pred[i] != boost::graph_traits<Graph>::null_vertex()) {
-            std::cout << pred[i] + 1 << std::endl;  // unexpected output
-        } else {
-            std::cout << "No predecessor (source node)" << std::endl;
-        }
-    }
+    // std::cout << "Distances from node 1:" << std::endl;
+    // for (size_t i = 0; i < dist.size(); ++i) {
+    //     std::cout << "Node " << i + 1 << ": " << dist[i] << std::endl;
+    // }
+
+    // // output paths
+    // std::cout << "Paths:" << std::endl;
+    // for (size_t i = 0; i < pred.size(); ++i) {
+    //     std::cout << "Node " << i + 1 << ": ";
+    //     if (pred[i] != boost::graph_traits<Graph>::null_vertex()) {
+    //         std::cout << pred[i] + 1 << std::endl;  // unexpected output
+    //     } else {
+    //         std::cout << "No predecessor (source node)" << std::endl;
+    //     }
+    // }
 }
 
 void TGraph::debug() {
-    // test bce func here?
+    // test adjacent node
+    for(auto v : boost::make_iterator_range(vertices(tg))) {
+        auto adj = get_adjacent_nodes(v, tg);
+        std::cout << "Node " << v << " adjacent nodes: ";
+        for(auto i : adj) {
+            std::cout << i << " ";
+        }
+        std::cout << std::endl;
+    }
+}
+
+void HGraph::debug() {
+
 }
 
 std::ostream& operator<<(std::ostream& os, const CNode& cnode) {

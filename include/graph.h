@@ -98,23 +98,26 @@ protected:
     using BiGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS, NodeProperty, EdgeProperty>;
     using Node = boost::graph_traits<Graph>::vertex_descriptor;
     using Edge = boost::graph_traits<Graph>::edge_descriptor;
+    using UNode = boost::graph_traits<UGraph>::vertex_descriptor;
+    using UEdge = boost::graph_traits<UGraph>::edge_descriptor;
 
     // default ctor
     BaseGraph() = default;
 
     // add vertices and edges
-    auto add_node(const NodeProperty& node_prop, Graph& g) {
+    template <typename GraphType>
+    auto add_node(const NodeProperty& node_prop, GraphType& g) {
         return boost::add_vertex(node_prop, g);
-        // std::cout << "add node" << std::endl;
     }
 
-    void add_edge(Node v1, Node v2, const EdgeProperty& edge_prop, Graph& g) {
+    template <typename GraphType>
+    void add_edge(Node v1, Node v2, const EdgeProperty& edge_prop, GraphType& g) {
         boost::add_edge(v1, v2, edge_prop, g);
-        // std::cout << "add edge" << std::endl;
     }
 
     // remove vertices and edges
-    void remove_node(Node v, Graph& g) {
+    template <typename GraphType>
+    void remove_node(Node v, GraphType& g) {
         auto ei = edges(g);
         for (auto e = ei.first; e != ei.second; ++e) {
             if (target(*e, g) == v) { // out-edges are deleted automatically
@@ -124,55 +127,55 @@ protected:
         boost::remove_vertex(v, g);
     }
 
-    void remove_edge(Node v1, Node v2, Graph& g) {
+    template <typename GraphType>
+    void remove_edge(Node v1, Node v2, GraphType& g) {
         boost::remove_edge(v1, v2, g);
     }
 
-    void remove_edge(const Edge& e, Graph& g) {
+    template <typename GraphType, typename EdgeType>
+    void remove_edge(const EdgeType& e, GraphType& g) {
         boost::remove_edge(e, g);
     }
 
-    // graph getter
-    virtual const Graph& get_graph() const = 0;
-
     // vertices and edges getter
-    const auto num_nodes(const Graph& g) const {
+    template <typename GraphType>
+    const auto num_nodes(const GraphType& g) const {
         return boost::num_vertices(g);
     }
 
-    const auto num_edges(const Graph& g) const {
+    template <typename GraphType>
+    const auto num_edges(const GraphType& g) const {
         return boost::num_edges(g);
     }
 
-    const NodeProperty& get_node_property(Node v, const Graph& g) const {
-        // auto n = boost::vertex(v, g);
+    template <typename GraphType>
+    const NodeProperty& get_node_property(Node v, const GraphType& g) const {
         return g[v];
         // method deprecated but works
         // return g.m_vertices[n].m_property.m_value;
     } 
 
-    const EdgeProperty& get_edge_property(Node v1, Node v2, const Graph& g) const {
-        Edge e;
-        bool found;
-        boost::tie(e, found) = boost::edge(v1, v2, g);
-        if (found) {
-            return g[e];
-        }
+    template <typename GraphType>
+    const EdgeProperty& get_edge_property(Node v1, Node v2, const GraphType& g) const {
         static const EdgeProperty default_edge_property{};
-        return default_edge_property;
+        auto [e, found] = boost::edge(v1, v2, g);
+        return found ? g[e] : default_edge_property;
     }
 
-    const EdgeProperty& get_edge_property(const Edge& e, const Graph& g) const {
+    template <typename GraphType, typename EdgeType>
+    const EdgeProperty& get_edge_property(const EdgeType& e, const GraphType& g) const {
         return g[e];
     }
 
     // vertices and edges attributes setter
-    void set_node_property(Node v, const NodeProperty& node_prop, Graph& g) {
+    template <typename GraphType>
+    void set_node_property(Node v, const NodeProperty& node_prop, GraphType& g) {
         // Node n = boost::vertex(v, g);
         g[v] = node_prop;
     }
 
-    void set_edge_property(Node v1, Node v2, const EdgeProperty& edge_prop, Graph& g) {
+    template <typename GraphType>
+    void set_edge_property(Node v1, Node v2, const EdgeProperty& edge_prop, GraphType& g) {
         Edge e;
         bool found;
         boost::tie(e, found) = boost::edge(v1, v2, g);
@@ -181,14 +184,16 @@ protected:
         }
     }
 
-    void set_edge_property(const Edge& e, const EdgeProperty& edge_prop, Graph& g) {
+    template <typename GraphType, typename EdgeType>
+    void set_edge_property(const EdgeType& e, const EdgeProperty& edge_prop, GraphType& g) {
         g[e] = edge_prop;
     }
 
     // get adjacent vertices
-    std::vector<Node> get_adjacent_nodes(Node v, const Graph& g) const {
-        std::vector<int> adj_nodes;
-        typename boost::graph_traits<Graph>::adjacency_iterator ai, ai_end;
+    template <typename GraphType>
+    std::vector<Node> get_adjacent_nodes(Node v, const GraphType& g) const {
+        std::vector<Node> adj_nodes;
+        typename boost::graph_traits<GraphType>::adjacency_iterator ai, ai_end;
         for (boost::tie(ai, ai_end) = boost::adjacent_vertices(v, g); ai != ai_end; ++ai) {
             adj_nodes.push_back(*ai);
         }
@@ -196,9 +201,9 @@ protected:
     }
 
     // deprecated because only out-edges are stored and can be determined by adjacent vertices
-    // std::vector<int> get_adjacent_edges(int v, const Graph& g) const {
+    // std::vector<int> get_adjacent_edges(int v, const GraphType& g) const {
     //     std::vector<int> adj_edges;
-    //     typename boost::graph_traits<Graph>::out_edge_iterator ei, ei_end;
+    //     typename boost::graph_traits<GraphType>::out_edge_iterator ei, ei_end;
     //     for (boost::tie(ei, ei_end) = boost::out_edges(v, g); ei != ei_end; ++ei) {
     //         // adj_edges.push_back(*ei);
     //         adj_edges.push_back(boost::target(*ei, g));
@@ -210,7 +215,8 @@ protected:
     virtual void analysis() = 0;
 
     // print graph
-    virtual void print_graph_info(const Graph& g) const {
+    template <typename GraphType>
+    void print_graph_info(const GraphType& g) const {
         // traverse all nodes
         std::cout << "Node num: " << boost::num_vertices(g) << std::endl;
         for (auto vp = boost::vertices(g); vp.first != vp.second; ++vp.first) {
@@ -250,11 +256,11 @@ public:
     };
 
     CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size);
-    void analysis() override final;
+    
     const Graph& get_graph() const { return cg; }
     Graph& get_graph() { return cg; }
-    const auto& get_dep_infos() const { return dep_infos; }
-    auto& get_dep_infos() { return dep_infos; }
+    const auto& get_cdep() const { return cdeps; }
+    auto& get_cdep() { return cdeps; }
     void print_graph_info() const;
     
     // debug interface
@@ -263,8 +269,9 @@ private:
     const std::vector<NNkernel>& kernels;
     Graph cg;
     std::pair<int, int> CNode_size; // (W, H) of node
-    std::vector<CDep> dep_infos; // kernel-wise dep list
+    std::vector<CDep> cdeps; // kernel-wise dep list
     // create and connect accblk kernel-wise
+    void analysis() override final;
     void create_cnodes();
     void conn_accblk();
     void inter_layer_conn();
@@ -280,6 +287,8 @@ public:
     void analysis() override final;
     const Graph& get_graph() const { return tg; }
     Graph& get_graph() { return tg; }
+    const TDep& get_tdep() const { return tdeps; }
+    TDep& get_tdep() { return tdeps; }
     void print_graph_info() const;
     // debug interface
     void debug();
@@ -304,15 +313,16 @@ public:
     HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size);
     // automatic hardware template generation, tile size generated by algorithm requirement
     HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg);
-    void analysis() override final;
-    void init_hw_setting(); // init hardware template
+    void print_graph_info() const;
+    void debug();
 private:
     UGraph hg; // HCG
     std::shared_ptr<const TGraph> tg_ref; // T-VDFG for HCG inference
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for HCG inference
     std::pair<int, int> tile_size; // (W, H) of tile array
     std::vector<Path> paths; // path info
-    // std::map<e>
+    void analysis() override final;
+    void init_hw_setting(); // init hardware template
 };
 
 class DGraph : public BaseGraph<DNode, DEdge> {

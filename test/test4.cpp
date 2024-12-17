@@ -1,7 +1,7 @@
 #include "graph.h"
 #include <gtest/gtest.h>
 
-// test T-VDFG generation
+// test HCG generation
 class GraphTest : public ::testing::Test {
 protected:
     std::vector<NNkernel> kernels = { 
@@ -17,14 +17,19 @@ protected:
     // }
 };
 
-// TEST_F(GraphTest, TESTTG){
-//     cg->print_graph_info();
-//     tg.print_graph_info();
-//     // std::cout << tg.get_graph().m_vertices.size() << std::endl;
-// }
-
-TEST_F(GraphTest, TESTTDEP){
-    tg = TGraph(cg, 2);
-    tg.print_graph_info();
-    // tg.debug();
+TEST_F(GraphTest, HGRAPH){ 
+    auto hg = HGraph(std::make_shared<TGraph>(tg), cg);
+    hg.print_graph_info();
+    // hg.debug();
 }
+    
+
+// TEST_F(GraphTest, NEEDTILE){
+//     tg = TGraph(cg, 2);
+//     // tg.print_graph_info();
+//     // auto hg = HGraph(std::make_shared<TGraph>(tg), cg, std::make_pair(2, 2));
+//     ASSERT_THROW(auto hg = HGraph(std::make_shared<TGraph>(tg), cg, std::make_pair(2, 2)), std::invalid_argument);
+//     // tg.debug();
+//     auto hg = HGraph(std::make_shared<TGraph>(tg), cg);
+//     hg.print_graph_info();
+// }
