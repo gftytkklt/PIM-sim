@@ -14,7 +14,7 @@ void CGraph::analysis() {
     inter_layer_conn();
 }
 
-void CGraph::create_cnodes(){
+void CGraph::create_cnodes() {
     // create cnodes kernel-wise
     for (const auto& i: kernels) {
         // determine in/out chan num of a cnode
@@ -36,7 +36,7 @@ void CGraph::create_cnodes(){
             auto co_id = std::make_pair(co_begin+1, co_end);
             int ci_begin = 0;
             std::vector<Node> accblk{};
-            while(ci_begin < ker_in){
+            while(ci_begin < ker_in) {
                 // create the segmentation along the input channel dimension
                 int ci_end = std::min(ci_begin + in_chan, ker_in);
                 auto ci_id = std::make_pair(ci_begin+1, ci_end);
@@ -67,29 +67,31 @@ void CGraph::create_cnodes(){
     }
 }
 
-void CGraph::conn_accblk(){
-    for (const auto& v : dep_infos){
-        for (const auto& blk : v.acc_blks){
+void CGraph::conn_accblk() {
+    for (const auto& v : dep_infos) {
+        for (const auto& blk : v.acc_blks) {
             const auto vertexs = blk.vertex_id;
             auto node_num = vertexs.size();
             // skip conn for empty(should not happen) or single node group
             if (node_num <= 1) {continue;}
-            const auto cur_ofm = get_node_property(vertexs[0], cg).ofmap_size;
+            const auto cur_src = get_node_property(vertexs[0], cg);
+            const auto cur_ofm = cur_src.ofmap_size;
+            const auto cur_chan = cur_src.id_cout;
             // TODO: impl fmap cal
-            for (int i=0;i<node_num-1;i++){
+            for (int i=0;i<node_num-1;i++) {
                 // since input channel are impl in order
                 // and accum order is commutable
-                add_edge(vertexs[i], vertexs[i+1], CEdge{DepType::Accum,cur_ofm}, cg);
+                add_edge(vertexs[i], vertexs[i+1], CEdge{DepType::Accum,cur_chan,cur_ofm}, cg);
             }
         }
     }
 }
 
-void CGraph::inter_layer_conn(){
-    for (const auto& v : dep_infos){
+void CGraph::inter_layer_conn() {
+    for (const auto& v : dep_infos) {
         // get acc blks and dep info
         const auto& deps = v.dep_info;
-        for (const auto& src : v.acc_blks){
+        for (const auto& src : v.acc_blks) {
             // get cur data volume and output channel id
             auto src_node = src.vertex_id.back();
             const auto src_property = get_node_property(src_node,cg);
@@ -98,18 +100,18 @@ void CGraph::inter_layer_conn(){
             auto co_src = src.cout_id;
             auto cur_cout_num = co_src.second - co_src.first + 1;
             // get dst node
-            for (const auto& dep : deps){
+            for (const auto& dep : deps) {
                 // get dep layer info struct
-                for (const auto& dst_layer : dep_infos[dep.dep_layer].acc_blks){
-                    for (const auto& dst_node : dst_layer.vertex_id){
+                for (const auto& dst_layer : dep_infos[dep.dep_layer].acc_blks) {
+                    for (const auto& dst_node : dst_layer.vertex_id) {
                         auto ci_dst = get_node_property(dst_node, cg).id_cin;
                         // get intersection num
                         auto start = std::max(co_src.first, ci_dst.first);
                         auto end = std::min(co_src.second, ci_dst.second);
-                        if(start <= end){
+                        if(start <= end) {
                             auto overlap = end - start + 1;
                             // add edge and corresponding data volume
-                            add_edge(src_node, dst_node, CEdge{DepType::Prop, cur_datavolume * overlap / cur_cout_num}, cg);
+                            add_edge(src_node, dst_node, CEdge{DepType::Prop, {start,end}, cur_datavolume * overlap / cur_cout_num}, cg);
                         }
                     }
                 }
@@ -122,11 +124,11 @@ void CGraph::print_graph_info() const{
     std::cout << "Graph info:" << std::endl;
     BaseGraph<CNode, CEdge>::print_graph_info(cg);
     std::cout << "AccBlk info:" << std::endl;
-    for(const auto&v : dep_infos){
+    for(const auto&v : dep_infos) {
         std::cout << "Layer: " << v.layer << std::endl;
-        for(const auto& blk : v.acc_blks){
+        for(const auto& blk : v.acc_blks) {
             std::cout << "AccBlk: " << blk.cout_id.first << " - " << blk.cout_id.second << std::endl;
-            for(const auto& node : blk.vertex_id){
+            for(const auto& node : blk.vertex_id) {
                 std::cout << "Node: " << node << std::endl;
             }
         }
@@ -152,7 +154,7 @@ void TGraph::analysis() {
 void TGraph::create_tnodes() {
     const auto& cg = cg_ref->get_graph();
     const auto& cdeps = cg_ref->get_dep_infos();
-    for (const auto& cdep: cdeps){
+    for (const auto& cdep: cdeps) {
         // get cnode size
         // BL split
         auto col_size = cdep.acc_blks.size();
@@ -161,7 +163,7 @@ void TGraph::create_tnodes() {
         // uniformsplit
         auto split = uniformsplit(row_size, col_size, tile_xbar_num);
         // create TNode
-        for(const auto& cgroup : split){
+        for(const auto& cgroup : split) {
             // get cnode id of cur tnode
             std::vector<size_t> cnode_id{};
             // supernode info can be generated here
@@ -170,7 +172,7 @@ void TGraph::create_tnodes() {
             bool empty = true;
             auto mergenode = [&](Node node_id) {
                 auto cnode = cg_ref-> get_node_property(node_id, cg);
-                if(empty){
+                if(empty) {
                     supernode = cnode;
                     empty = false;
                 } else {
@@ -218,6 +220,9 @@ void TGraph::create_TDep() {
 void TGraph::inter_tile_conn() {
     // find inter-tile c-edges
     const auto& cg = cg_ref->get_graph();
+    using EdgeElem = std::map<Node,std::vector<CEdge>>;
+    using EdgeMap = std::map<std::pair<Node, Node>, EdgeElem>;
+    EdgeMap edge_map{};
     // traverse edges
     for (const auto& e : boost::make_iterator_range(edges(cg))) {
         // CEdge info
@@ -227,13 +232,49 @@ void TGraph::inter_tile_conn() {
         Node src_t = node_map[src];
         Node dst_t = node_map[dst];
         // find inter-tile edges and update tedges
-        if(src_t != dst_t){
-            // std::cout << "CEdge: " << src << " -> " << dst << std::endl;
-            // std::cout << "TEdge: " << src_t << " -> " << dst_t << std::endl;
+        if(src_t != dst_t) {
+            // get inter-tile cedge property
             auto cedge = cg_ref->get_edge_property(e, cg);
-            // std::cout << get_node_property(src_t, tg) << std::endl;
-            // add_edge(src_t, dst_t, TEdge{cedge.c_type, cedge.datavolume, 0}, tg);
-            update_tedges(src_t, dst_t, cedge);
+            // update edgemap
+            edge_map[std::make_pair(src_t, dst_t)][src].emplace_back(cedge);
+            // edge_map[std::make_pair(src_t, dst_t)][src].emplace(cedge);
+            // edge_map[std::make_pair(src_t, dst_t)].emplace_back(EdgeElem{src, cedge});
+            // update_tedges(src_t, dst_t, cedge);
+        }
+    }
+    // traverse tnode edge_map
+    for (auto& [key, val] : edge_map) {
+        // traverse edges with same src cnode
+        for (auto& [src, cedges] : val) {
+            // sort cedges by channel start id
+            std::sort(cedges.begin(), cedges.end(), [](CEdge& a, CEdge& b) {
+                return a.channel_id.first < b.channel_id.first;
+            });
+            // merge cedges
+            std::vector<CEdge> merged_edges{};
+            // add first edge
+            merged_edges.emplace_back(cedges[0]);
+            // merge edge info
+            for (int i = 1; i < cedges.size(); i++) {
+                auto& cur_edge = merged_edges.back();
+                // only update non-overlapping edgeinfo
+                // case1: has overlap
+                if (cedges[i].channel_id.first <= cur_edge.channel_id.second) {
+                    auto unique_num = UniqueElements(cur_edge.channel_id, cedges[i].channel_id);
+                    // unique channel must extend the end index
+                    cur_edge.channel_id.second += unique_num;
+                    // update datavolume
+                    cur_edge.datavolume += cedges[i].datavolume * unique_num / (cedges[i].channel_id.second - cedges[i].channel_id.first + 1);
+                }
+                // case2: no overlap
+                else {
+                    merged_edges.emplace_back(cedges[i]);
+                }
+            }
+            // update tedges
+            for (auto& edge : merged_edges) {
+                update_tedges(key.first, key.second, edge);
+            }
         }
     }
 }
@@ -250,7 +291,7 @@ void TGraph::update_tedges(Node src_t, Node dst_t, CEdge cedge) {
     }
     else {
         // update edge
-        if(cur_tedge.t_type != cedge.c_type){
+        if(cur_tedge.t_type != cedge.c_type) {
             cur_tedge.t_type = DepType::Mixed;
         }
         cur_tedge.accvolume += acc_num;
@@ -265,9 +306,9 @@ void TGraph::print_graph_info() const {
     BaseGraph<TNode, TEdge>::print_graph_info(tg);
     std::cout << "TDep info:" << std::endl;
     int i = 0;
-    for(const auto& v : tdeps){
+    for(const auto& v : tdeps) {
         std::cout << "TDep: " << ++i << std::endl;
-        for(const auto& node : v){
+        for(const auto& node : v) {
             std::cout << "Node: " << node << " ";
         }
         std::cout << std::endl;
@@ -294,12 +335,12 @@ void HGraph::analysis() {
     std::cout << "Analysis HGraph" << std::endl;
 }
 
-void CGraph::debug(){
+void CGraph::debug() {
     // test BGL builtin algorithm
     auto coords_map = boost::get(&CNode::id_cin, cg);
-    for(auto v : boost::make_iterator_range(vertices(cg))){
+    for(auto v : boost::make_iterator_range(vertices(cg))) {
         auto sth = coords_map[v]; // attribute getter
-        if(sth == std::make_pair(1,384)){
+        if(sth == std::make_pair(1,384)) {
             std::cout << "Find Node: " << v << std::endl;
             std::cout << get_node_property(v,cg) << std::endl;
             cg[v].ofmap_size += 1; // setter
@@ -334,7 +375,7 @@ void CGraph::debug(){
     }
 }
 
-void TGraph::debug(){
+void TGraph::debug() {
     // test bce func here?
 }
 
@@ -360,11 +401,12 @@ std::ostream& operator<<(std::ostream& os, const CEdge& cedge) {
             break;
     }
     os << std::endl;
+    os << "Channel id: (" << cedge.channel_id.first << ", " << cedge.channel_id.second << ")" << std::endl;
     os << "Data volume: " << cedge.datavolume << std::endl;
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const TNode& tnode){
+std::ostream& operator<<(std::ostream& os, const TNode& tnode) {
     os << "CNode id: ";
     for (const auto& i : tnode.cnode_id) {
         os << i << " ";
@@ -377,7 +419,7 @@ std::ostream& operator<<(std::ostream& os, const TNode& tnode){
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const TEdge& tedge){
+std::ostream& operator<<(std::ostream& os, const TEdge& tedge) {
     os << "Dependency type: ";
     switch (tedge.t_type) {
         case DepType::Accum:
@@ -400,14 +442,14 @@ std::ostream& operator<<(std::ostream& os, const TEdge& tedge){
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const HNode& hnode){
+std::ostream& operator<<(std::ostream& os, const HNode& hnode) {
     os << "TNode id: " << hnode.tnode_id << std::endl;
     os << "Tile id: (" << hnode.tile_id.first << ", " << hnode.tile_id.second << ")" << std::endl;
     os << "Ofmap size: " << hnode.ofm_size << std::endl;
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const HEdge& hedge){
+std::ostream& operator<<(std::ostream& os, const HEdge& hedge) {
     os << "Path id: ";
     for (const auto& i : hedge.path_id) {
         os << i << " ";

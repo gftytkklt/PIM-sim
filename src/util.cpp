@@ -88,3 +88,33 @@ vector<vector<pair<int, int>>> uniformsplit(int M, int N, int K) {
     
     return boxes;
 }
+
+/**
+ * @brief For CEdge merge, only unique elements are counted.
+ * 
+ * @param pair1 existing interval
+ * @param pair2 new interval
+ * @return int unique elements num in the new interval
+ */
+int UniqueElements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2) {
+    int start1 = pair1.first, end1 = pair1.second;
+    int start2 = pair2.first, end2 = pair2.second;
+
+    // total length of the second interval
+    int totalLength2 = end2 - start2 + 1;
+
+    // no overlap
+    if (end2 < start1 || start2 > end1) {
+        return totalLength2;  // return the total length of the second interval
+    }
+
+    // intersection
+    int overlapStart = std::max(start1, start2);
+    int overlapEnd = std::min(end1, end2);
+
+    // intersection length
+    int overlapLength = overlapEnd - overlapStart + 1;
+
+    // unique length
+    return totalLength2 - overlapLength;
+}

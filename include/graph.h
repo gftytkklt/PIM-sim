@@ -40,6 +40,7 @@ std::ostream& operator<<(std::ostream& os, const CNode& cnode);
 
 struct CEdge {
     DepType c_type;
+    std::pair<int,int> channel_id;
     int datavolume;
 };
 
