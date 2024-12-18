@@ -323,6 +323,8 @@ private:
     std::vector<Path> paths; // path info
     void analysis() override final;
     void init_hw_setting(); // init hardware template
+    void greedy_mapping(); // map TNode to HNode
+    void init_path(); // init XY-routing path
 };
 
 class DGraph : public BaseGraph<DNode, DEdge> {
