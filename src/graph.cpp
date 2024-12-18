@@ -212,7 +212,6 @@ void TGraph::create_TDep() {
             }
             tdeps.emplace_back(tdep);
         }
-        
     }
 }
 
@@ -220,8 +219,8 @@ void TGraph::create_TDep() {
 void TGraph::inter_tile_conn() {
     // find inter-tile c-edges
     const auto& cg = cg_ref->get_graph();
-    using EdgeElem = std::map<Node,std::vector<CEdge>>;
-    using EdgeMap = std::map<std::pair<Node, Node>, EdgeElem>;
+    using EdgeElem = std::unordered_map<Node,std::vector<CEdge>>;
+    using EdgeMap = std::unordered_map<std::pair<Node, Node>, EdgeElem, pair_hash>;
     EdgeMap edge_map{};
     // traverse edges
     for (const auto& e : boost::make_iterator_range(edges(cg))) {
@@ -276,6 +275,7 @@ void TGraph::inter_tile_conn() {
                 update_tedges(key.first, key.second, edge);
             }
         }
+        // TNode[dst].parent.push_back(src); src dst in key
     }
 }
 

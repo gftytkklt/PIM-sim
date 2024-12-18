@@ -1,5 +1,5 @@
 #include "mapper.h"
-bool Mapper::map_node_to_core(int node, int x, int y) {
+bool Mapper::map_node_to_core(size_t node, int x, int y) {
     if (node_to_core.find(node) != node_to_core.end()) {
         // node is already mapped
         return false;
@@ -14,14 +14,13 @@ bool Mapper::map_node_to_core(int node, int x, int y) {
     return true;
 }
 
-bool Mapper::unmap_node(int node) {
+bool Mapper::unmap_node(size_t node) {
     auto it = node_to_core.find(node);
     if (it == node_to_core.end()) {
         // unmapped node
         return false;
     }
-    int x = it->second.first;
-    int y = it->second.second;
+    auto [x,y] = it->second;
     node_to_core.erase(it);
     core_to_node.erase({x, y});
     core_array[x][y] = -1;
@@ -96,10 +95,10 @@ bool Mapper::find_best_contiguous_block(int required_size, const std::vector<std
 
 bool Mapper::map_group(const Group& group) {
     // identify mapped and unmapped nodes
-    std::vector<int> mapped_nodes;
-    std::vector<int> unmapped_nodes;
+    std::vector<size_t> mapped_nodes;
+    std::vector<size_t> unmapped_nodes;
     std::vector<std::pair<int, int>> ref_points;
-    for (const auto& node : group.nodes) {
+    for (const auto& node : group) {
         if (node_to_core.find(node) != node_to_core.end()) {
             mapped_nodes.push_back(node);
             ref_points.push_back(node_to_core.at(node));
@@ -126,7 +125,7 @@ bool Mapper::map_group(const Group& group) {
 
     // map unmapped nodes to the found contiguous block
     for (int k = 0; k < required_size; ++k) {
-        int node = unmapped_nodes[k];
+        size_t node = unmapped_nodes[k];
         int x = best_start.first;
         int y = best_start.second + k;
         bool success = map_node_to_core(node, x, y);
@@ -134,7 +133,7 @@ bool Mapper::map_group(const Group& group) {
             std::cout << "failed to map node " << node << " to (" << x << ", " << y << ")\n";
             // unmap all nodes that have been mapped
             for (int m = 0; m < k; ++m) {
-                int rem_node = unmapped_nodes[m];
+                size_t rem_node = unmapped_nodes[m];
                 unmap_node(rem_node);
             }
             return false;

@@ -295,7 +295,7 @@ public:
 private:
     Graph tg; // T-VDFG
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
-    std::map<Node, Node> node_map; // map from cnode to tnode
+    std::unordered_map<Node, Node> node_map; // map from cnode to tnode
     TDep tdeps;
     int tile_xbar_num; // number of xbar in a tile
     void create_tnodes();
@@ -305,6 +305,7 @@ private:
 };
 
 class HGraph : public BaseGraph<HNode, HEdge> {
+    friend class DGraph;
 public:
     struct Path{
         std::vector<Node> path_id;
