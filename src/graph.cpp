@@ -374,13 +374,31 @@ void HGraph::analysis() {
 
 void HGraph::greedy_mapping() {
     // TNode and TDep info
+    const auto& tg = tg_ref->get_graph();
     const auto& tdeps = tg_ref->get_tdep();
     // map tgrp to HNodes
+    int i = 0;
     for (const auto& tdep : tdeps) {
+        std::set<size_t> dep_set{};
+        // get dep set
+        for (const auto& node : tdep) {
+            auto parents = tg_ref->get_node_property(node, tg).parent_id;
+            for (const auto& parent : parents) {
+                dep_set.insert(parent);
+            }
+        }
+        // get inter-layer child
+        auto child_set = tg_ref->get_adjacent_nodes(*tdep.rbegin(),tg);
+        dep_set.insert(child_set.begin(), child_set.end());
+        // print dep_set for checking
+        std::cout << "Dep set of TDep " << i++ << ": ";
+        for (const auto& i : dep_set) {
+            std::cout << i << " ";
+        }
+        std::cout << std::endl;
         mapper.map_group(tdep);
     }
     // update HGraph
-    const auto& tg = tg_ref->get_graph();
     for (size_t i = 0; i < num_nodes(tg); ++i) {
         auto tnode = tg_ref->get_node_property(i, tg);
         auto hnode = mapper.get_core(i);
