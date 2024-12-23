@@ -144,3 +144,11 @@ bool Mapper::map_group(const Group& group) {
                 << best_start.first << ", " << best_start.second + required_size - 1 << ")\n";
     return true;
 }
+
+std::pair<int, int> Mapper::get_core(size_t node) const {
+    auto it = node_to_core.find(node);
+    if (it == node_to_core.end()) {
+        return {-1, -1};
+    }
+    return it->second;
+}

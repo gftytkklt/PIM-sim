@@ -13,22 +13,25 @@
 
 // nodes group
 using Group = std::set<size_t>;
-// manhattan distance
-int manhattan_distance(int x1, int y1, int x2, int y2) {
-    return std::abs(x1 - x2) + std::abs(y1 - y2);
-}
 
 // Mapper class
 class Mapper {
 public:
     // ctor
     Mapper(int r, int c) : rows(r), cols(c), core_array(r, std::vector<size_t>(c, -1)) {}
-    
+    Mapper(std::pair<int, int> size) : Mapper(size.first, size.second) {}
+    Mapper() = default;
     // print mappings
     void print_mappings() const;
 
     // print core array
     void print_core_array() const;
+
+    // map a group of nodes
+    bool map_group(const Group& group);
+
+    // HNode getter
+    std::pair<int, int> get_core(size_t node) const;
 
 private:
     // core array, -1 means free, otherwise node index
@@ -53,10 +56,6 @@ private:
 
     // find best contiguous block
     bool find_best_contiguous_block(int required_size, const std::vector<std::pair<int, int>>& ref_points, std::pair<int, int>& best_start, int& min_distance) const;
-
-    // map a group of nodes
-    bool map_group(const Group& group);
-
 
 };
 #endif

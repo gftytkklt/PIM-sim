@@ -236,9 +236,6 @@ void TGraph::inter_tile_conn() {
             auto cedge = cg_ref->get_edge_property(e, cg);
             // update edgemap
             edge_map[std::make_pair(src_t, dst_t)][src].emplace_back(cedge);
-            // edge_map[std::make_pair(src_t, dst_t)][src].emplace(cedge);
-            // edge_map[std::make_pair(src_t, dst_t)].emplace_back(EdgeElem{src, cedge});
-            // update_tedges(src_t, dst_t, cedge);
         }
     }
     // traverse tnode edge_map
@@ -275,7 +272,12 @@ void TGraph::inter_tile_conn() {
                 update_tedges(key.first, key.second, edge);
             }
         }
-        // TNode[dst].parent.push_back(src); src dst in key
+        // update tnode parent info
+        auto& tnode = get_node_property(key.second, tg);
+        if(get_edge_property(key.first, key.second, tg).t_type == DepType::Prop) {
+            tnode.parent_id.emplace_back(key.first);
+        }
+        
     }
 }
 
@@ -316,7 +318,7 @@ void TGraph::print_graph_info() const {
 }
 
 HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size)
-    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size} {
+    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, mapper{}{
     if (tile_size.first * tile_size.second < tg_ref->num_nodes(tg_ref->get_graph())) {
         // throw std::invalid_argument("Tile size does not match the number of nodes in the TGraph.");
         auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
@@ -327,14 +329,16 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
     else {
         std::cout << "Tile size: " << this->tile_size.first << " x " << this->tile_size.second << std::endl;
     }
+    mapper = Mapper{tile_size};
     analysis();
 }
 
 HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg)
-    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{} {
+    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{}, mapper{} {
     auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
     auto tile_x = static_cast<int>(std::ceil(std::sqrt(num_tile)));
     tile_size = std::make_pair(tile_x, tile_x);
+    mapper = Mapper{tile_size};
     analysis();
 }
 
@@ -342,8 +346,10 @@ void HGraph::init_hw_setting() {
     // init tile array
     for (int i = 0; i < tile_size.first; i++) {
         for (int j = 0; j < tile_size.second; j++) {
-            auto hnode = HNode{0, std::make_pair(i, j), 0};
-            add_node(hnode, hg);
+            auto hnode = HNode{0, std::make_pair(i, j), false};
+            // add_node(hnode, hg);
+            auto hid = add_node(hnode, hg);
+            // std::cout << "Add node: " << i << "," << j << "to" << hid << std::endl;
         }
     }
     // 2D-mesh connection
@@ -362,6 +368,83 @@ void HGraph::init_hw_setting() {
 
 void HGraph::analysis() {
     init_hw_setting();
+    greedy_mapping();
+    init_path();
+}
+
+void HGraph::greedy_mapping() {
+    // TNode and TDep info
+    const auto& tdeps = tg_ref->get_tdep();
+    // map tgrp to HNodes
+    for (const auto& tdep : tdeps) {
+        mapper.map_group(tdep);
+    }
+    // update HGraph
+    const auto& tg = tg_ref->get_graph();
+    for (size_t i = 0; i < num_nodes(tg); ++i) {
+        auto tnode = tg_ref->get_node_property(i, tg);
+        auto hnode = mapper.get_core(i);
+        auto hid = xy_to_id(hnode);
+        set_node_property(hid, HNode{i, hnode, true}, hg);
+    }
+}
+
+void HGraph::init_path() {
+    // get TGraph
+    const auto& tg = tg_ref->get_graph();
+    // Traverse TEdges
+    for (const auto& e : boost::make_iterator_range(edges(tg))) {
+        auto src = boost::source(e, tg);
+        auto dst = boost::target(e, tg);
+        auto tedge = tg_ref->get_edge_property(e, tg);
+        auto datavolume = tedge.accvolume + tedge.propvolume;
+        // get src and dst HNode
+        auto src_h = mapper.get_core(src);
+        auto dst_h = mapper.get_core(dst);
+        // get path
+        auto path = XYinit(src_h, dst_h);
+        // add path to paths
+        paths.push_back(HGraph::Path{path, datavolume});
+        auto path_index = paths.size() - 1;
+        // std::cout << "map Tpath: " << src << " -> " << dst << " Path: " << path_index << " Volume: " << datavolume << std::endl;
+        // std::cout << "Hpath: " << src_h.first << "," << src_h.second << " -> " << dst_h.first << "," << dst_h.second << std::endl;
+        // add path to HGraph
+        for (int i = 0; i < path.size() - 1; i++) {
+            auto src_id = xy_to_id(path[i]);
+            auto dst_id = xy_to_id(path[i + 1]);
+            add_path(src_id, dst_id, path_index);
+        }
+        // std::cout << std::endl;
+    }
+}
+
+void HGraph::add_path(Node src, Node dst, size_t path_index) {
+    auto hedge = get_edge_property(src, dst, hg);
+    auto datavolume = paths[path_index].datavolume;
+    // std::cout << "Add path: " << src << " -> " << dst << " Path: " << path_index << " Volume: " << datavolume << std::endl;
+    // std::cout << "Path before: " << hedge;
+    // hedge.pathset.insert({path_index, datavolume});
+    hedge.pathset[path_index] = datavolume;
+    hedge.datavolume += datavolume;
+    // std::cout << "Path after: " << hedge << std::endl;
+    set_edge_property(src, dst, hedge, hg);
+}
+
+void HGraph::remove_path(Node src, Node dst, size_t path_index) {
+    auto hedge = get_edge_property(src, dst, hg);
+    auto datavolume = paths[path_index].datavolume;
+    // hedge.pathset.erase({path_index, datavolume});
+    hedge.pathset.erase(path_index);
+    hedge.datavolume -= datavolume;
+    set_edge_property(src, dst, hedge, hg);
+}
+
+std::pair<int, int> HGraph::id_to_xy(size_t id) const {
+    return hg[id].tile_id;
+}
+
+size_t HGraph::xy_to_id(std::pair<int, int> xy) const {
+    return xy.first * tile_size.second + xy.second;
 }
 
 void HGraph::print_graph_info() const {
@@ -475,8 +558,13 @@ std::ostream& operator<<(std::ostream& os, const TNode& tnode) {
     os << std::endl;
     os << "Super nodes: " << std::endl;
     for (const auto& i : tnode.super_nodes) {
-        os << i << std::endl;
+        os << i;
     }
+    os << "Parent id: ";
+    for (const auto& i : tnode.parent_id) {
+        os << i << " ";
+    }
+    os << std::endl;
     return os;
 }
 
@@ -504,18 +592,21 @@ std::ostream& operator<<(std::ostream& os, const TEdge& tedge) {
 }
 
 std::ostream& operator<<(std::ostream& os, const HNode& hnode) {
-    os << "TNode id: " << hnode.tnode_id << std::endl;
+    if (hnode.mapped) {
+        os << "TNode id: " << hnode.tnode_id << std::endl;
+    } else {
+        os << "TNode id: " << "unmapped" << std::endl;
+    }
     os << "Tile id: (" << hnode.tile_id.first << ", " << hnode.tile_id.second << ")" << std::endl;
-    os << "Ofmap size: " << hnode.ofm_size << std::endl;
+    // os << "Ofmap size: " << hnode.ofm_size << std::endl;
     return os;
 }
 
 std::ostream& operator<<(std::ostream& os, const HEdge& hedge) {
-    os << "Path id: ";
-    for (const auto& i : hedge.path_id) {
-        os << i << " ";
+    os << "Path set: ";
+    for (const auto& i : hedge.pathset) {
+        os << "(" << i.first << ", " << i.second << ") ";
     }
-    os << std::endl;
     os << "Data volume: " << hedge.datavolume << std::endl;
     return os;
 }

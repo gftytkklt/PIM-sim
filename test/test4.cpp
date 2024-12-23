@@ -25,11 +25,11 @@ protected:
     
 
 TEST_F(GraphTest, NEEDTILE){
-    tg = TGraph(cg, 2);
+    tg = TGraph(cg, 1);
     tg.print_graph_info();
-    // auto hg = HGraph(std::make_shared<TGraph>(tg), cg, std::make_pair(2, 2));
-    // ASSERT_THROW(auto hg = HGraph(std::make_shared<TGraph>(tg), cg, std::make_pair(2, 2)), std::invalid_argument);
-//     // tg.debug();
-//     auto hg = HGraph(std::make_shared<TGraph>(tg), cg);
-    // hg.print_graph_info();
+//     // auto hg = HGraph(std::make_shared<TGraph>(tg), cg, std::make_pair(2, 2));
+//     // ASSERT_THROW(auto hg = HGraph(std::make_shared<TGraph>(tg), cg, std::make_pair(2, 2)), std::invalid_argument);
+// //     // tg.debug();
+    auto hg = HGraph(std::make_shared<TGraph>(tg), cg);
+    hg.print_graph_info();
 }

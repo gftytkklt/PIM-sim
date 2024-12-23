@@ -118,3 +118,47 @@ int UniqueElements(const std::pair<int, int>& pair1, const std::pair<int, int>& 
     // unique length
     return totalLength2 - overlapLength;
 }
+
+int manhattan_distance(int x1, int y1, int x2, int y2) {
+    return std::abs(x1 - x2) + std::abs(y1 - y2);
+}
+
+/**
+ * @brief generate path from src to dst by xy-routing
+ * 
+ * @param src 
+ * @param dst 
+ * @return std::vector<std::pair<int, int>> 
+ */
+std::vector<std::pair<int, int>> XYinit(std::pair<int, int> src, std::pair<int, int> dst)
+{
+    int x1 = src.first;
+    int y1 = src.second;
+    int x2 = dst.first;
+    int y2 = dst.second;
+
+    std::vector<std::pair<int, int>> path;
+    path.push_back({x1, y1});
+
+    // X
+    while (x1 != x2) 
+    {
+        if (x1 < x2)
+            x1++;
+        else
+            x1--;
+        path.push_back({x1, y1});
+    }
+
+    // Y
+    while (y1 != y2) 
+    {
+        if (y1 < y2)
+            y1++;
+        else
+            y1--;
+        path.push_back({x1, y1});
+    }
+
+    return path;
+}
