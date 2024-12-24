@@ -14,6 +14,23 @@
 // nodes group
 using Group = std::set<size_t>;
 
+// direction enum
+enum Direction {
+    RIGHT = 0,
+    LEFT,
+    UP,
+    DOWN,
+    DIRECTION_COUNT  // size of direction enum
+};
+
+// direction array
+constexpr std::array<std::array<int, 2>, DIRECTION_COUNT> DIRS = {{
+    {1, 0},    // RIGHT
+    {-1, 0},   // LEFT
+    {0, 1},    // UP
+    {0, -1}    // DOWN
+}};
+
 // Mapper class
 class Mapper {
 public:
@@ -28,7 +45,7 @@ public:
     void print_core_array() const;
 
     // map a group of nodes
-    bool map_group(const Group& group);
+    bool map_group(const Group& group, const Group& dep_set);
 
     // HNode getter
     std::pair<int, int> get_core(size_t node) const;
@@ -54,8 +71,8 @@ private:
     // node unregistration
     bool unmap_node(size_t node);
 
-    // find best contiguous block
-    bool find_best_contiguous_block(int required_size, const std::vector<std::pair<int, int>>& ref_points, std::pair<int, int>& best_start, int& min_distance) const;
+    // find best contiguous block in one direction
+    std::pair<bool, std::vector<std::pair<int,int>>> find_best_contiguous_block(int required_size, const std::vector<std::pair<int, int>>& ref_points) const;
 
 };
 #endif

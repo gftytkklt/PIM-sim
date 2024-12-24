@@ -2,15 +2,18 @@
 bool Mapper::map_node_to_core(size_t node, int x, int y) {
     if (node_to_core.find(node) != node_to_core.end()) {
         // node is already mapped
+        std::cout << "node " << node << " is already mapped" << std::endl;
         return false;
     }
     if (!is_free(x, y)) {
         // core is not free
+        std::cout << "core (" << x << ", " << y << ") is not free" << std::endl;
         return false;
     }
     node_to_core[node] = {x, y};
     core_to_node[{x, y}] = node;
     core_array[x][y] = node;
+    std::cout << "node " << node << " mapped to core (" << x << ", " << y << ")\n";
     return true;
 }
 
@@ -47,9 +50,18 @@ void Mapper::print_core_array() const {
     }
 }
 
-bool Mapper::find_best_contiguous_block(int required_size, const std::vector<std::pair<int, int>>& ref_points, std::pair<int, int>& best_start, int& min_distance) const {
+/**
+ * @brief naive contiguous row search
+ * 
+ * @param required_size tiles needed for mapping
+ * @param ref_points nodes already mapped
+ * @return std::pair<bool, std::vector<std::pair<int,int>>> 
+ */
+std::pair<bool, std::vector<std::pair<int,int>>> Mapper::find_best_contiguous_block(int required_size, const std::vector<std::pair<int, int>>& ref_points) const {
     bool found = false;
-    min_distance = std::numeric_limits<int>::max();
+    std::vector<std::pair<int,int>> map_set{};
+    auto min_distance = std::numeric_limits<int>::max();
+    std::pair<int, int> best_start{};
     // traverse all rows
     for (int i = 0; i < rows; ++i) {
         for (int j = 0; j <= cols - required_size; ++j) {
@@ -84,16 +96,27 @@ bool Mapper::find_best_contiguous_block(int required_size, const std::vector<std
                     found = true;
                     // return if the optimal distance is 0
                     if (distance == 0) {
-                        return true;
+                        for (int k = 0; k < required_size; ++k) {
+                            map_set.push_back({i, j + k});
+                        }
+                        // return true;
+                        return {true, map_set};
                     }
                 }
             }
         }
     }
-    return found;
+    if (found) {
+        // fill map_set
+        for (int k = 0; k < required_size; ++k) {
+            map_set.push_back({best_start.first, best_start.second + k});
+        }
+    }
+    return {found, map_set};
+    // return found;
 }
 
-bool Mapper::map_group(const Group& group) {
+bool Mapper::map_group(const Group& group, const Group& dep_set) {
     // identify mapped and unmapped nodes
     std::vector<size_t> mapped_nodes;
     std::vector<size_t> unmapped_nodes;
@@ -107,6 +130,13 @@ bool Mapper::map_group(const Group& group) {
         }
     }
 
+    // push mapped dep set nodes to ref points
+    for (const auto& node : dep_set) {
+        if (node_to_core.find(node) != node_to_core.end()) {
+            ref_points.push_back(node_to_core.at(node));
+        }
+    }
+
     int required_size = unmapped_nodes.size();
     if (required_size == 0) {
         // all nodes are already mapped, no need to do anything
@@ -116,21 +146,29 @@ bool Mapper::map_group(const Group& group) {
     std::pair<int, int> best_start;
     int min_distance;
 
-    bool found = find_best_contiguous_block(required_size, ref_points, best_start, min_distance);
+    auto [found, map_set] = find_best_contiguous_block(required_size, ref_points);
     if (!found) {
         // if contiguous block cannot be found, return failure
-        std::cout << "cannt find enough contiguous free cores to map the group\n";
+        std::cout << "cannt find enough contiguous free cores to map the group" << std::endl;
         return false;
     }
-
+    // std::cout << "node set: ";
+    // for (const auto& node : unmapped_nodes) {
+    //     std::cout << node << " ";
+    // }
+    // std::cout << std::endl;
+    // std::cout << "map set: ";
+    // for (const auto& [x, y] : map_set) {
+    //     std::cout << "(" << x << ", " << y << ") ";
+    // }
+    std::cout << std::endl;
     // map unmapped nodes to the found contiguous block
     for (int k = 0; k < required_size; ++k) {
         size_t node = unmapped_nodes[k];
-        int x = best_start.first;
-        int y = best_start.second + k;
-        bool success = map_node_to_core(node, x, y);
+        // std::cout << "mapping node " << node << " to (" << map_set[k].first << ", " << map_set[k].second << ")\n";
+        bool success = map_node_to_core(node, map_set[k].first, map_set[k].second);
         if (!success) {
-            std::cout << "failed to map node " << node << " to (" << x << ", " << y << ")\n";
+            std::cout << "failed to map node " << node << " to (" << map_set[k].first << ", " << map_set[k].second << ")\n";
             // unmap all nodes that have been mapped
             for (int m = 0; m < k; ++m) {
                 size_t rem_node = unmapped_nodes[m];
@@ -139,9 +177,6 @@ bool Mapper::map_group(const Group& group) {
             return false;
         }
     }
-
-    std::cout << "success to map group to region (" << best_start.first << ", " << best_start.second << ") to ("
-                << best_start.first << ", " << best_start.second + required_size - 1 << ")\n";
     return true;
 }
 

@@ -26,7 +26,7 @@ protected:
 
 TEST_F(GraphTest, NEEDTILE){
     tg = TGraph(cg, 2);
-    tg.print_graph_info();
+    // tg.print_graph_info();
 //     // auto hg = HGraph(std::make_shared<TGraph>(tg), cg, std::make_pair(2, 2));
 //     // ASSERT_THROW(auto hg = HGraph(std::make_shared<TGraph>(tg), cg, std::make_pair(2, 2)), std::invalid_argument);
 //     // tg.debug();

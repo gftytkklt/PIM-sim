@@ -391,12 +391,12 @@ void HGraph::greedy_mapping() {
         auto child_set = tg_ref->get_adjacent_nodes(*tdep.rbegin(),tg);
         dep_set.insert(child_set.begin(), child_set.end());
         // print dep_set for checking
-        std::cout << "Dep set of TDep " << i++ << ": ";
-        for (const auto& i : dep_set) {
-            std::cout << i << " ";
-        }
-        std::cout << std::endl;
-        mapper.map_group(tdep);
+        // std::cout << "Dep set of TDep " << i++ << ": ";
+        // for (const auto& i : dep_set) {
+        //     std::cout << i << " ";
+        // }
+        // std::cout << std::endl;
+        mapper.map_group(tdep, dep_set);
     }
     // update HGraph
     for (size_t i = 0; i < num_nodes(tg); ++i) {
