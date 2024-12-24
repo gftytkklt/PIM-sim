@@ -162,3 +162,25 @@ std::vector<std::pair<int, int>> XYinit(std::pair<int, int> src, std::pair<int, 
 
     return path;
 }
+
+int compute_median(std::vector<int>& vec) {
+    std::sort(vec.begin(), vec.end());
+    int n = vec.size();
+    if (n % 2 == 0) {
+        return (vec[n / 2 - 1] + vec[n / 2]) / 2;
+    } else {
+        return vec[n / 2];
+    }
+}
+
+int fast_compute_median(std::vector<int>& vec) {
+    int n = vec.size();
+    int pos = 0;
+    if (n % 2 == 0) {
+        pos = n / 2 - 1;
+    } else {
+        pos = n / 2;
+    }
+    std::nth_element(vec.begin(), vec.begin() + pos, vec.end());
+    return vec[pos];
+}
