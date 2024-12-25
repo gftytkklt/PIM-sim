@@ -27,4 +27,20 @@ struct pair_hash {
     }
 };
 
+// comparator for pair.first
+struct pair_first_comparator {
+    template <typename T1, typename T2>
+    bool operator()(const std::pair<T1, T2>& p1, const std::pair<T1, T2>& p2) const {
+        return p1.first < p2.first;
+    }
+};
+
+// comparator for pair.second
+struct pair_second_comparator {
+    template <typename T1, typename T2>
+    bool operator()(const std::pair<T1, T2>& p1, const std::pair<T1, T2>& p2) const {
+        return p1.second < p2.second;
+    }
+};
+
 #endif

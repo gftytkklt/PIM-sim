@@ -80,18 +80,22 @@ std::ostream& operator<<(std::ostream& os, const HNode& hnode);
 
 struct HEdge {
     // std::vector<size_t> path_id;
-    std::map<size_t, int> pathset;
+    std::map<size_t, int> pathset; // (id, datavolume)
     int datavolume;
 };
 
 std::ostream& operator<<(std::ostream& os, const HEdge& hedge);
 
 struct DNode {
-
+    size_t tnode_id;
+    std::pair<int,int> tile_id;
 };
 
 struct DEdge {
-
+    using PSet = std::set<std::pair<size_t, int>, pair_second_comparator>;
+    PSet pathset; // (id, datavolume)
+    int datavolume;
+    double bce;
 };
 
 template <typename NodeProperty, typename EdgeProperty>
@@ -350,12 +354,11 @@ private:
 
 class DGraph : public BaseGraph<DNode, DEdge> {
 public:
-    DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg);
-    void analysis() override {
-        std::cout << "Analysis of DGraph" << std::endl;
-    }
+    DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth);
+    void analysis() override final;
 private:
-    Graph dg; // DHCG
+    int pipeline_depth; // pipeline depth for DHCG partition
+    std::vector<UGraph> dg; // DHCGs
     std::shared_ptr<const HGraph> hg_ref; // HCG for DHCG inference
     std::shared_ptr<const TGraph> tg_ref; // T-VDFG for DHCG inference
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for DHCG inference  
