@@ -342,6 +342,12 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
     analysis();
 }
 
+void HGraph::analysis() {
+    init_hw_setting();
+    greedy_mapping();
+    init_path();
+}
+
 void HGraph::init_hw_setting() {
     // init tile array
     for (int i = 0; i < tile_size.first; i++) {
@@ -364,12 +370,6 @@ void HGraph::init_hw_setting() {
             }
         }
     }
-}
-
-void HGraph::analysis() {
-    init_hw_setting();
-    greedy_mapping();
-    init_path();
 }
 
 void HGraph::greedy_mapping() {
@@ -468,6 +468,89 @@ size_t HGraph::xy_to_id(std::pair<int, int> xy) const {
 void HGraph::print_graph_info() const {
     std::cout << "HGraph info:" << std::endl;
     BaseGraph<HNode, HEdge>::print_graph_info(hg);
+}
+
+DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg,std::shared_ptr<const CGraph> cg)
+    : dg{}, hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{1} {
+    analysis();
+}
+
+DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth)
+    : dg{}, hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth} {
+    analysis();
+}
+
+void DGraph::analysis() {
+    // segment DHCG
+    create_DSeg();
+    init_DPath();
+    bce_routing();
+}
+
+void DGraph::create_DSeg() {
+    // get TNode layer
+    const auto& tg = tg_ref->get_graph();
+    std::vector<int> layer(num_nodes(tg), 1);
+    // std::cout << "Layer info:" << layer.size() << std::endl;
+    // std::map<int, std::vector<size_t>> layer_map;
+    // update layer info
+    std::vector<size_t> topo_order;
+    try {
+        boost::topological_sort(tg, std::back_inserter(topo_order));
+    }
+    catch(boost::not_a_dag& e) {
+        std::cerr << "Not a DAG!" << std::endl;
+        return;
+    }
+    std::reverse(topo_order.begin(), topo_order.end());
+
+    // only prop edge update layer info
+    for(auto v : topo_order) {
+        // root is already 1
+        if(!tg[v].parent_id.empty()) {
+            int max_layer = 0;
+            for (const auto& parent : tg[v].parent_id) {
+                max_layer = std::max(max_layer, layer[parent]);
+            }
+            layer[v] = max_layer + 1;
+        }
+    }
+
+    // create segment
+    auto layer_num = *std::max_element(layer.begin(), layer.end());
+    const auto& hg = hg_ref->get_graph();
+    // if depth = 0, add standalone if branch to impl
+    for (int i = 1; i < layer_num; i += pipeline_depth) {
+        auto dst_layer = std::max(i + pipeline_depth, layer_num);
+        UGraph dg_i;
+        for (size_t id = 0; id < layer.size(); id++) {
+            if (layer[id] >= i && layer[id] < dst_layer) {
+                // add node to DHCG
+                auto tile_id = hg_ref->id_to_xy(id);
+                add_node(DNode{id, tile_id}, dg_i);
+            }
+        }
+        // add DHCG to dg
+        dg.emplace_back(dg_i);
+    }
+}
+
+void DGraph::init_DPath() {
+    // harbor tile selection
+    // init path for each DHCG
+
+}
+
+void DGraph::bce_routing() {
+
+}
+
+void DGraph::print_graph_info() const {
+    std::cout << "DGraph info:" << std::endl;
+    for (size_t i = 0; i < dg.size(); i++) {
+        std::cout << "DHCG " << i << " info:" << std::endl;
+        BaseGraph<DNode, DEdge>::print_graph_info(dg[i]);
+    }
 }
 
 void CGraph::debug() {
@@ -626,5 +709,21 @@ std::ostream& operator<<(std::ostream& os, const HEdge& hedge) {
         os << "(" << i.first << ", " << i.second << ") ";
     }
     os << "Data volume: " << hedge.datavolume << std::endl;
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const DNode& dnode) {
+    os << "TNode id: " << dnode.tnode_id << std::endl;
+    os << "Tile id: (" << dnode.tile_id.first << ", " << dnode.tile_id.second << ")" << std::endl;
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const DEdge& dedge) {
+    os << "Path set: ";
+    for (const auto& i : dedge.pathset) {
+        os << "(" << i.first << ", " << i.second << ") ";
+    }
+    os << "Data volume: " << dedge.datavolume << std::endl;
+    os << "BCE: " << dedge.bce << std::endl;
     return os;
 }
