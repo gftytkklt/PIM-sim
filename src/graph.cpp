@@ -387,8 +387,14 @@ void HGraph::greedy_mapping() {
                 dep_set.insert(parent);
             }
         }
-        // get inter-layer child
+        // get inter-layer child(guaranteed by reverse begin)
         auto child_set = tg_ref->get_adjacent_nodes(*tdep.rbegin(),tg);
+        // print child set
+        // std::cout << "Child set of TDep " << i++ << ": ";
+        // for (const auto& child : child_set) {
+        //     std::cout << child << " ";
+        // }
+        std::cout << std::endl;
         dep_set.insert(child_set.begin(), child_set.end());
         // print dep_set for checking
         // std::cout << "Dep set of TDep " << i++ << ": ";
@@ -482,9 +488,51 @@ DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> t
 
 void DGraph::analysis() {
     // segment DHCG
+    set_harbor();
     create_DSeg();
     init_DPath();
     bce_routing();
+}
+
+void DGraph::set_harbor() {
+    // get TDep
+    const auto& tdeps = tg_ref->get_tdep();
+    // set harbor node for each tdep
+    // harbor node place accblk.rbegin()
+    // get last node of each tdep
+    for (auto i = 0;i<tdeps.size();i++) {
+        auto tdep = tdeps[i];
+        auto last_node = *tdep.rbegin();
+        tdep_map[last_node].push_back(i);
+        harbor_map[i] = last_node;
+    }
+    // print old harbor map
+    // for (const auto& [key, val] : harbor_map) {
+    //     std::cout << "TDep: " << key << " Harbor: " << val << std::endl;
+    // }
+    // update harbor node info
+    for (const auto& [key, val] : tdep_map) {
+        // only standalone tdep need to be updated
+        if(val.size() == 1) {
+            auto tdep_id = val[0];
+            auto tnodes_id = tdeps[tdep_id];
+            std::vector<std::pair<int, int>> node_list;
+            node_list.reserve(tnodes_id.size());
+            std::transform(tnodes_id.begin(), tnodes_id.end(), std::back_inserter(node_list), [&](Node i) {
+                return get_core(i);
+            });
+            // get harbor node
+            auto harbor_loc = get_median_point(node_list);
+            // std::cout << "harbor loc: " << harbor_loc.first << "," << harbor_loc.second << std::endl;
+            // swap harbor_node with last node
+            auto harbor_loc_id = get_node(harbor_loc);
+            harbor_map[tdep_id] = harbor_loc_id;
+        }
+    }
+    // print new harbor map
+    // for (const auto& [key, val] : harbor_map) {
+    //     std::cout << "TDep: " << key << " Harbor: " << val << std::endl;
+    // }
 }
 
 void DGraph::create_DSeg() {
@@ -521,13 +569,16 @@ void DGraph::create_DSeg() {
     const auto& hg = hg_ref->get_graph();
     // if depth = 0, add standalone if branch to impl
     for (int i = 1; i < layer_num; i += pipeline_depth) {
-        auto dst_layer = std::max(i + pipeline_depth, layer_num);
+        auto dst_layer = std::min(i + pipeline_depth, layer_num);
         UGraph dg_i;
         for (size_t id = 0; id < layer.size(); id++) {
-            if (layer[id] >= i && layer[id] < dst_layer) {
+            if (layer[id] >= i && layer[id] <= dst_layer) {
                 // add node to DHCG
-                auto tile_id = hg_ref->id_to_xy(id);
-                add_node(DNode{id, tile_id}, dg_i);
+                // auto tile_id = hg_ref->id_to_xy(id);
+                auto tnode_id = topo_order[id];
+                auto tile_id = get_core(tnode_id);
+                add_node(DNode{tnode_id, tile_id}, dg_i);
+                // TODO: append edge if 
             }
         }
         // add DHCG to dg
@@ -536,9 +587,7 @@ void DGraph::create_DSeg() {
 }
 
 void DGraph::init_DPath() {
-    // harbor tile selection
-    // init path for each DHCG
-
+    
 }
 
 void DGraph::bce_routing() {

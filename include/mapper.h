@@ -52,6 +52,10 @@ public:
     // HNode getter
     std::pair<int, int> get_core(size_t node) const;
 
+    // TNode getter
+    size_t get_node(int x, int y) const;
+    size_t get_node(std::pair<int, int> xy) const { return get_node(xy.first, xy.second); }
+
 private:
     // core array, -1 means free, otherwise node index
     std::vector<std::vector<size_t>> core_array;

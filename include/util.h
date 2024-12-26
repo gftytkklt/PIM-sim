@@ -10,12 +10,17 @@ std::vector<std::vector<std::pair<int, int>>> uniformsplit(int M, int N, int K);
 int UniqueElements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2);
 // manhattan distance
 int manhattan_distance(int x1, int y1, int x2, int y2);
+int manhattan_distance(std::pair<int, int> p1, std::pair<int, int> p2);
 // xy init
 std::vector<std::pair<int, int>> XYinit(std::pair<int, int> src, std::pair<int, int> dst);
 // median compute
 int compute_median(std::vector<int>& vec);
 // fast median compute
 int fast_compute_median(std::vector<int>& vec);
+// fast median compute for pair
+std::pair<int, int> fast_compute_median(std::vector<std::pair<int, int>>& vec);
+// get median point, not coordinates
+std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec);
 
 // hash function for std::pair
 struct pair_hash {

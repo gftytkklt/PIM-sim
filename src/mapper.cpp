@@ -302,3 +302,11 @@ std::pair<int, int> Mapper::get_core(size_t node) const {
     }
     return it->second;
 }
+
+size_t Mapper::get_node(int x, int y) const {
+    auto it = core_to_node.find({x, y});
+    if (it == core_to_node.end()) {
+        return std::numeric_limits<size_t>::max();
+    }
+    return it->second;
+}

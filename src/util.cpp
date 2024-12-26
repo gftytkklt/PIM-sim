@@ -1,7 +1,5 @@
 #include "util.h"
 
-using namespace std;
-
 /**
  * @brief Partitions an MxN grid of nodes into boxes, each containing up to K nodes,
  *        following specific packing rules.
@@ -11,18 +9,18 @@ using namespace std;
  * @param K Maximum number of nodes each box can contain.
  * @return A vector of boxes, where each box is a vector of (m, n) node indices.
  */
-vector<vector<pair<int, int>>> uniformsplit(int M, int N, int K) {
+std::vector<std::vector<std::pair<int, int>>> uniformsplit(int M, int N, int K) {
     // Vector to store all boxes
-    vector<vector<pair<int, int>>> boxes;
+    std::vector<std::vector<std::pair<int, int>>> boxes;
     
     // Current box being filled
-    vector<pair<int, int>> currentBox;
+    std::vector<std::pair<int, int>> currentBox;
     
     // List of residual columns to process after initial processing
-    vector<vector<pair<int, int>>> residualColumns;
+    std::vector<std::vector<std::pair<int, int>>> residualColumns;
     
     // Function to process a column and handle residuals
-    auto processColumn = [&](const vector<pair<int, int>>& columnNodes) {
+    auto processColumn = [&](const std::vector<std::pair<int, int>>& columnNodes) {
         int columnSize = columnNodes.size();
         
         if(columnSize <= K){
@@ -53,13 +51,13 @@ vector<vector<pair<int, int>>> uniformsplit(int M, int N, int K) {
                     currentBox.clear();
                 }
                 // Create a new box for the K-sized chunk
-                vector<pair<int, int>> fullBox(columnNodes.begin() + i*K, columnNodes.begin() + (i+1)*K);
+                std::vector<std::pair<int, int>> fullBox(columnNodes.begin() + i*K, columnNodes.begin() + (i+1)*K);
                 boxes.emplace_back(fullBox);
             }
             
             // Handle residual nodes
             if(residual > 0){
-                vector<pair<int, int>> residualChunk(columnNodes.begin() + fullChunks*K, columnNodes.end());
+                std::vector<std::pair<int, int>> residualChunk(columnNodes.begin() + fullChunks*K, columnNodes.end());
                 residualColumns.emplace_back(residualChunk);
             }
         }
@@ -68,9 +66,9 @@ vector<vector<pair<int, int>>> uniformsplit(int M, int N, int K) {
     // Iterate over each column
     for(int n = 0; n < N; ++n){
         // Create the current column as a list of (m, n) pairs
-        vector<pair<int, int>> currentColumn;
+        std::vector<std::pair<int, int>> currentColumn;
         for(int m = 0; m < M; ++m){
-            currentColumn.emplace_back(make_pair(m, n));
+            currentColumn.emplace_back(std::make_pair(m, n));
         }
         // Process the current column
         processColumn(currentColumn);
@@ -121,6 +119,10 @@ int UniqueElements(const std::pair<int, int>& pair1, const std::pair<int, int>& 
 
 int manhattan_distance(int x1, int y1, int x2, int y2) {
     return std::abs(x1 - x2) + std::abs(y1 - y2);
+}
+
+int manhattan_distance(std::pair<int, int> p1, std::pair<int, int> p2) {
+    return manhattan_distance(p1.first, p1.second, p2.first, p2.second);
 }
 
 /**
@@ -183,4 +185,30 @@ int fast_compute_median(std::vector<int>& vec) {
     }
     std::nth_element(vec.begin(), vec.begin() + pos, vec.end());
     return vec[pos];
+}
+
+std::pair<int, int> fast_compute_median(std::vector<std::pair<int, int>>& vec) {
+    int n = vec.size();
+    int pos = 0;
+    if (n % 2 == 0) {
+        pos = n / 2 - 1;
+    } else {
+        pos = n / 2;
+    }
+    std::nth_element(vec.begin(), vec.begin() + pos, vec.end(), pair_first_comparator());
+    int first = vec[pos].first;
+    std::nth_element(vec.begin(), vec.begin() + pos, vec.end(), pair_second_comparator());
+    int second = vec[pos].second;
+    return std::make_pair(first, second);
+}
+
+std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec) {
+    auto mid_pt = fast_compute_median(vec);
+    // std::sort(vec.begin(), vec.end(), [&](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+    //     return manhattan_distance(a, mid_pt) < manhattan_distance(b, mid_pt);
+    // });
+    // return vec[0];
+    return *std::min_element(vec.begin(), vec.end(), [&](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+        return manhattan_distance(a, mid_pt) < manhattan_distance(b, mid_pt);
+    });
 }
