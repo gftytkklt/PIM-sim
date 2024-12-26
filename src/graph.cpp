@@ -394,7 +394,7 @@ void HGraph::greedy_mapping() {
         // for (const auto& child : child_set) {
         //     std::cout << child << " ";
         // }
-        std::cout << std::endl;
+        // std::cout << std::endl;
         dep_set.insert(child_set.begin(), child_set.end());
         // print dep_set for checking
         // std::cout << "Dep set of TDep " << i++ << ": ";
