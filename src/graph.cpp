@@ -428,8 +428,10 @@ void HGraph::init_path() {
         // get path
         auto path = XYinit(src_h, dst_h);
         // add path to paths
-        paths.push_back(Path{path, datavolume});
-        auto path_index = paths.size() - 1;
+        // paths.push_back(Path{path, datavolume});
+        // auto path_index = paths.size() - 1;
+        auto path_index = paths.size();
+        paths.push_back(Path{path_index, path, datavolume});
         // std::cout << "map Tpath: " << src << " -> " << dst << " Path: " << path_index << " Volume: " << datavolume << std::endl;
         // std::cout << "Hpath: " << src_h.first << "," << src_h.second << " -> " << dst_h.first << "," << dst_h.second << std::endl;
         // add path to HGraph
@@ -534,8 +536,10 @@ void DGraph::set_harbor() {
     // for (const auto& [key, val] : harbor_map) {
     //     std::cout << "TDep: " << key << " Harbor: " << val << std::endl;
     // }
-}
-
+}/**
+ * @brief set sdg node and (tnode, {path}) map only
+ * 
+ */
 void DGraph::set_sdg() {
     // init node based on hg
     const auto& hg = hg_ref->get_graph();
@@ -563,6 +567,7 @@ void DGraph::set_sdg() {
         }
         child_id = tg_ref->get_adjacent_nodes(tdep_id, tg);
         // append path
+        size_t path_id = 0;
         for (const auto& child : child_id) {
             // get data volume
             const auto& edge = tg_ref->get_edge_property(tdep_id, child, tg);
@@ -572,7 +577,8 @@ void DGraph::set_sdg() {
             auto dst_tile = get_core(child);
             auto path = XYinit(src_tile, dst_tile);
             // add path to paths
-            paths.push_back(Path{path, datavolume});
+            // paths.push_back(Path{path, datavolume});
+            paths[harbor_id].push_back(Path{path_id++, path, datavolume});
         }
         // intra-layer tedge
         for (const auto& tdep_elem : tdep_ids) {
@@ -592,19 +598,23 @@ void DGraph::set_sdg() {
                         auto dst_tile = get_core(harbor_id);
                         auto path = XYinit(src_tile, dst_tile);
                         // add path to paths
-                        paths.push_back(Path{path, datavolume});
+                        // paths.push_back(Path{path, datavolume});
+                        paths[src].push_back(Path{path_id++, path, datavolume});
                     }
                 }
             }
-        } 
+        }
     }
-    // print paths
-    // for (const auto& path : paths) {
-    //     std::cout << "Path: ";
-    //     for (const auto& node : path.via) {
-    //         std::cout << node.first << "," << node.second << " ";
+    // print each path map info
+    // for (const auto& [key, val] : paths) {
+    //     std::cout << "Path of tile " << key << std::endl;
+    //     for (const auto& path : val) {
+    //         std::cout << "Path: ";
+    //         for (const auto& node : path.via) {
+    //             std::cout << node.first << "," << node.second << " ";
+    //         }
+    //         std::cout << "Volume: " << path.datavolume << std::endl;
     //     }
-    //     std::cout << "Volume: " << path.datavolume << std::endl;
     // }
 }
 
@@ -643,15 +653,13 @@ void DGraph::create_DSeg() {
     // if depth = 0, add standalone if branch to impl
     for (int i = 1; i < layer_num; i += pipeline_depth) {
         auto dst_layer = std::min(i + pipeline_depth, layer_num);
-        UGraph dg_i;
+        UGraph dg_i = sdg;
         for (size_t id = 0; id < layer.size(); id++) {
-            if (layer[id] >= i && layer[id] <= dst_layer) {
-                // add node to DHCG
-                // auto tile_id = hg_ref->id_to_xy(id);
+            if (layer[id] >= i && layer[id] < dst_layer) {
+                // append edge to dg_i
                 auto tnode_id = topo_order[id];
-                auto tile_id = get_core(tnode_id);
-                add_node(DNode{tnode_id, tile_id}, dg_i);
-                // TODO: append edge if 
+                auto& pathset = paths[tnode_id];
+                // TODO: use pathset to update Dedge
             }
         }
         // add DHCG to dg

@@ -102,6 +102,7 @@ struct DEdge {
 };
 
 struct Path{
+    size_t id;
     std::vector<std::pair<int,int>> via;
     int datavolume;
 };
@@ -365,6 +366,8 @@ class DGraph : public BaseGraph<DNode, DEdge> {
 public:
     DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg,std::shared_ptr<const CGraph> cg);
     DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth);
+    std::pair<int, int> id_to_xy(size_t id) const {return hg_ref->id_to_xy(id);}
+    size_t xy_to_id(std::pair<int, int> xy) const {return hg_ref->xy_to_id(xy);}
     void print_graph_info() const;
 private:
     int pipeline_depth; // pipeline depth for DHCG partition
@@ -375,7 +378,8 @@ private:
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for DHCG inference
     std::map<size_t, std::vector<int>> tdep_map; // (prop_node, tdeps)
     std::map<int, size_t> harbor_map;
-    std::vector<Path> paths; // path info
+    std::map<size_t, std::vector<Path>> paths; // path info
+    std::map<size_t, double> congestion_map; // (path_id, congestion)
     auto get_core(size_t node) const {return hg_ref->mapper.get_core(node);}
     auto get_node(int x, int y) const {return hg_ref->mapper.get_node(x, y);}
     auto get_node(std::pair<int, int> xy) const {return hg_ref->mapper.get_node(xy);}
