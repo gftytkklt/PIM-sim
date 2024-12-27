@@ -428,7 +428,7 @@ void HGraph::init_path() {
         // get path
         auto path = XYinit(src_h, dst_h);
         // add path to paths
-        paths.push_back(HGraph::Path{path, datavolume});
+        paths.push_back(Path{path, datavolume});
         auto path_index = paths.size() - 1;
         // std::cout << "map Tpath: " << src << " -> " << dst << " Path: " << path_index << " Volume: " << datavolume << std::endl;
         // std::cout << "Hpath: " << src_h.first << "," << src_h.second << " -> " << dst_h.first << "," << dst_h.second << std::endl;
@@ -489,6 +489,7 @@ DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> t
 void DGraph::analysis() {
     // segment DHCG
     set_harbor();
+    set_sdg();
     create_DSeg();
     init_DPath();
     bce_routing();
@@ -532,6 +533,78 @@ void DGraph::set_harbor() {
     // print new harbor map
     // for (const auto& [key, val] : harbor_map) {
     //     std::cout << "TDep: " << key << " Harbor: " << val << std::endl;
+    // }
+}
+
+void DGraph::set_sdg() {
+    // init node based on hg
+    const auto& hg = hg_ref->get_graph();
+    for (size_t i = 0; i < num_nodes(hg); i++) {
+        auto hnode = hg_ref->get_node_property(i, hg);
+        auto tnode_id = hnode.tnode_id;
+        auto tile_id = hnode.tile_id;
+        add_node(DNode{tnode_id, tile_id}, sdg);
+    }
+    // init edge based on hg and harbor node
+    const auto& tdeps = tg_ref->get_tdep();
+    const auto& tg = tg_ref->get_graph();
+    // inter-layer tedge
+    for (const auto& [harbor_id, tdep_ids] : tdep_map) {
+        std::vector<std::size_t> child_id;
+        // use tdep.rbegin to get parent node of inter-layer edge
+        size_t tdep_id;
+        if(tdep_ids.size() == 1) {
+            // get child layer node
+            auto tdep = tdeps[tdep_ids[0]];
+            tdep_id = *tdep.rbegin();
+        }
+        else {
+            tdep_id = harbor_id;
+        }
+        child_id = tg_ref->get_adjacent_nodes(tdep_id, tg);
+        // append path
+        for (const auto& child : child_id) {
+            // get data volume
+            const auto& edge = tg_ref->get_edge_property(tdep_id, child, tg);
+            auto datavolume = edge.accvolume + edge.propvolume;
+            // get src and dst node
+            auto src_tile = get_core(harbor_id);
+            auto dst_tile = get_core(child);
+            auto path = XYinit(src_tile, dst_tile);
+            // add path to paths
+            paths.push_back(Path{path, datavolume});
+        }
+        // intra-layer tedge
+        for (const auto& tdep_elem : tdep_ids) {
+            const auto& cur_tdep = tdeps[tdep_elem];
+            // get acc edge info if exist
+            if(cur_tdep.size() > 1) {
+                auto first_node = *cur_tdep.begin();
+                auto second_node = *std::next(cur_tdep.begin());
+                // get data volume
+                const auto& edge = tg_ref->get_edge_property(first_node, second_node, tg);
+                auto datavolume = edge.accvolume + edge.propvolume;
+                for (auto it = cur_tdep.begin(); it != cur_tdep.end(); it++) {
+                    auto src = *it;
+                    // acc edge if not harbor node
+                    if (src != harbor_id) {
+                        auto src_tile = get_core(src);
+                        auto dst_tile = get_core(harbor_id);
+                        auto path = XYinit(src_tile, dst_tile);
+                        // add path to paths
+                        paths.push_back(Path{path, datavolume});
+                    }
+                }
+            }
+        } 
+    }
+    // print paths
+    // for (const auto& path : paths) {
+    //     std::cout << "Path: ";
+    //     for (const auto& node : path.via) {
+    //         std::cout << node.first << "," << node.second << " ";
+    //     }
+    //     std::cout << "Volume: " << path.datavolume << std::endl;
     // }
 }
 

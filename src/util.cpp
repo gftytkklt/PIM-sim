@@ -165,6 +165,12 @@ std::vector<std::pair<int, int>> XYinit(std::pair<int, int> src, std::pair<int, 
     return path;
 }
 
+/**
+ * @brief compute median of a vector
+ * 
+ * @param vec input vector
+ * @return int median value
+ */
 int compute_median(std::vector<int>& vec) {
     std::sort(vec.begin(), vec.end());
     int n = vec.size();
@@ -175,6 +181,12 @@ int compute_median(std::vector<int>& vec) {
     }
 }
 
+/**
+ * @brief fast compute median of a vector
+ * 
+ * @param vec input vector
+ * @return int median value
+ */
 int fast_compute_median(std::vector<int>& vec) {
     int n = vec.size();
     int pos = 0;
@@ -187,6 +199,12 @@ int fast_compute_median(std::vector<int>& vec) {
     return vec[pos];
 }
 
+/**
+ * @brief fast compute median of a vector of pairs
+ * 
+ * @param vec input vector pairs
+ * @return std::pair<int, int> input pair with median value
+ */
 std::pair<int, int> fast_compute_median(std::vector<std::pair<int, int>>& vec) {
     int n = vec.size();
     int pos = 0;
@@ -201,7 +219,12 @@ std::pair<int, int> fast_compute_median(std::vector<std::pair<int, int>>& vec) {
     int second = vec[pos].second;
     return std::make_pair(first, second);
 }
-
+/**
+ * @brief Get the median point object
+ * 
+ * @param vec input vector of pairs
+ * @return std::pair<int, int> vec point closest to the median
+ */
 std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec) {
     auto mid_pt = fast_compute_median(vec);
     // std::sort(vec.begin(), vec.end(), [&](const std::pair<int, int>& a, const std::pair<int, int>& b) {
