@@ -99,10 +99,12 @@ struct DEdge {
     PSet pathset; // (id, datavolume)
     int datavolume;
     double bce;
+    int congestion_volume;
 };
 
 struct Path{
     size_t id;
+    std::pair<int,int> src, dst;
     std::vector<std::pair<int,int>> via;
     int datavolume;
 };
@@ -371,8 +373,8 @@ public:
     void print_graph_info() const;
 private:
     int pipeline_depth; // pipeline depth for DHCG partition
-    UGraph sdg; // static full HCG
-    std::vector<UGraph> dg; // DHCGs
+    UGraph sdg; // HCG node and path set
+    std::vector<std::vector<Path>> path_segs; // DHCGs
     std::shared_ptr<const HGraph> hg_ref; // HCG for DHCG inference
     std::shared_ptr<const TGraph> tg_ref; // T-VDFG for DHCG inference
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for DHCG inference
@@ -387,7 +389,6 @@ private:
     void set_harbor();
     void set_sdg();
     void create_DSeg();
-    void init_DPath();
     void bce_routing();
 };
 

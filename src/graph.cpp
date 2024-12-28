@@ -1,7 +1,7 @@
 #include "graph.h"
 #include "util.h"
-#include <boost/graph/dijkstra_shortest_paths.hpp>
-#include <boost/graph/betweenness_centrality.hpp>
+// #include <boost/graph/dijkstra_shortest_paths.hpp>
+// #include <boost/graph/betweenness_centrality.hpp>
 
 CGraph::CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size) 
     : cg{}, kernels{kernels}, CNode_size{CNode_size}, cdeps{} {
@@ -431,7 +431,7 @@ void HGraph::init_path() {
         // paths.push_back(Path{path, datavolume});
         // auto path_index = paths.size() - 1;
         auto path_index = paths.size();
-        paths.push_back(Path{path_index, path, datavolume});
+        paths.push_back(Path{path_index,src_h, dst_h, path, datavolume});
         // std::cout << "map Tpath: " << src << " -> " << dst << " Path: " << path_index << " Volume: " << datavolume << std::endl;
         // std::cout << "Hpath: " << src_h.first << "," << src_h.second << " -> " << dst_h.first << "," << dst_h.second << std::endl;
         // add path to HGraph
@@ -479,12 +479,12 @@ void HGraph::print_graph_info() const {
 }
 
 DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg,std::shared_ptr<const CGraph> cg)
-    : dg{}, hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{1} {
+    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{1} {
     analysis();
 }
 
 DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth)
-    : dg{}, hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth} {
+    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth} {
     analysis();
 }
 
@@ -493,7 +493,6 @@ void DGraph::analysis() {
     set_harbor();
     set_sdg();
     create_DSeg();
-    init_DPath();
     bce_routing();
 }
 
@@ -536,7 +535,8 @@ void DGraph::set_harbor() {
     // for (const auto& [key, val] : harbor_map) {
     //     std::cout << "TDep: " << key << " Harbor: " << val << std::endl;
     // }
-}/**
+}
+/**
  * @brief set sdg node and (tnode, {path}) map only
  * 
  */
@@ -578,7 +578,7 @@ void DGraph::set_sdg() {
             auto path = XYinit(src_tile, dst_tile);
             // add path to paths
             // paths.push_back(Path{path, datavolume});
-            paths[harbor_id].push_back(Path{path_id++, path, datavolume});
+            paths[harbor_id].push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
         }
         // intra-layer tedge
         for (const auto& tdep_elem : tdep_ids) {
@@ -599,7 +599,7 @@ void DGraph::set_sdg() {
                         auto path = XYinit(src_tile, dst_tile);
                         // add path to paths
                         // paths.push_back(Path{path, datavolume});
-                        paths[src].push_back(Path{path_id++, path, datavolume});
+                        paths[src].push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
                     }
                 }
             }
@@ -653,33 +653,42 @@ void DGraph::create_DSeg() {
     // if depth = 0, add standalone if branch to impl
     for (int i = 1; i < layer_num; i += pipeline_depth) {
         auto dst_layer = std::min(i + pipeline_depth, layer_num);
-        UGraph dg_i = sdg;
+        std::vector<Path> path_seg{};
         for (size_t id = 0; id < layer.size(); id++) {
             if (layer[id] >= i && layer[id] < dst_layer) {
-                // append edge to dg_i
+                // append edge to path_seg
                 auto tnode_id = topo_order[id];
-                auto& pathset = paths[tnode_id];
-                // TODO: use pathset to update Dedge
+                auto pathset = paths[tnode_id];
+                path_seg.insert(path_seg.end(), 
+                std::make_move_iterator(pathset.begin()),
+                std::make_move_iterator(pathset.end()));
             }
         }
-        // add DHCG to dg
-        dg.emplace_back(dg_i);
+        path_segs.push_back(path_seg);
     }
 }
-
-void DGraph::init_DPath() {
-    
-}
-
+/**
+ * @brief use path_seg to optimize routing
+ * 
+ */
 void DGraph::bce_routing() {
 
 }
 
 void DGraph::print_graph_info() const {
     std::cout << "DGraph info:" << std::endl;
-    for (size_t i = 0; i < dg.size(); i++) {
-        std::cout << "DHCG " << i << " info:" << std::endl;
-        BaseGraph<DNode, DEdge>::print_graph_info(dg[i]);
+    // print seg num
+    std::cout << "Segment num: " << path_segs.size() << std::endl;
+    // print path info
+    for (const auto& [key, val] : paths) {
+        std::cout << "Path of tile " << key << std::endl;
+        for (const auto& path : val) {
+            std::cout << "Path: ";
+            for (const auto& node : path.via) {
+                std::cout << node.first << "," << node.second << " ";
+            }
+            std::cout << "Volume: " << path.datavolume << std::endl;
+        }
     }
 }
 
