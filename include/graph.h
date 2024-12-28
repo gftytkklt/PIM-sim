@@ -9,6 +9,7 @@
 #include <memory>
 #include <cmath>
 #include "mapper.h"
+#include "scheduler.h"
 
 // Dep info of a kernel dep
 struct Depinfo{
@@ -98,6 +99,7 @@ struct DEdge {
     using PSet = std::set<std::pair<size_t, int>, pair_second_comparator>;
     PSet pathset; // (id, datavolume)
     int datavolume;
+    // used only for sched analysis, meanlingless in graph class
     double bce;
     int congestion_volume;
 };
@@ -373,6 +375,7 @@ public:
     void print_graph_info() const;
 private:
     int pipeline_depth; // pipeline depth for DHCG partition
+    std::pair<int, int> tile_size; // (W, H) of tile array
     UGraph sdg; // HCG node and path set
     std::vector<std::vector<Path>> path_segs; // DHCGs
     std::shared_ptr<const HGraph> hg_ref; // HCG for DHCG inference
@@ -382,6 +385,7 @@ private:
     std::map<int, size_t> harbor_map;
     std::map<size_t, std::vector<Path>> paths; // path info
     std::map<size_t, double> congestion_map; // (path_id, congestion)
+    Scheduler<UGraph> scheduler;
     auto get_core(size_t node) const {return hg_ref->mapper.get_core(node);}
     auto get_node(int x, int y) const {return hg_ref->mapper.get_node(x, y);}
     auto get_node(std::pair<int, int> xy) const {return hg_ref->mapper.get_node(xy);}
@@ -390,6 +394,7 @@ private:
     void set_sdg();
     void create_DSeg();
     void bce_routing();
+    void add_path(const Path& path);
 };
 
 #endif

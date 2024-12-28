@@ -479,12 +479,12 @@ void HGraph::print_graph_info() const {
 }
 
 DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg,std::shared_ptr<const CGraph> cg)
-    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{1} {
+    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{1}, tile_size{hg->tile_size} {
     analysis();
 }
 
 DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth)
-    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth} {
+    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth}, tile_size{hg->tile_size} {
     analysis();
 }
 
@@ -549,7 +549,20 @@ void DGraph::set_sdg() {
         auto tile_id = hnode.tile_id;
         add_node(DNode{tnode_id, tile_id}, sdg);
     }
-    // init edge based on hg and harbor node
+    // init interconnection: 2D mesh currently
+    for (int i = 0; i < tile_size.first; i++) {
+        for (int j = 0; j < tile_size.second; j++) {
+            if (i > 0) {
+                add_edge(i * tile_size.second + j, (i - 1) * tile_size.second + j, DEdge{{}, 0, 0, 0}, sdg);
+            }
+            if (j > 0) {
+                add_edge(i * tile_size.second + j, i * tile_size.second + j - 1, DEdge{{}, 0, 0, 0}, sdg);
+            }
+        }
+    }
+    // init scheduler
+    scheduler = Scheduler{sdg};
+    // init pathset based on hg and harbor node
     const auto& tdeps = tg_ref->get_tdep();
     const auto& tg = tg_ref->get_graph();
     // inter-layer tedge
@@ -672,7 +685,26 @@ void DGraph::create_DSeg() {
  * 
  */
 void DGraph::bce_routing() {
+    // schedule pathset-wise
+    for (auto& pathset : path_segs) {
+        scheduler.schedule(pathset);
+        // append final path to sdg
+        for (const auto& path : pathset) {
+            add_path(path);
+        }
+    }
+}
 
+void DGraph::add_path(const Path& path) {
+    const auto& via = path.via;
+    for (int i = 0; i < via.size() - 1; i++) {
+        auto src = xy_to_id(via[i]);
+        auto dst = xy_to_id(via[i + 1]);
+        auto dedge = get_edge_property(src, dst, sdg);
+        dedge.pathset.insert({path.id, path.datavolume});
+        dedge.datavolume += path.datavolume;
+        set_edge_property(src, dst, std::move(dedge), sdg);
+    }
 }
 
 void DGraph::print_graph_info() const {
