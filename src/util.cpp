@@ -235,3 +235,15 @@ std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec) {
         return manhattan_distance(a, mid_pt) < manhattan_distance(b, mid_pt);
     });
 }
+ int Combination(int n, int k) {
+    if (k == 0 || k == n) {
+        return 1;
+    }
+    return Combination(n - 1, k - 1) + Combination(n - 1, k);
+ }
+
+ int shortest_path_num(std::pair<int, int> src, std::pair<int, int> dst) {
+    auto n = manhattan_distance(src, dst);
+    auto k = std::min(std::abs(src.first - dst.first), std::abs(src.second - dst.second));
+    return Combination(n, k);
+ }

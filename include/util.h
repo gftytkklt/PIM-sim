@@ -21,6 +21,18 @@ int fast_compute_median(std::vector<int>& vec);
 std::pair<int, int> fast_compute_median(std::vector<std::pair<int, int>>& vec);
 // get median point, not coordinates
 std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec);
+// Combination C(n, k)
+int Combination(int n, int k);
+// 2D shortest path num
+int shortest_path_num(std::pair<int, int> src, std::pair<int, int> dst);
+
+// move Path to here for common use
+struct Path{
+    size_t id;
+    std::pair<int,int> src, dst;
+    std::vector<std::pair<int,int>> via;
+    int datavolume;
+};
 
 // hash function for std::pair
 struct pair_hash {

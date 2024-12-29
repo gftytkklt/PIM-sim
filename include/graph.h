@@ -10,6 +10,7 @@
 #include <cmath>
 #include "mapper.h"
 #include "scheduler.h"
+#include "util.h"
 
 // Dep info of a kernel dep
 struct Depinfo{
@@ -104,12 +105,7 @@ struct DEdge {
     int congestion_volume;
 };
 
-struct Path{
-    size_t id;
-    std::pair<int,int> src, dst;
-    std::vector<std::pair<int,int>> via;
-    int datavolume;
-};
+
 
 std::ostream& operator<<(std::ostream& os, const DEdge& dedge);
 

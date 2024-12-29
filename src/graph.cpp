@@ -561,7 +561,7 @@ void DGraph::set_sdg() {
         }
     }
     // init scheduler
-    scheduler = Scheduler{sdg};
+    scheduler = Scheduler{sdg, tile_size};
     // init pathset based on hg and harbor node
     const auto& tdeps = tg_ref->get_tdep();
     const auto& tg = tg_ref->get_graph();
@@ -687,7 +687,8 @@ void DGraph::create_DSeg() {
 void DGraph::bce_routing() {
     // schedule pathset-wise
     for (auto& pathset : path_segs) {
-        scheduler.schedule(pathset);
+        scheduler.set_path_set(pathset);
+        scheduler.schedule();
         // append final path to sdg
         for (const auto& path : pathset) {
             add_path(path);
