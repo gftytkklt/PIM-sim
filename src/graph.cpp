@@ -566,6 +566,7 @@ void DGraph::set_sdg() {
     const auto& tdeps = tg_ref->get_tdep();
     const auto& tg = tg_ref->get_graph();
     // inter-layer tedge
+    size_t path_id = 0;
     for (const auto& [harbor_id, tdep_ids] : tdep_map) {
         std::vector<std::size_t> child_id;
         // use tdep.rbegin to get parent node of inter-layer edge
@@ -580,7 +581,6 @@ void DGraph::set_sdg() {
         }
         child_id = tg_ref->get_adjacent_nodes(tdep_id, tg);
         // append path
-        size_t path_id = 0;
         for (const auto& child : child_id) {
             // get data volume
             const auto& edge = tg_ref->get_edge_property(tdep_id, child, tg);

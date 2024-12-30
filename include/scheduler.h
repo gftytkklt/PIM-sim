@@ -17,7 +17,10 @@ public:
         // init edge_map
         size_t id = 0;
         for (const auto& e : boost::make_iterator_range(edges(graph))) {
-            edge_map[e] = id++;
+            // edge_map[e] = id++;
+            auto src = boost::source(e, graph);
+            auto dst = boost::target(e, graph);
+            edge_map[UnorderedPair{src, dst}] = id++;
         }
     };
     // use & to schedule via scheduler directly
@@ -35,7 +38,7 @@ private:
     GraphType graph;
     std::shared_ptr<std::vector<Path>> path_set;
     std::pair<int, int> tile_size;
-    std::map<Edge, size_t> edge_map;// edge, id map pair
+    std::map<UnorderedPair, size_t> edge_map;// edge, id map pair
     std::map<size_t, double> bce_map; // (path_id, bce)
     void init_bce();
 };

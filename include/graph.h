@@ -373,13 +373,13 @@ private:
     int pipeline_depth; // pipeline depth for DHCG partition
     std::pair<int, int> tile_size; // (W, H) of tile array
     UGraph sdg; // HCG node and path set
-    std::vector<std::vector<Path>> path_segs; // DHCGs
+    std::vector<std::vector<Path>> path_segs; // path subset of each DSeg
     std::shared_ptr<const HGraph> hg_ref; // HCG for DHCG inference
     std::shared_ptr<const TGraph> tg_ref; // T-VDFG for DHCG inference
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for DHCG inference
     std::map<size_t, std::vector<int>> tdep_map; // (prop_node, tdeps)
     std::map<int, size_t> harbor_map;
-    std::map<size_t, std::vector<Path>> paths; // path info
+    std::map<size_t, std::vector<Path>> paths; // path info with src tnode id
     std::map<size_t, double> congestion_map; // (path_id, congestion)
     Scheduler<UGraph> scheduler;
     auto get_core(size_t node) const {return hg_ref->mapper.get_core(node);}

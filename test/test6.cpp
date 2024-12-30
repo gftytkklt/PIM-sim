@@ -32,7 +32,7 @@ TEST_F(GraphTest, DGSEG){
     // tg.debug();
     auto hg = HGraph(std::make_shared<TGraph>(tg), cg);
     auto dg = DGraph(std::make_shared<HGraph>(hg), std::make_shared<TGraph>(tg), cg);
-    dg.print_graph_info();
+    // dg.print_graph_info();
 
     // hg.print_graph_info();
 }

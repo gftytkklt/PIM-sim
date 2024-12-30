@@ -7,7 +7,7 @@ void Scheduler<GraphType>::schedule() {
     init_bce();
     // print bce
     for (const auto& [key, val] : bce_map) {
-        std::cout << "Path: " << key << " BCE: " << val << std::endl;
+        std::cout << "Edge id: " << key << " BCE: " << val << std::endl;
     }
 }
 
@@ -58,8 +58,6 @@ void Scheduler<GraphType>::init_bce() {
             // update bce
             for (const auto& e : prev[w]) {
                 auto v = boost::source(e, graph); // src node
-                // print (v,w)
-                std::cout << "Edge: (" << v << "," << w << ")" << std::endl;
                 // if (v,w) is out of shortest path, skip
                 auto w_tile = id_to_xy(w);
                 auto m_st = manhattan_distance(path.src, path.dst);
@@ -72,9 +70,10 @@ void Scheduler<GraphType>::init_bce() {
                 // delta = sigma(s,v) * sigma(w,t) / sigma(s,t)
                 // while sigma(s,w) is known, sigma (w,t) need BFS from w
                 // however, in 2D mesh case, sigma(w,t) can be calculated by manhattan distance
-                double delta = static_cast<double>(sigma[v]) * shortest_path_num(w_tile,path.dst) / sigma[dst] * data_volume;
+                auto sigma_wt = shortest_path_num(w_tile, path.dst);
+                double delta = static_cast<double>(sigma[v]) * sigma_wt / sigma[dst] * data_volume;
                 // do not div by 2 because prev property do not commute
-                bce_map[edge_map[e]] += delta;
+                bce_map[edge_map[UnorderedPair{v, w}]] += delta;
             }
         }
     }

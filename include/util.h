@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 #include <string>
+#include <tuple>
 
 std::vector<std::vector<std::pair<int, int>>> uniformsplit(int M, int N, int K);
 int UniqueElements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2);
@@ -32,6 +33,25 @@ struct Path{
     std::pair<int,int> src, dst;
     std::vector<std::pair<int,int>> via;
     int datavolume;
+};
+
+// for undirected edge descriptor
+struct UnorderedPair {
+    size_t first;
+    size_t second;
+
+    UnorderedPair(size_t a, size_t b) : first(std::min(a, b)), second(std::max(a, b)) {}
+
+    bool operator<(const UnorderedPair& other) const {
+        return std::tie(first, second) < std::tie(other.first, other.second);
+    }
+};
+
+// Hash function for UnorderedPair
+struct UnorderedPairHash {
+    std::size_t operator()(const UnorderedPair& p) const {
+        return std::hash<size_t>()(p.first) ^ std::hash<size_t>()(p.second);
+    }
 };
 
 // hash function for std::pair
