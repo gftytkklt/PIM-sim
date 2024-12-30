@@ -12,6 +12,7 @@
 #include <queue>
 #include <sstream>
 #include "util.h"
+#include <array>
 
 // nodes group
 using Group = std::set<size_t>;
