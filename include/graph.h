@@ -381,7 +381,7 @@ private:
     std::map<int, size_t> harbor_map;
     std::map<size_t, std::vector<Path>> paths; // path info with src tnode id
     std::map<size_t, double> congestion_map; // (path_id, congestion)
-    Scheduler<UGraph> scheduler;
+    Scheduler scheduler;
     auto get_core(size_t node) const {return hg_ref->mapper.get_core(node);}
     auto get_node(int x, int y) const {return hg_ref->mapper.get_node(x, y);}
     auto get_node(std::pair<int, int> xy) const {return hg_ref->mapper.get_node(xy);}

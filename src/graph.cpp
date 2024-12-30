@@ -479,12 +479,12 @@ void HGraph::print_graph_info() const {
 }
 
 DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg,std::shared_ptr<const CGraph> cg)
-    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{1}, tile_size{hg->tile_size} {
+    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{1}, tile_size{hg->tile_size}, scheduler{hg->tile_size} {
     analysis();
 }
 
 DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth)
-    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth}, tile_size{hg->tile_size} {
+    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth}, tile_size{hg->tile_size}, scheduler{hg->tile_size} {
     analysis();
 }
 
@@ -560,8 +560,8 @@ void DGraph::set_sdg() {
             }
         }
     }
-    // init scheduler
-    scheduler = Scheduler{sdg, tile_size};
+    // init scheduler, impl at init now
+    // scheduler = Scheduler{sdg, tile_size};
     // init pathset based on hg and harbor node
     const auto& tdeps = tg_ref->get_tdep();
     const auto& tg = tg_ref->get_graph();

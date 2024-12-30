@@ -1,23 +1,53 @@
-#ifndef SCHEDULER_HPP
-#define SCHEDULER_HPP
-template <typename GraphType>
-void Scheduler<GraphType>::schedule() {
-    // print path set num
-    std::cout << "Path num: " << path_set->size() << std::endl;
-    init_bce();
-    // print bce
-    for (const auto& [key, val] : bce_map) {
-        std::cout << "Edge id: " << key << " BCE: " << val << std::endl;
+#include "scheduler.h"
+
+Scheduler::Scheduler(std::pair<int, int> tile_size) 
+    : tile_size(tile_size) {
+    // init graph
+    for (int i = 0; i < tile_size.first; i++) {
+        for (int j = 0; j < tile_size.second; j++) {
+            boost::add_vertex(SNode{i, j}, graph);
+        }
+    }
+    // 2D mesh connection & init edge_map
+    size_t id = 0;
+    for (int i = 0; i < tile_size.first; i++) {
+        for (int j = 0; j < tile_size.second; j++) {
+            size_t src, dst;
+            if (i > 0) {
+                src = i * tile_size.second + j;
+                dst = (i - 1) * tile_size.second + j;
+                boost::add_edge(src, dst, graph);
+                edge_map[UnorderedPair{src, dst}] = id++;
+            }
+            if (j > 0) {
+                src = i * tile_size.second + j;
+                dst = i * tile_size.second + j - 1;
+                boost::add_edge(src, dst, graph);
+                edge_map[UnorderedPair{src, dst}] = id++;
+            }
+        }
     }
 }
 
-template <typename GraphType>
-void Scheduler<GraphType>::init_bce() {
+void Scheduler::schedule() {
+    // print path set num
+    // std::cout << "Path num: " << path_set->size() << std::endl;
+    init_bce();
+    // print bce
+    // for (const auto& [key, val] : bce_map) {
+    //     std::cout << "Edge id: " << key << " BCE: " << val << std::endl;
+    // }
+}
+
+void Scheduler::init_bce() {
     // traverse all paths
     // calculate edge bce only, so brandes algorithm can be simplified
+    // clear bce_map first
+    bce_map.clear();
+    congestion_map.clear();
     for (const auto& path : *path_set) {
         // print path info
-        std::cout << "Path: " << path.id << " from " << path.src.first << "," << path.src.second << " to " << path.dst.first << "," << path.dst.second << std::endl;
+        // std::cout << "Path: " << path.id << " from " << path.src.first << "," << path.src.second << " to " << path.dst.first << "," << path.dst.second << std::endl;
         auto src = xy_to_id(path.src);
         auto dst = xy_to_id(path.dst);
         auto data_volume = path.datavolume;
@@ -70,12 +100,30 @@ void Scheduler<GraphType>::init_bce() {
                 // delta = sigma(s,v) * sigma(w,t) / sigma(s,t)
                 // while sigma(s,w) is known, sigma (w,t) need BFS from w
                 // however, in 2D mesh case, sigma(w,t) can be calculated by manhattan distance
+                // std::cout << "Edge: " << v << " -> " << w << " id: " << edge_map[UnorderedPair{v, w}] << std::endl;
                 auto sigma_wt = shortest_path_num(w_tile, path.dst);
                 double delta = static_cast<double>(sigma[v]) * sigma_wt / sigma[dst] * data_volume;
                 // do not div by 2 because prev property do not commute
-                bce_map[edge_map[UnorderedPair{v, w}]] += delta;
+                auto edge_id = edge_map[UnorderedPair{v, w}];
+                bce_map[edge_id] += delta;
             }
         }
     }
+    // normalize bce
+    // find max_element first
+    auto max_iter = std::max_element(bce_map.begin(), bce_map.end(), 
+        [](const auto& p1, const auto& p2) {
+            return p1.second < p2.second;
+        });
+    auto max_bce = max_iter->second;
+    // then normalize
+    for (auto& [key, val] : bce_map) {
+        val /= max_bce;
+        // init congestion volume by 1
+        congestion_map[key] = CSum{};
+    }
 }
-#endif
+
+void Scheduler::congestion_aware_routing() {
+
+}
