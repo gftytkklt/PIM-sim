@@ -29,7 +29,7 @@ Scheduler::Scheduler(std::pair<int, int> tile_size)
     }
 }
 
-void Scheduler::schedule() {
+std::vector<Path> Scheduler::schedule() {
     // print path set num
     // std::cout << "Path num: " << path_set->size() << std::endl;
     init_bce();
@@ -37,6 +37,23 @@ void Scheduler::schedule() {
     // for (const auto& [key, val] : bce_map) {
     //     std::cout << "Edge id: " << key << " BCE: " << val << std::endl;
     // }
+    // print path before
+    // std::cout << "sch Path before:" << std::endl;
+    // for (const auto& path : *path_set) {
+    //     for (const auto& via : path.via) {
+    //         std::cout << via.first << "," << via.second << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+    congestion_aware_routing();
+    // std::cout << "sch Path after:" << std::endl;
+    // for (const auto& path : *path_set) {
+    //     for (const auto& via : path.via) {
+    //         std::cout << via.first << "," << via.second << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+    return *path_set;
 }
 
 void Scheduler::init_bce() {
@@ -125,5 +142,59 @@ void Scheduler::init_bce() {
 }
 
 void Scheduler::congestion_aware_routing() {
-
+    // sort path by manhattan distance and data volume
+    // path with min manhattan distance and max data volume is scheduled first
+    std::sort(path_set->begin(), path_set->end(), 
+        [](const auto& p1, const auto& p2) {
+            auto m1 = manhattan_distance(p1.src, p1.dst);
+            auto m2 = manhattan_distance(p2.src, p2.dst);
+            if(m1 != m2) {
+                return m1 < m2;
+            }
+            return p1.datavolume > p2.datavolume;
+        });
+    
+    // schdeule path by path
+    for (auto& path : *path_set) {
+        // print path src and dst
+        // std::cout << path.src.first << "," << path.src.second << " -> " << path.dst.first << "," << path.dst.second << std::endl;
+        auto value = path.datavolume;
+        auto src = xy_to_id(path.src);
+        auto dst = xy_to_id(path.dst);
+        auto x_range = std::make_pair(std::min(path.src.first, path.dst.first), std::max(path.src.first, path.dst.first));
+        auto y_range = std::make_pair(std::min(path.src.second, path.dst.second), std::max(path.src.second, path.dst.second));
+        // weight calculator
+        WeightCalculator weight_calculator{graph, edge_map, bce_map, congestion_map, tile_size, x_range, y_range, value};
+        // constrained_dijkstra_visitor vis{path.src, path.dst, *this};
+        // dijkstra shortest path
+        std::vector<Vertex> pred(boost::num_vertices(graph));
+        std::vector<double> dist(boost::num_vertices(graph), std::numeric_limits<double>::infinity());
+        // auto weight_map = boost::weight_map(weight_calculator);
+        auto weight_map = boost::make_function_property_map<Edge>(weight_calculator);
+        // current path deployment
+        boost::dijkstra_shortest_paths(graph, src, 
+        boost::predecessor_map(&pred[0])
+        .distance_map(&dist[0])
+        .weight_map(weight_map));
+        // .visitor(vis));
+        std::vector<std::pair<int,int>> path_vec;
+        for (auto v = dst; v != src; v = pred[v]) {
+            path_vec.push_back(id_to_xy(v));
+            auto edge_id = edge_map[UnorderedPair{pred[v], v}];
+            congestion_map[edge_id].insert(value);
+        }
+        path_vec.push_back(path.src);
+        std::reverse(path_vec.begin(), path_vec.end());
+        // print path via
+        // for (const auto& node : path.via) {
+        //     std::cout << node.first << "," << node.second << " ";
+        // }
+        // std::cout << std::endl;
+        // for (const auto& node : path_vec) {
+        //     std::cout << node.first << "," << node.second << " ";
+        // }
+        // std::cout << std::endl;
+        path.via = path_vec;
+        // std::cout << std::endl;
+    }
 }

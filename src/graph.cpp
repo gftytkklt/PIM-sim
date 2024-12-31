@@ -492,8 +492,20 @@ void DGraph::analysis() {
     // segment DHCG
     set_harbor();
     set_sdg();
+    std::cout << "before" << std::endl;
+    for (const auto& [key, val] : paths) {
+        for (const auto& path : val) {
+            std::cout << "Path " << path.id << ": ";
+            for (const auto& node : path.via) {
+                std::cout << node.first << "," << node.second << " ";
+            }
+            std::cout << "Volume: " << path.datavolume << std::endl;
+        }
+    }
     create_DSeg();
     bce_routing();
+    std::cout << "after" << std::endl;
+    print_path_info();
 }
 
 void DGraph::set_harbor() {
@@ -553,10 +565,10 @@ void DGraph::set_sdg() {
     for (int i = 0; i < tile_size.first; i++) {
         for (int j = 0; j < tile_size.second; j++) {
             if (i > 0) {
-                add_edge(i * tile_size.second + j, (i - 1) * tile_size.second + j, DEdge{{}, 0, 0, 0}, sdg);
+                add_edge(i * tile_size.second + j, (i - 1) * tile_size.second + j, DEdge{{}, 0}, sdg);
             }
             if (j > 0) {
-                add_edge(i * tile_size.second + j, i * tile_size.second + j - 1, DEdge{{}, 0, 0, 0}, sdg);
+                add_edge(i * tile_size.second + j, i * tile_size.second + j - 1, DEdge{{}, 0}, sdg);
             }
         }
     }
@@ -687,10 +699,25 @@ void DGraph::create_DSeg() {
 void DGraph::bce_routing() {
     // schedule pathset-wise
     for (auto& pathset : path_segs) {
+        // std::cout << "dg Path before:" << std::endl;
+        // for (const auto& path : pathset) {
+        //     for (const auto& via : path.via) {
+        //         std::cout << via.first << "," << via.second << " ";
+        //     }
+        //     std::cout << std::endl;
+        // }
         scheduler.set_path_set(pathset);
-        scheduler.schedule();
+        pathset = scheduler.schedule();
+        // std::cout << "dg Path after:" << std::endl;
+        // for (const auto& path : pathset) {
+        //     for (const auto& via : path.via) {
+        //         std::cout << via.first << "," << via.second << " ";
+        //     }
+        //     std::cout << std::endl;
+        // }
         // append final path to sdg
         for (const auto& path : pathset) {
+            final_path.push_back(path);
             add_path(path);
         }
     }
@@ -722,6 +749,17 @@ void DGraph::print_graph_info() const {
             }
             std::cout << "Volume: " << path.datavolume << std::endl;
         }
+    }
+}
+
+void DGraph::print_path_info() const {
+    // print path info
+    for (const auto& path : final_path) {
+        std::cout << "Path " << path.id << ": ";
+        for (const auto& node : path.via) {
+            std::cout << node.first << "," << node.second << " ";
+        }
+        std::cout << "Volume: " << path.datavolume << std::endl;
     }
 }
 
@@ -890,12 +928,16 @@ std::ostream& operator<<(std::ostream& os, const DNode& dnode) {
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const DEdge& dedge) {
-    os << "Path set: ";
-    for (const auto& i : dedge.pathset) {
-        os << "(" << i.first << ", " << i.second << ") ";
-    }
-    os << "Data volume: " << dedge.datavolume << std::endl;
-    os << "BCE: " << dedge.bce << std::endl;
-    return os;
-}
+// std::ostream& operator<<(std::ostream& os, const DEdge& dedge) {
+//     os << "Path set: ";
+//     for (const auto& [key, val] : dedge.pathset) {
+//         os << "(" << key << ", " << val << ") ";
+//     }
+//     // os << "Path set: ";
+//     // for (const auto& i : dedge.pathset) {
+//     //     os << "(" << i.first << ", " << i.second << ") ";
+//     // }
+//     // os << "Data volume: " << dedge.datavolume << std::endl;
+//     // os << "BCE: " << dedge.bce << std::endl;
+//     return os;
+// }

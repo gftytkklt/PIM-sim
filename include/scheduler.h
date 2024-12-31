@@ -5,6 +5,9 @@
 #include <queue>
 #include <stack>
 #include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/dijkstra_shortest_paths.hpp>
+#include <boost/property_map/property_map.hpp>
+#include <boost/property_map/function_property_map.hpp>
 #include "util.h"
 class CSum {
 public:
@@ -80,26 +83,57 @@ private:
     size_t n;               // elem num of CSum
 };
 
+using SNode = std::pair<int,int>; // (x, y) of node
+using SGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, SNode>;
+using Vertex = boost::graph_traits<SGraph>::vertex_descriptor;
+using Edge = boost::graph_traits<SGraph>::edge_descriptor;
+
+// use for calculate weight of path to be scheduled
+// only path within min manhattan distance will be scheduled
+struct WeightCalculator {
+    // scheduler member
+    const SGraph& graph;
+    const std::map<UnorderedPair, size_t>& edge_map;
+    const std::map<size_t, double>& bce_map;
+    const std::map<size_t, CSum>& congestion_map;
+    std::pair<int, int> tile_size; // tile size
+    std::pair<int, int> x_range, y_range; // constrained range
+    // current path data volume
+    int value;
+    std::pair<int, int> id_to_xy(size_t id) const {
+        return std::make_pair(id / tile_size.second, id % tile_size.second);
+    }
+    bool out_of_range(size_t id) const {
+        auto xy = id_to_xy(id);
+        return xy.first < x_range.first || xy.first > x_range.second || xy.second < y_range.first || xy.second > y_range.second;
+    }
+    
+    double operator()(const Edge& e) const {
+        size_t src = boost::source(e, graph);
+        size_t dst = boost::target(e, graph);
+        auto id = edge_map.at(UnorderedPair{src, dst});
+        // size_t id = edge_map[UnorderedPair{src, dst}];
+        // std::cout << "bce: " << bce_map.at(id) << " congestion: " << congestion_map.at(id).getCSum(value) << std::endl;
+        if (bce_map.find(id) == bce_map.end()) {
+            return std::numeric_limits<double>::infinity();
+        }
+        // edge out of range
+        if (out_of_range(src) || out_of_range(dst)) {
+            return std::numeric_limits<double>::infinity();
+        }
+        return bce_map.at(id) * congestion_map.at(id).getCSum(value);
+    }
+};
+
 class Scheduler {
 public:
-    using SNode = std::pair<int,int>; // (x, y) of node
-    // using SEdge = CSum; // datavolume list with metric computation
-    // struct SEdge {
-    //     std::vector<size_t> path_id;
-    //     double bce;
-    //     double congestion_volume; // init with 1 for non-zero multiplication
-    // };
-    using SGraph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, SNode>;
-    using Vertex = boost::graph_traits<SGraph>::vertex_descriptor;
-    using Edge = boost::graph_traits<SGraph>::edge_descriptor;
     Scheduler() = default;
     Scheduler(std::pair<int, int> tile_size);
-    
     // use & to schedule via scheduler directly
     void set_path_set(std::vector<Path> path_set) {
         this->path_set = std::make_shared<std::vector<Path>>(path_set);
     }
-    void schedule();
+    std::vector<Path> schedule();
     auto id_to_xy(size_t id) const {
         return std::make_pair(id / tile_size.second, id % tile_size.second);
     }
@@ -116,5 +150,24 @@ private:
     void init_bce();
     void congestion_aware_routing();
 };
+
+// struct constrained_dijkstra_visitor : boost::default_dijkstra_visitor {
+//     std::pair<int, int> s, t;
+//     std::pair<int, int> x_range, y_range;
+//     const Scheduler& scheduler;
+
+//     constrained_dijkstra_visitor(std::pair<int, int> s, std::pair<int, int> t, const Scheduler& scheduler) 
+//     : s(s), t(t), x_range{std::min(s.first, t.first), std::max(s.first,t.first)}, 
+//     y_range{std::min(s.second, t.second), std::max(s.second,t.second)}, scheduler(scheduler){}
+
+//     template <typename Edge, typename Graph>
+//     void edge_relaxed(Edge e, const Graph& g) const {
+//         auto dst = boost::target(e, g);
+//         auto dst_tile = scheduler.id_to_xy(dst);
+//         if (dst_tile.first < x_range.first || dst_tile.first > x_range.second || dst_tile.second < y_range.first || dst_tile.second > y_range.second) {
+//             throw std::runtime_error("Constrained edge found");
+//         }
+//     }
+// };
 
 #endif

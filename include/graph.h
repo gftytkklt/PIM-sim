@@ -96,18 +96,19 @@ struct DNode {
 
 std::ostream& operator<<(std::ostream& os, const DNode& dnode);
 
-struct DEdge {
-    using PSet = std::set<std::pair<size_t, int>, pair_second_comparator>;
-    PSet pathset; // (id, datavolume)
-    int datavolume;
-    // used only for sched analysis, meanlingless in graph class
-    double bce;
-    int congestion_volume;
-};
+using DEdge = HEdge;
+// struct DEdge {
+//     using PSet = std::set<std::pair<size_t, int>, pair_second_comparator>;
+//     PSet pathset; // (id, datavolume)
+//     int datavolume;
+//     // used only for sched analysis, meanlingless in graph class
+//     // double bce;
+//     // int congestion_volume;
+// };
 
 
 
-std::ostream& operator<<(std::ostream& os, const DEdge& dedge);
+// std::ostream& operator<<(std::ostream& os, const DEdge& dedge);
 
 template <typename NodeProperty, typename EdgeProperty>
 class BaseGraph {
@@ -369,6 +370,7 @@ public:
     std::pair<int, int> id_to_xy(size_t id) const {return hg_ref->id_to_xy(id);}
     size_t xy_to_id(std::pair<int, int> xy) const {return hg_ref->xy_to_id(xy);}
     void print_graph_info() const;
+    void print_path_info() const;
 private:
     int pipeline_depth; // pipeline depth for DHCG partition
     std::pair<int, int> tile_size; // (W, H) of tile array
@@ -381,6 +383,7 @@ private:
     std::map<int, size_t> harbor_map;
     std::map<size_t, std::vector<Path>> paths; // path info with src tnode id
     std::map<size_t, double> congestion_map; // (path_id, congestion)
+    std::vector<Path> final_path; // final path set (poor design)
     Scheduler scheduler;
     auto get_core(size_t node) const {return hg_ref->mapper.get_core(node);}
     auto get_node(int x, int y) const {return hg_ref->mapper.get_node(x, y);}
