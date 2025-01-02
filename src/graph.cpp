@@ -6,6 +6,7 @@
 CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size) 
     : cg{}, kernels{kernels}, CNode_size{CNode_size}, cdeps{} {
     analysis();
+    std::cout << "CGraph created" << std::endl;
 }
 
 // CGraph::CGraph(CGraph&& other) noexcept
@@ -117,6 +118,8 @@ void CGraph::inter_layer_conn() {
             auto cur_cout_num = co_src.second - co_src.first + 1;
             // get dst node
             for (const auto& dep : deps) {
+                // skip output dep, represent by -1
+                if (dep.dep_layer == -1) {continue;}
                 // get dep layer info struct
                 for (const auto& dst_layer : cdeps[dep.dep_layer].acc_blks) {
                     for (const auto& dst_node : dst_layer.vertex_id) {
@@ -508,20 +511,20 @@ void DGraph::analysis() {
     // segment DHCG
     set_harbor();
     set_sdg();
-    // std::cout << "before" << std::endl;
-    // for (const auto& [key, val] : paths) {
-    //     for (const auto& path : val) {
-    //         std::cout << "Path " << path.id << ": ";
-    //         for (const auto& node : path.via) {
-    //             std::cout << node.first << "," << node.second << " ";
-    //         }
-    //         std::cout << "Volume: " << path.datavolume << std::endl;
-    //     }
-    // }
+    std::cout << "before" << std::endl;
+    for (const auto& [key, val] : paths) {
+        for (const auto& path : val) {
+            std::cout << "Path " << path.id << ": ";
+            for (const auto& node : path.via) {
+                std::cout << node.first << "," << node.second << " ";
+            }
+            std::cout << "Volume: " << path.datavolume << std::endl;
+        }
+    }
     create_DSeg();
     bce_routing();
-    // std::cout << "after" << std::endl;
-    // print_path_info();
+    std::cout << "after" << std::endl;
+    print_path_info();
 }
 
 void DGraph::set_harbor() {
