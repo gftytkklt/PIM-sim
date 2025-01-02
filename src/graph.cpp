@@ -3,10 +3,26 @@
 // #include <boost/graph/dijkstra_shortest_paths.hpp>
 // #include <boost/graph/betweenness_centrality.hpp>
 
-CGraph::CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size) 
+CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size) 
     : cg{}, kernels{kernels}, CNode_size{CNode_size}, cdeps{} {
     analysis();
 }
+
+// CGraph::CGraph(CGraph&& other) noexcept
+//     : cg(std::move(other.cg)),
+//       kernels(std::move(other.kernels)),
+//       CNode_size(std::move(other.CNode_size)),
+//       cdeps(std::move(other.cdeps)) {}
+
+// CGraph& CGraph::operator=(CGraph&& other) noexcept {
+//     if (this != &other) {
+//         cg = std::move(other.cg);
+//         kernels = std::move(other.kernels);
+//         CNode_size = std::move(other.CNode_size);
+//         cdeps = std::move(other.cdeps);
+//     }
+//     return *this;
+// }
 
 void CGraph::analysis() {
     create_cnodes();
@@ -492,20 +508,20 @@ void DGraph::analysis() {
     // segment DHCG
     set_harbor();
     set_sdg();
-    std::cout << "before" << std::endl;
-    for (const auto& [key, val] : paths) {
-        for (const auto& path : val) {
-            std::cout << "Path " << path.id << ": ";
-            for (const auto& node : path.via) {
-                std::cout << node.first << "," << node.second << " ";
-            }
-            std::cout << "Volume: " << path.datavolume << std::endl;
-        }
-    }
+    // std::cout << "before" << std::endl;
+    // for (const auto& [key, val] : paths) {
+    //     for (const auto& path : val) {
+    //         std::cout << "Path " << path.id << ": ";
+    //         for (const auto& node : path.via) {
+    //             std::cout << node.first << "," << node.second << " ";
+    //         }
+    //         std::cout << "Volume: " << path.datavolume << std::endl;
+    //     }
+    // }
     create_DSeg();
     bce_routing();
-    std::cout << "after" << std::endl;
-    print_path_info();
+    // std::cout << "after" << std::endl;
+    // print_path_info();
 }
 
 void DGraph::set_harbor() {
