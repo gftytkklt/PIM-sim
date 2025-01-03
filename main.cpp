@@ -59,12 +59,27 @@ void check_data(const std::vector<NNkernel>& kernels) {
     }
 }
 
-int test(const std::vector<NNkernel>& kernels) {
-    check_data(kernels);
+void test6(const std::vector<NNkernel>& kernels){
+    std::shared_ptr<CGraph> cg = std::make_shared<CGraph>(kernels, std::make_pair(1152, 256));
+    decltype(cg->get_graph()) graph = cg->get_graph();
+    TGraph tg = TGraph(cg, 3);
+    tg = TGraph(cg, 2);
+    auto hg = HGraph(std::make_shared<TGraph>(tg), cg);
+    auto dg = DGraph(std::make_shared<HGraph>(hg), std::make_shared<TGraph>(tg), cg);
+}
+void test7(const std::vector<NNkernel>& kernels){
     // setup hardware info
     HWInfo info = {{1152, 256}, 2, {30, 30}, 1};
     // test analyzer
     Analyzer analyzer = Analyzer(kernels, info);
+}
+
+int test(const std::vector<NNkernel>& kernels) {
+    check_data(kernels);
+    //run test
+    test6(kernels);
+    test7(kernels);
+
     return 114514;
 }
 

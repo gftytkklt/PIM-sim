@@ -7,7 +7,6 @@
 !.gitignore
 !*.sh
 !*.py
-!*.onnx
 !CMakeLists.txt
 /refcode
 /build
