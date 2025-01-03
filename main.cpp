@@ -83,6 +83,15 @@ int test(const std::vector<NNkernel>& kernels) {
     return 114514;
 }
 
+int main() {
+    std::vector<NNkernel> kernels = { 
+    {0, {3,3}, {256,384}, std::vector<Depinfo>{{1,std::make_pair(1,384)}},{8, 8},{4, 4}}, 
+    {1, {3,3}, {384,384}, std::vector<Depinfo>{{2,std::make_pair(1,384)}},{4, 4},{2, 2}},
+    {2, {3,3}, {384,256}, std::vector<Depinfo>{{-1,std::make_pair(0,0)}},{2, 2},{1, 1}} 
+    };
+    return test(kernels);
+}
+
 namespace py = pybind11;
 PYBIND11_MODULE(libmain, m) {
     py::class_<Depinfo>(m, "Depinfo")
