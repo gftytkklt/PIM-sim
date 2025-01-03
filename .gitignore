@@ -6,6 +6,7 @@
 !*.h
 !.gitignore
 !*.sh
+!*.py
 !CMakeLists.txt
 /refcode
 /build

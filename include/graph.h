@@ -11,13 +11,11 @@
 #include "mapper.h"
 #include "scheduler.h"
 #include "util.h"
-#include <nlohmann/json.hpp>
 
 // Dep info of a kernel dep
 struct Depinfo{
     int dep_layer;
     std::pair<int,int> dep_chan;
-    NLOHMANN_DEFINE_TYPE_INTRUSIVE(Depinfo, dep_layer, dep_chan)
 };
 
 struct NNkernel {
@@ -26,7 +24,6 @@ struct NNkernel {
     std::pair<int,int> channel; // (in, out) of channel
     std::vector<Depinfo> depinfo; // (dep_layer, dep_channel_num)
     std::pair<int,int> ifmap_size, ofmap_size;  // ofmap size(w, h)
-    NLOHMANN_DEFINE_TYPE_INTRUSIVE(NNkernel, layer, wsize, channel, depinfo, ifmap_size, ofmap_size)
 };
 
 enum class DepType {
