@@ -10,10 +10,32 @@ protected:
     {2, {3,3}, {384,256}, std::vector<Depinfo>{{-1,std::make_pair(0,0)}},{2, 2},{1, 1}} 
     };
     HWInfo info = {{1152, 256}, 2, {3, 3}, 1};
-    
+    OptInfo opt = {true, true};
+    void SetUp() override {
+        // code here will execute just before the test ensues
+        opt = {true, true};
+    }
 };
 
-TEST_F(AnalyzerTest, AnalyzerTest) {
+TEST_F(AnalyzerTest, OptAll) {
     // test analyzer
-    Analyzer analyzer = Analyzer(kernels, info);
+    Analyzer analyzer = Analyzer(kernels, info, opt);
+}
+
+TEST_F(AnalyzerTest, OptSchedule) {
+    // test analyzer
+    opt.mapping_opt = false;
+    Analyzer analyzer = Analyzer(kernels, info, opt);
+}
+
+TEST_F(AnalyzerTest, OptMapping) {
+    // test analyzer
+    opt.sched_opt = false;
+    Analyzer analyzer = Analyzer(kernels, info, opt);
+}
+
+TEST_F(AnalyzerTest, OptNone) {
+    // test analyzer
+    opt = {false, false};
+    Analyzer analyzer = Analyzer(kernels, info, opt);
 }

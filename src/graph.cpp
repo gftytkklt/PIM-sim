@@ -164,8 +164,13 @@ TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num)
     analysis();
 }
 
+TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, bool map) 
+    : tg{}, cg_ref{cg}, tile_xbar_num{tile_xbar_num}, mapping_opt{map} {
+    analysis();
+}
+
 void TGraph::analysis() {
-    if(1){
+    if(mapping_opt) {
         create_tnodes();
     }
     else{
@@ -398,9 +403,25 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
     analysis();
 }
 
+HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size, bool map)
+    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, mapper{}, mapping_opt{map} {
+    if (tile_size.first * tile_size.second < tg_ref->num_nodes(tg_ref->get_graph())) {
+        // throw std::invalid_argument("Tile size does not match the number of nodes in the TGraph.");
+        auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
+        auto tile_x = static_cast<int>(std::ceil(std::sqrt(num_tile)));
+        this->tile_size = std::make_pair(std::max(tile_size.first,tile_x), std::max(tile_size.second,tile_x));
+        std::cout << "Reshape to " << this->tile_size.first << " x " << this->tile_size.second << " to fit algorithm size" << std::endl;
+    }
+    else {
+        std::cout << "Tile size: " << this->tile_size.first << " x " << this->tile_size.second << std::endl;
+    }
+    mapper = Mapper{this->tile_size};
+    analysis();
+}
+
 void HGraph::analysis() {
     init_hw_setting();
-    if(1){
+    if(mapping_opt){
         greedy_mapping();
     }
     else{
@@ -561,6 +582,11 @@ DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> t
     analysis();
 }
 
+DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth, bool sched)
+    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth}, tile_size{hg->tile_size}, scheduler{hg->tile_size}, sched_opt{sched} {
+    analysis();
+}
+
 void DGraph::analysis() {
     // segment DHCG
     set_harbor();
@@ -576,13 +602,10 @@ void DGraph::analysis() {
         }
     }
     create_DSeg();
-    if (1) {
+    if (sched_opt) {
         bce_routing();
         std::cout << "after" << std::endl;
         print_path_info();
-    }
-    else {
-        
     }
 }
 
