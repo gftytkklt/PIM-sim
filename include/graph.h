@@ -334,6 +334,7 @@ private:
     TDep tdeps;
     int tile_xbar_num; // number of xbar in a tile
     void analysis() override final;
+    void analysis_zigzag(); // for zigzag mapping baseline
     void create_tnodes();
     void create_TDep();
     void inter_tile_conn();
@@ -362,6 +363,7 @@ private:
     Mapper mapper; // mapper for HCG
     void analysis() override final;
     void init_hw_setting(); // init hardware template
+    void zigzag_mapping(); // zigzag mapping for HCG
     void greedy_mapping(); // map TNode to HNode
     void init_path(); // init XY-routing path
     void add_path(Node src, Node dst, size_t path_index);

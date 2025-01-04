@@ -165,9 +165,46 @@ TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num)
 }
 
 void TGraph::analysis() {
-    create_tnodes();
+    if(1){
+        create_tnodes();
+    }
+    else{
+        analysis_zigzag();
+    }
+    // create_tnodes();
     create_TDep();
     inter_tile_conn();
+}
+
+void TGraph::analysis_zigzag() {
+    // merge cnodes sequentially & layer-wise
+    std::vector<size_t> cnode_id{};
+    for(const auto& cdep : cg_ref->get_cdep()) {
+        for(const auto& accblk : cdep.acc_blks) {
+            for(const auto& node : accblk.vertex_id) {
+                if(cnode_id.size() == tile_xbar_num) {
+                    // merge cur group into a tnode
+                    auto tnode_id = add_node(TNode{cnode_id}, tg);
+                    // build node map, i is unique
+                    for (const auto& i : cnode_id) {
+                        node_map.emplace(i, tnode_id);
+                    }
+                    cnode_id.clear();
+                }
+                cnode_id.emplace_back(node);
+            }
+        }
+        // merge remaining cnodes
+        if(!cnode_id.empty()) {
+            auto tnode_id = add_node(TNode{cnode_id}, tg);
+            // build node map, i is unique
+            for (const auto& i : cnode_id) {
+                node_map.emplace(i, tnode_id);
+            }
+            cnode_id.clear();
+        }
+    }
+    
 }
 
 void TGraph::create_tnodes() {
@@ -348,7 +385,7 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
     else {
         std::cout << "Tile size: " << this->tile_size.first << " x " << this->tile_size.second << std::endl;
     }
-    mapper = Mapper{tile_size};
+    mapper = Mapper{this->tile_size};
     analysis();
 }
 
@@ -363,7 +400,13 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
 
 void HGraph::analysis() {
     init_hw_setting();
-    greedy_mapping();
+    if(1){
+        greedy_mapping();
+    }
+    else{
+        zigzag_mapping();
+    }
+    // greedy_mapping();
     init_path();
 }
 
@@ -388,6 +431,17 @@ void HGraph::init_hw_setting() {
                 add_edge(i * tile_size.second + j, i * tile_size.second + j - 1, HEdge{{}, 0}, hg);
             }
         }
+    }
+}
+
+void HGraph::zigzag_mapping() {
+    auto tg = tg_ref->get_graph();
+    mapper.zigzag_mapping(num_nodes(tg));
+    for (size_t i = 0; i < num_nodes(tg); ++i) {
+        // auto tnode = tg_ref->get_node_property(i, tg);
+        auto hnode = mapper.get_core(i);
+        auto hid = xy_to_id(hnode);
+        set_node_property(hid, HNode{i, hnode, true}, hg);
     }
 }
 
@@ -425,7 +479,7 @@ void HGraph::greedy_mapping() {
     }
     // update HGraph
     for (size_t i = 0; i < num_nodes(tg); ++i) {
-        auto tnode = tg_ref->get_node_property(i, tg);
+        // auto tnode = tg_ref->get_node_property(i, tg);
         auto hnode = mapper.get_core(i);
         auto hid = xy_to_id(hnode);
         set_node_property(hid, HNode{i, hnode, true}, hg);
@@ -522,9 +576,14 @@ void DGraph::analysis() {
         }
     }
     create_DSeg();
-    bce_routing();
-    std::cout << "after" << std::endl;
-    print_path_info();
+    if (1) {
+        bce_routing();
+        std::cout << "after" << std::endl;
+        print_path_info();
+    }
+    else {
+        
+    }
 }
 
 void DGraph::set_harbor() {

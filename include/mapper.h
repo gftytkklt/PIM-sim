@@ -49,6 +49,9 @@ public:
     // map a group of nodes
     bool map_group(const Group& group, const Group& dep_set);
 
+    // zigzag mapping
+    void zigzag_mapping(int node_num);
+
     // HNode getter
     std::pair<int, int> get_core(size_t node) const;
 
