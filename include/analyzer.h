@@ -13,15 +13,23 @@ struct HWInfo {
     int pipeline_depth;
 };
 
+struct OptInfo {
+    bool mapping_opt;
+    bool sched_opt;
+};
+
 class Analyzer {
 public:
     Analyzer() = default;
-    Analyzer(const std::vector<NNkernel> kernels, HWInfo info);
+    Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt);
 private:
+    bool mapping_opt = true;
+    bool sched_opt = true;
     CGraph cg;
     TGraph tg;
     HGraph hg;
     DGraph dg;
+
 };
 
 #endif

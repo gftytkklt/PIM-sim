@@ -164,10 +164,52 @@ TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num)
     analysis();
 }
 
+TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, bool map) 
+    : tg{}, cg_ref{cg}, tile_xbar_num{tile_xbar_num}, mapping_opt{map} {
+    analysis();
+}
+
 void TGraph::analysis() {
-    create_tnodes();
+    if(mapping_opt) {
+        create_tnodes();
+    }
+    else{
+        analysis_zigzag();
+    }
+    // create_tnodes();
     create_TDep();
     inter_tile_conn();
+}
+
+void TGraph::analysis_zigzag() {
+    // merge cnodes sequentially & layer-wise
+    std::vector<size_t> cnode_id{};
+    for(const auto& cdep : cg_ref->get_cdep()) {
+        for(const auto& accblk : cdep.acc_blks) {
+            for(const auto& node : accblk.vertex_id) {
+                if(cnode_id.size() == tile_xbar_num) {
+                    // merge cur group into a tnode
+                    auto tnode_id = add_node(TNode{cnode_id}, tg);
+                    // build node map, i is unique
+                    for (const auto& i : cnode_id) {
+                        node_map.emplace(i, tnode_id);
+                    }
+                    cnode_id.clear();
+                }
+                cnode_id.emplace_back(node);
+            }
+        }
+        // merge remaining cnodes
+        if(!cnode_id.empty()) {
+            auto tnode_id = add_node(TNode{cnode_id}, tg);
+            // build node map, i is unique
+            for (const auto& i : cnode_id) {
+                node_map.emplace(i, tnode_id);
+            }
+            cnode_id.clear();
+        }
+    }
+    
 }
 
 void TGraph::create_tnodes() {
@@ -348,7 +390,7 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
     else {
         std::cout << "Tile size: " << this->tile_size.first << " x " << this->tile_size.second << std::endl;
     }
-    mapper = Mapper{tile_size};
+    mapper = Mapper{this->tile_size};
     analysis();
 }
 
@@ -361,9 +403,31 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
     analysis();
 }
 
+HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size, bool map)
+    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, mapper{}, mapping_opt{map} {
+    if (tile_size.first * tile_size.second < tg_ref->num_nodes(tg_ref->get_graph())) {
+        // throw std::invalid_argument("Tile size does not match the number of nodes in the TGraph.");
+        auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
+        auto tile_x = static_cast<int>(std::ceil(std::sqrt(num_tile)));
+        this->tile_size = std::make_pair(std::max(tile_size.first,tile_x), std::max(tile_size.second,tile_x));
+        std::cout << "Reshape to " << this->tile_size.first << " x " << this->tile_size.second << " to fit algorithm size" << std::endl;
+    }
+    else {
+        std::cout << "Tile size: " << this->tile_size.first << " x " << this->tile_size.second << std::endl;
+    }
+    mapper = Mapper{this->tile_size};
+    analysis();
+}
+
 void HGraph::analysis() {
     init_hw_setting();
-    greedy_mapping();
+    if(mapping_opt){
+        greedy_mapping();
+    }
+    else{
+        zigzag_mapping();
+    }
+    // greedy_mapping();
     init_path();
 }
 
@@ -388,6 +452,17 @@ void HGraph::init_hw_setting() {
                 add_edge(i * tile_size.second + j, i * tile_size.second + j - 1, HEdge{{}, 0}, hg);
             }
         }
+    }
+}
+
+void HGraph::zigzag_mapping() {
+    auto tg = tg_ref->get_graph();
+    mapper.zigzag_mapping(num_nodes(tg));
+    for (size_t i = 0; i < num_nodes(tg); ++i) {
+        // auto tnode = tg_ref->get_node_property(i, tg);
+        auto hnode = mapper.get_core(i);
+        auto hid = xy_to_id(hnode);
+        set_node_property(hid, HNode{i, hnode, true}, hg);
     }
 }
 
@@ -425,7 +500,7 @@ void HGraph::greedy_mapping() {
     }
     // update HGraph
     for (size_t i = 0; i < num_nodes(tg); ++i) {
-        auto tnode = tg_ref->get_node_property(i, tg);
+        // auto tnode = tg_ref->get_node_property(i, tg);
         auto hnode = mapper.get_core(i);
         auto hid = xy_to_id(hnode);
         set_node_property(hid, HNode{i, hnode, true}, hg);
@@ -507,24 +582,23 @@ DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> t
     analysis();
 }
 
+DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth, bool sched)
+    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth}, tile_size{hg->tile_size}, scheduler{hg->tile_size}, sched_opt{sched} {
+    analysis();
+}
+
 void DGraph::analysis() {
     // segment DHCG
     set_harbor();
     set_sdg();
-    std::cout << "before" << std::endl;
-    for (const auto& [key, val] : paths) {
-        for (const auto& path : val) {
-            std::cout << "Path " << path.id << ": ";
-            for (const auto& node : path.via) {
-                std::cout << node.first << "," << node.second << " ";
-            }
-            std::cout << "Volume: " << path.datavolume << std::endl;
-        }
-    }
     create_DSeg();
-    bce_routing();
-    std::cout << "after" << std::endl;
+    std::cout << "before" << std::endl;
     print_path_info();
+    if (sched_opt) {
+        bce_routing();
+        std::cout << "after" << std::endl;
+        print_path_info();
+    }
 }
 
 void DGraph::set_harbor() {
@@ -649,17 +723,6 @@ void DGraph::set_sdg() {
             }
         }
     }
-    // print each path map info
-    // for (const auto& [key, val] : paths) {
-    //     std::cout << "Path of tile " << key << std::endl;
-    //     for (const auto& path : val) {
-    //         std::cout << "Path: ";
-    //         for (const auto& node : path.via) {
-    //             std::cout << node.first << "," << node.second << " ";
-    //         }
-    //         std::cout << "Volume: " << path.datavolume << std::endl;
-    //     }
-    // }
 }
 
 void DGraph::create_DSeg() {
@@ -736,7 +799,6 @@ void DGraph::bce_routing() {
         // }
         // append final path to sdg
         for (const auto& path : pathset) {
-            final_path.push_back(path);
             add_path(path);
         }
     }
@@ -772,13 +834,17 @@ void DGraph::print_graph_info() const {
 }
 
 void DGraph::print_path_info() const {
-    // print path info
-    for (const auto& path : final_path) {
-        std::cout << "Path " << path.id << ": ";
-        for (const auto& node : path.via) {
-            std::cout << node.first << "," << node.second << " ";
+    // print path info seg-wise
+    int i = 0;
+    for (const auto& seg : path_segs) {
+        std::cout << "Segment " << i++ << std::endl;
+        for (const auto& path : seg) {
+            std::cout << "Path: ";
+            for (const auto& node : path.via) {
+                std::cout << node.first << "," << node.second << " ";
+            }
+            std::cout << "Volume: " << path.datavolume << std::endl;
         }
-        std::cout << "Volume: " << path.datavolume << std::endl;
     }
 }
 
