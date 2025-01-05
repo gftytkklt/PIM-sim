@@ -591,17 +591,9 @@ void DGraph::analysis() {
     // segment DHCG
     set_harbor();
     set_sdg();
-    std::cout << "before" << std::endl;
-    for (const auto& [key, val] : paths) {
-        for (const auto& path : val) {
-            std::cout << "Path " << path.id << ": ";
-            for (const auto& node : path.via) {
-                std::cout << node.first << "," << node.second << " ";
-            }
-            std::cout << "Volume: " << path.datavolume << std::endl;
-        }
-    }
     create_DSeg();
+    std::cout << "before" << std::endl;
+    print_path_info();
     if (sched_opt) {
         bce_routing();
         std::cout << "after" << std::endl;
@@ -731,17 +723,6 @@ void DGraph::set_sdg() {
             }
         }
     }
-    // print each path map info
-    // for (const auto& [key, val] : paths) {
-    //     std::cout << "Path of tile " << key << std::endl;
-    //     for (const auto& path : val) {
-    //         std::cout << "Path: ";
-    //         for (const auto& node : path.via) {
-    //             std::cout << node.first << "," << node.second << " ";
-    //         }
-    //         std::cout << "Volume: " << path.datavolume << std::endl;
-    //     }
-    // }
 }
 
 void DGraph::create_DSeg() {
@@ -818,7 +799,6 @@ void DGraph::bce_routing() {
         // }
         // append final path to sdg
         for (const auto& path : pathset) {
-            final_path.push_back(path);
             add_path(path);
         }
     }
@@ -854,13 +834,17 @@ void DGraph::print_graph_info() const {
 }
 
 void DGraph::print_path_info() const {
-    // print path info
-    for (const auto& path : final_path) {
-        std::cout << "Path " << path.id << ": ";
-        for (const auto& node : path.via) {
-            std::cout << node.first << "," << node.second << " ";
+    // print path info seg-wise
+    int i = 0;
+    for (const auto& seg : path_segs) {
+        std::cout << "Segment " << i++ << std::endl;
+        for (const auto& path : seg) {
+            std::cout << "Path: ";
+            for (const auto& node : path.via) {
+                std::cout << node.first << "," << node.second << " ";
+            }
+            std::cout << "Volume: " << path.datavolume << std::endl;
         }
-        std::cout << "Volume: " << path.datavolume << std::endl;
     }
 }
 
