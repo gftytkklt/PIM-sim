@@ -68,10 +68,25 @@ void test6(const std::vector<NNkernel>& kernels){
     auto dg = DGraph(std::make_shared<HGraph>(hg), std::make_shared<TGraph>(tg), cg);
 }
 void test7(const std::vector<NNkernel>& kernels){
-    // setup hardware info
-    HWInfo info = {{1152, 256}, 2, {30, 30}, 1};
+    HWInfo info = {{1152, 256}, 2, {3, 3}, 1};
+    OptInfo opt;
     // test analyzer
-    Analyzer analyzer = Analyzer(kernels, info);
+    // OptAll
+    std::cout << "OptAll" << std::endl;
+    opt = {true, true};
+    Analyzer analyzer1 = Analyzer(kernels, info, opt);
+    // OptSchedule
+    std::cout << "OptSchedule" << std::endl;
+    opt = {false, true};
+    Analyzer analyzer2= Analyzer(kernels, info, opt);
+    // OptMapping
+    std::cout << "OptMapping" << std::endl;
+    opt = {true, false};
+    Analyzer analyzer3 = Analyzer(kernels, info, opt);
+    // OptNone
+    std::cout << "OptNone" << std::endl;
+    opt = {false, false};
+    Analyzer analyzer4 = Analyzer(kernels, info, opt);
 }
 
 int test(const std::vector<NNkernel>& kernels) {
