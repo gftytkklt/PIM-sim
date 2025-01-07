@@ -341,3 +341,73 @@ crossbar大小、PE映射策略等约束节点大小的尺寸参数。
 
 - `void inter_layer_conn()`
 构造层间数据依赖。
+
+# Python-C++ Integration for Model Conversion and Analysis
+
+## 简介
+本模块将所有的 C++ 源文件打包为共享库，允许通过 Python 调用 C++ 的 `main.cpp` 中的 `test` 函数，并进行后续的测试。提供了一键编译脚本和两个主要的 Python 命令，用于模型转换和分析。
+
+---
+
+## 功能概览
+1. **C++模块打包**  
+   通过根目录下的 `CMakeLists.txt`，将所有的 C++ 源文件打包生成共享库 `libmain.so`。
+   
+2. **Python 调用 C++**  
+   Python 可以直接调用 `main.cpp` 中的 `test` 函数，用于快速测试功能。
+
+3. **模型转换与分析工具**  
+   - `torch2onnx.py`：将 PyTorch 模型转换为 ONNX 格式，并解析模型。
+   - `onnx_analysis.py`：对指定的 ONNX 模型进行分析。
+
+---
+
+## 使用方法
+
+### 1. 编译共享库
+运行根目录下的 `build.sh` 脚本编译 `libmain.so`。  
+**注意：** 如果需要修改编译设置，请取消 `build.sh` 中的注释。
+
+```bash
+./build.sh
+
+```
+
+### 2. Python 脚本
+提供两个主要的 Python 命令：
+
+#### 2.1 `torch2onnx.py`
+初始化参数，将 PyTorch 模型转换为 ONNX 格式。 
+
+```bash
+python3 torch2onnx.py
+```
+
+- 默认情况下提供`mccnn`模型的转换作为示例，如果需要转换其他模型，可以修改 `torch2onnx.py` 文件中的相应代码，指定模型的路径及转换参数。
+
+
+#### 2.2 `onnx_analysis.py`
+分析 ONNX 模型，并输出一些有用的信息。你可以通过以下命令运行：
+
+```bash
+python3 onnx_analysis.py [onnx_model_path]
+```
+
+- 如果未指定 `onnx_model_path`，默认会加载 `models` 文件夹中的 `resnet18` 模型。
+
+### 3. 测试功能
+`main.cpp` 中提供了一个 `test` 函数，可以通过 Python 调用进行测试。运行 Python 脚本时会自动调用该函数。
+
+### 4. 注意事项
+- 在运行 `torch2onnx.py` 时，确保你已经安装了 PyTorch 和 ONNX 的相关依赖。
+- 如果转换其他模型，记得在 `torch2onnx.py` 中修改模型加载部分的代码。
+- `onnx_analysis.py` 需要提供 ONNX 模型的路径，否则会默认加载 `models/resnet18`。
+
+## 环境依赖
+
+- Python 3.x
+- PyTorch
+- ONNX
+- pybind11
+- CMake
+- Ubuntu 24 LTS 或其他支持的操作系统

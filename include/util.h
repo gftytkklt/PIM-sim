@@ -6,6 +6,7 @@
 #include <utility>
 #include <string>
 #include <tuple>
+#include <algorithm>
 
 std::vector<std::vector<std::pair<int, int>>> uniformsplit(int M, int N, int K);
 int UniqueElements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2);
