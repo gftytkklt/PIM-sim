@@ -14,7 +14,7 @@ add_subdirectory(src)
 add_subdirectory(test)
 
 # 兼容性策略设置
-cmake_policy(SET CMP0148 OLD)
+# cmake_policy(SET CMP0148 OLD)
 # 查找pybind11包
 find_package(pybind11 REQUIRED)
 
