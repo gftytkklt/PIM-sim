@@ -8,7 +8,7 @@ struct DeployInfo {
     std::pair<int, int> tile_id; // location
     std::vector<std::pair<int, int>> child_tile; // child location
     std::vector<Path> paths; // all paths with this tile as source
-    int compute_volume; // compute volume
+    std::vector<CNode> cnode; // cnode info
 };
 
 struct HWInfo {
@@ -22,6 +22,11 @@ struct HWInfo {
     int pipeline_depth;
 };
 
+struct AnalysisResult {
+    std::vector<DeployInfo> deploy_info; // deployment info of chip
+    std::vector<DataMatrix> datas; // transfer data volume matricies
+};
+
 struct OptInfo {
     bool mapping_opt;
     bool sched_opt;
@@ -31,12 +36,9 @@ class Analyzer {
 public:
     Analyzer() = default;
     Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt);
-    struct AnalysisResult {
-        std::vector<DeployInfo> deploy_info; // deployment info of chip
-        std::vector<DataMatrix> datas; // transfer data volume matricies
-    };
     AnalysisResult get_analysis_result() const { return result; }
     void generate_analysis_result();
+    void print_result() const;
 private:
     bool mapping_opt = true;
     bool sched_opt = true;

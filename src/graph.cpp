@@ -59,16 +59,18 @@ void CGraph::create_cnodes() {
                 auto ci_id = std::make_pair(ci_begin+1, ci_end);
                 // instantiate a cnode
                 // TODO: impl ofm calculation
-                int cur_fmap = -1;
+                int node_ifm = -1;
+                int node_ofm = -1;
                 // last accblk: generate ofm
+                node_ifm = cur_ifm.first * cur_ifm.second * (ci_end - ci_begin);
                 if(ci_end == ker_in) {
-                    cur_fmap = cur_ofm.first * cur_ofm.second * (co_end - co_begin);
+                    node_ofm = cur_ofm.first * cur_ofm.second * (co_end - co_begin);
                 }
                 // other accblk: generate ifm
                 else {
-                    cur_fmap = cur_ifm.first * cur_ifm.second * (co_end - co_begin);
+                    node_ofm = cur_ifm.first * cur_ifm.second * (co_end - co_begin);
                 }
-                auto cnode = CNode{cur_l, cur_fmap, ci_id, co_id};
+                auto cnode = CNode{cur_l, node_ifm, node_ofm, ci_id, co_id};
                 // add node to accblk
                 accblk.emplace_back(add_node(cnode, cg));
                 // update ci_begin
@@ -229,28 +231,28 @@ void TGraph::create_tnodes() {
             std::vector<size_t> cnode_id{};
             // supernode info can be generated here
             // do not generate ofm info here
-            CNode supernode{};
-            bool empty = true;
-            auto mergenode = [&](Node node_id) {
-                auto cnode = cg_ref-> get_node_property(node_id, cg);
-                if(empty) {
-                    supernode = cnode;
-                    empty = false;
-                } else {
-                    auto cout_num = supernode.id_cout.second - supernode.id_cout.first + 1;
-                    supernode.id_cin.first = std::min(supernode.id_cin.first, cnode.id_cin.first);
-                    supernode.id_cin.second = std::max(supernode.id_cin.second, cnode.id_cin.second);
-                    supernode.id_cout.first = std::min(supernode.id_cout.first, cnode.id_cout.first);
-                    supernode.id_cout.second = std::max(supernode.id_cout.second, cnode.id_cout.second);
-                }
-            };
+            // CNode supernode{};
+            // bool empty = true;
+            // auto mergenode = [&](Node node_id) {
+            //     auto cnode = cg_ref-> get_node_property(node_id, cg);
+            //     if(empty) {
+            //         supernode = cnode;
+            //         empty = false;
+            //     } else {
+            //         auto cout_num = supernode.id_cout.second - supernode.id_cout.first + 1;
+            //         supernode.id_cin.first = std::min(supernode.id_cin.first, cnode.id_cin.first);
+            //         supernode.id_cin.second = std::max(supernode.id_cin.second, cnode.id_cin.second);
+            //         supernode.id_cout.first = std::min(supernode.id_cout.first, cnode.id_cout.first);
+            //         supernode.id_cout.second = std::max(supernode.id_cout.second, cnode.id_cout.second);
+            //     }
+            // };
             for(const auto& i : cgroup) {
                 cnode_id.emplace_back(cdep.acc_blks[i.second].vertex_id[i.first]);
-                mergenode(cnode_id.back());
+                // mergenode(cnode_id.back());
             }
             // clear invalid supernode info
-            supernode.ofmap_size = 0;
-            auto tnode_id = add_node(TNode{cnode_id, std::vector<CNode>{supernode}}, tg);
+            // supernode.ofmap_size = 0;
+            auto tnode_id = add_node(TNode{cnode_id}, tg);
             // build node map, i is unique
             for (const auto& i : cnode_id) {
                 node_map.emplace(i, tnode_id);
@@ -592,12 +594,12 @@ void DGraph::analysis() {
     set_harbor();
     set_sdg();
     create_DSeg();
-    std::cout << "before" << std::endl;
-    print_path_info();
+    // std::cout << "before" << std::endl;
+    // print_path_info();
     if (sched_opt) {
         bce_routing();
-        std::cout << "after" << std::endl;
-        print_path_info();
+        // std::cout << "after" << std::endl;
+        // print_path_info();
     }
 }
 
@@ -684,6 +686,8 @@ void DGraph::set_sdg() {
         else {
             tdep_id = harbor_id;
         }
+        // get inter-layer child by tdep_id
+        // even if tdep_id has intra-layer child, it will work correctly
         child_id = tg_ref->get_adjacent_nodes(tdep_id, tg);
         // append path
         for (const auto& child : child_id) {
@@ -848,77 +852,6 @@ void DGraph::print_path_info() const {
     }
 }
 
-void CGraph::debug() {
-    // test all basegraph interface
-    add_node(CNode{1, 1, {1, 1}, {1, 1}}, cg);
-    add_node(CNode{1, 2, {1, 1}, {1, 1}}, cg);
-    add_node(CNode{1, 3, {1, 1}, {1, 1}}, cg);
-    add_edge(0, 1, CEdge{DepType::Accum, {1, 1}, 1}, cg);
-    add_edge(1, 0, CEdge{DepType::Prop, {1, 1}, 1}, cg);
-    add_edge(1, 2, CEdge{DepType::Accum, {1, 1}, 1}, cg);
-    add_edge(2, 1, CEdge{DepType::Prop, {1, 1}, 1}, cg);
-    remove_node(0, cg);
-    remove_edge(1, 0, cg);
-    std::cout << "Num of vertices: " << num_nodes(cg) << std::endl;
-    std::cout << "Num of edges: " << num_edges(cg) << std::endl;
-    std::cout << "Node info:" << get_node_property(0,cg) << std::endl;
-    std::cout << "Edge info:" << get_edge_property(1, 2, cg) << std::endl;
-
-    // // test BGL builtin algorithm
-    // auto coords_map = boost::get(&CNode::id_cin, cg);
-    // for(auto v : boost::make_iterator_range(vertices(cg))) {
-    //     auto sth = coords_map[v]; // attribute getter
-    //     if(sth == std::make_pair(1,384)) {
-    //         std::cout << "Find Node: " << v << std::endl;
-    //         std::cout << get_node_property(v,cg) << std::endl;
-    //         cg[v].ofmap_size += 1; // setter
-    //         std::cout << get_node_property(v,cg) << std::endl;
-    //     }
-    // }
-    // std::vector<int> dist(boost::num_vertices(cg));
-    // std::vector<Node> pred(num_vertices(cg));
-    // auto weight_map = boost::get(&CEdge::datavolume, cg);
-    // auto source = boost::vertex(0, cg);
-
-    // boost::dijkstra_shortest_paths(cg, source, 
-    //         boost::predecessor_map(&pred[0])
-    //         .distance_map(&dist[0])
-    //         .weight_map(weight_map)
-    // );
-
-    // std::cout << "Distances from node 1:" << std::endl;
-    // for (size_t i = 0; i < dist.size(); ++i) {
-    //     std::cout << "Node " << i + 1 << ": " << dist[i] << std::endl;
-    // }
-
-    // // output paths
-    // std::cout << "Paths:" << std::endl;
-    // for (size_t i = 0; i < pred.size(); ++i) {
-    //     std::cout << "Node " << i + 1 << ": ";
-    //     if (pred[i] != boost::graph_traits<Graph>::null_vertex()) {
-    //         std::cout << pred[i] + 1 << std::endl;  // unexpected output
-    //     } else {
-    //         std::cout << "No predecessor (source node)" << std::endl;
-    //     }
-    // }
-}
-
-void TGraph::debug() {
-    // test adjacent node
-    for(auto v : boost::make_iterator_range(vertices(tg))) {
-        auto adj = get_adjacent_nodes(v, tg);
-        std::cout << "Node " << v << " adjacent nodes: ";
-        for(auto i : adj) {
-            std::cout << i << " ";
-        }
-        std::cout << std::endl;
-    }
-}
-
-void HGraph::debug() {
-
-}
-
 std::ostream& operator<<(std::ostream& os, const CNode& cnode) {
     os << "Layer: " << cnode.layer << std::endl;
     os << "Ofmap size: " << cnode.ofmap_size << std::endl;
@@ -952,10 +885,10 @@ std::ostream& operator<<(std::ostream& os, const TNode& tnode) {
         os << i << " ";
     }
     os << std::endl;
-    os << "Super nodes: " << std::endl;
-    for (const auto& i : tnode.super_nodes) {
-        os << i;
-    }
+    // os << "Super nodes: " << std::endl;
+    // for (const auto& i : tnode.super_nodes) {
+    //     os << i;
+    // }
     os << "Parent id: ";
     for (const auto& i : tnode.parent_id) {
         os << i << " ";
