@@ -271,7 +271,8 @@ def convert_to_cpp(conv_info_list):
         nnkernel_list.append(nnkernel)
     return nnkernel_list
 
-def analysis_model(path):
+def analysis_model():
+    path=set_path()
     model = load_model(path)
     print(f'Loading model: {path}\n')
     conv_info_list = build_conv_info(model)
@@ -280,7 +281,7 @@ def analysis_model(path):
 
 def main():
     """主函数"""
-    res = analysis_model(path=set_path())
+    res = analysis_model()
     print(res.deploy_info[-1].tile_id)
     # 加载模型
     # model = load_model(path)
