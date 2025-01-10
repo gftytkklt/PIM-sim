@@ -98,6 +98,14 @@ int test(const std::vector<NNkernel>& kernels) {
     return 114514;
 }
 
+auto analyze(const std::vector<NNkernel>& kernels) {
+    HWInfo info = {{1152, 256}, 2, {3, 3}, 1};
+    OptInfo opt = {true, true};
+    Analyzer analyzer1 = Analyzer(kernels, info, opt);
+    analyzer1.generate_analysis_result();
+    return analyzer1.get_analysis_result();
+}
+
 int main() {
     std::vector<NNkernel> kernels = { 
     {0, {3,3}, {256,384}, std::vector<Depinfo>{{1,std::make_pair(1,384)}},{8, 8},{4, 4}}, 
@@ -123,5 +131,35 @@ PYBIND11_MODULE(libmain, m) {
        .def_readwrite("ifmap_size", &NNkernel::ifmap_size)
        .def_readwrite("ofmap_size", &NNkernel::ofmap_size);
 
+    py::class_<AnalysisResult>(m, "AnalysisResult")
+        .def(py::init<>())
+        .def_readwrite("deploy_info", &AnalysisResult::deploy_info)
+        .def_readwrite("datas", &AnalysisResult::datas);
+
+    py::class_<DeployInfo>(m, "DeployInfo")
+        .def(py::init<>())
+        .def_readwrite("layer", &DeployInfo::layer)
+        .def_readwrite("tile_id", &DeployInfo::tile_id)
+        .def_readwrite("child_tile", &DeployInfo::child_tile)
+        .def_readwrite("paths", &DeployInfo::paths)
+        .def_readwrite("cnode", &DeployInfo::cnode);
+    
+    py::class_<Path>(m, "Path")
+        .def(py::init<>())
+        .def_readwrite("src", &Path::src)
+        .def_readwrite("dst", &Path::dst)
+        .def_readwrite("via", &Path::via)
+        .def_readwrite("datavolume", &Path::datavolume);
+
+    py::class_<CNode>(m, "CNode")
+        .def(py::init<>())
+        .def_readwrite("layer", &CNode::layer)
+        .def_readwrite("ifmap_size", &CNode::ifmap_size)
+        .def_readwrite("ofmap_size", &CNode::ofmap_size)
+        .def_readwrite("id_cin", &CNode::id_cin)
+        .def_readwrite("id_cout", &CNode::id_cout);
+
     m.def("test", &test, "Process data and return a result");
+
+    m.def("analyze", &analyze, "Analyze data and return a result");
 }

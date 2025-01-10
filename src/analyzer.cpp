@@ -27,13 +27,15 @@ void Analyzer::generate_analysis_result(){
         std::vector<Path> paths = dg.get_path(v);
         // get cnode
         auto cnode_id = tg.get_node_property(v, tgraph).cnode_id;
+        // get layer
+        auto layer = cg.get_node_property(cnode_id[0], cgraph).layer;
         std::vector<CNode> cnode;
         std::transform(cnode_id.begin(), cnode_id.end(), std::back_inserter(cnode), [&](auto& node){
             const auto& cnode = cg.get_node_property(node, cgraph);
             return cnode;
             // return cg.get_node_property(node, cgraph);
         });
-        result.deploy_info.push_back(DeployInfo{tile_id, child_tile, paths, cnode});
+        result.deploy_info.push_back(DeployInfo{layer, tile_id, child_tile, paths, cnode});
     }
     // create data matrix
     auto [rows, cols] = hg.get_shape();
@@ -54,6 +56,7 @@ void Analyzer::generate_analysis_result(){
 void Analyzer::print_result() const {
     std::cout << "Analysis Result:" << std::endl;
     for (const auto& info : result.deploy_info) {
+        std::cout << "Layer: " << info.layer << std::endl;
         std::cout << "Tile: " << info.tile_id.first << "," << info.tile_id.second << std::endl;
         std::cout << "Child Tile: ";
         for (const auto& child : info.child_tile) {

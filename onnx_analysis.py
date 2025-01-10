@@ -271,17 +271,26 @@ def convert_to_cpp(conv_info_list):
         nnkernel_list.append(nnkernel)
     return nnkernel_list
 
-def main(path):
-    """主函数"""
-    # 加载模型
+def analysis_model(path):
     model = load_model(path)
     print(f'Loading model: {path}\n')
+    conv_info_list = build_conv_info(model)
+    nnkernel_list = convert_to_cpp(conv_info_list)
+    return libmain.analyze(nnkernel_list)
+
+def main(path):
+    """主函数"""
+    res = analysis_model(path)
+    print(res.deploy_info[-1].tile_id)
+    # 加载模型
+    # model = load_model(path)
+    # print(f'Loading model: {path}\n')
     
     # 打印模型信息
     # print(onnx.helper.printable_graph(model.graph))
 
     # 获取模型中的卷积层
-    conv_info_list = build_conv_info(model)
+    # conv_info_list = build_conv_info(model)
     
     #将提取的卷积节点信息打印
     # for conv_info in conv_info_list:
@@ -295,14 +304,18 @@ def main(path):
     #         print(f"    - Destination Index: {dep.dep_layer}, Channel Indices: {dep.dep_chan}")
 
     # 将conv_info_list转换为C++可以接受的格式
-    nnkernel_list = convert_to_cpp(conv_info_list)
+    # nnkernel_list = convert_to_cpp(conv_info_list)
 
     # Call the C++ function
-    if libmain.test(nnkernel_list) == 114514: # 114514 is a placeholder for success
-        print("HOMO!")
-        print("Program finished.")
-    else:
-        print("Program failed.")
+    # if libmain.test(nnkernel_list) == 114514: # 114514 is a placeholder for success
+    #     print("HOMO!")
+    #     print("Program finished.")
+    # else:
+    #     print("Program failed.")
+
+    # test analysis result getter
+    # res = libmain.analyze(nnkernel_list)
+    # print(res.deploy_info[-1].tile_id)
 
 # run main
 if __name__ == "__main__":

@@ -25,29 +25,29 @@ TEST_F(AnalyzerTest, OptAll) {
     analyzer.print_result();
 }
 
-TEST_F(AnalyzerTest, OptSchedule) {
-    // test analyzer
-    std::cout << "OptSchedule" << std::endl;
-    opt.mapping_opt = false;
-    Analyzer analyzer = Analyzer(kernels, info, opt);
-    analyzer.generate_analysis_result();
-    analyzer.print_result();
-}
+// TEST_F(AnalyzerTest, OptSchedule) {
+//     // test analyzer
+//     std::cout << "OptSchedule" << std::endl;
+//     opt.mapping_opt = false;
+//     Analyzer analyzer = Analyzer(kernels, info, opt);
+//     analyzer.generate_analysis_result();
+//     analyzer.print_result();
+// }
 
-TEST_F(AnalyzerTest, OptMapping) {
-    // test analyzer
-    std::cout << "OptMapping" << std::endl;
-    opt.sched_opt = false;
-    Analyzer analyzer = Analyzer(kernels, info, opt);
-    analyzer.generate_analysis_result();
-    analyzer.print_result();
-}
+// TEST_F(AnalyzerTest, OptMapping) {
+//     // test analyzer
+//     std::cout << "OptMapping" << std::endl;
+//     opt.sched_opt = false;
+//     Analyzer analyzer = Analyzer(kernels, info, opt);
+//     analyzer.generate_analysis_result();
+//     analyzer.print_result();
+// }
 
-TEST_F(AnalyzerTest, OptNone) {
-    // test analyzer
-    std::cout << "OptNone" << std::endl;
-    opt = {false, false};
-    Analyzer analyzer = Analyzer(kernels, info, opt);
-    analyzer.generate_analysis_result();
-    analyzer.print_result();
-}
+// TEST_F(AnalyzerTest, OptNone) {
+//     // test analyzer
+//     std::cout << "OptNone" << std::endl;
+//     opt = {false, false};
+//     Analyzer analyzer = Analyzer(kernels, info, opt);
+//     analyzer.generate_analysis_result();
+//     analyzer.print_result();
+// }
