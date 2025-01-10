@@ -278,9 +278,9 @@ def analysis_model(path):
     nnkernel_list = convert_to_cpp(conv_info_list)
     return libmain.analyze(nnkernel_list)
 
-def main(path):
+def main():
     """主函数"""
-    res = analysis_model(path)
+    res = analysis_model(path=set_path())
     print(res.deploy_info[-1].tile_id)
     # 加载模型
     # model = load_model(path)
@@ -319,5 +319,4 @@ def main(path):
 
 # run main
 if __name__ == "__main__":
-    model_path=set_path()
-    main(model_path)
+    main()
