@@ -386,6 +386,7 @@ public:
         return it == paths.end() ? std::vector<Path>{} : it->second;
     }
     std::vector<std::vector<Path>> get_path_segs() const {return path_segs;}
+    auto get_congestion_segs() const {return congestion_segs;}
     void print_graph_info() const;
     void print_path_info() const;
 private:
@@ -400,7 +401,8 @@ private:
     std::map<size_t, std::vector<int>> tdep_map; // (prop_node, tdeps)
     std::map<int, size_t> harbor_map;
     std::map<size_t, std::vector<Path>> paths; // path info with src tnode id
-    std::map<size_t, double> congestion_map; // (path_id, congestion)
+    std::vector<long long> congestion_segs; // congestion of each seg
+    // std::map<size_t, double> congestion_map; // (path_id, congestion)
     // std::vector<Path> final_path; // final path set (poor design)
     Scheduler scheduler;
     auto get_core(size_t node) const {return hg_ref->mapper.get_core(node);}
@@ -411,6 +413,7 @@ private:
     void set_sdg();
     void create_DSeg();
     void bce_routing();
+    void xy_routing();
     void add_path(const Path& path);
 };
 

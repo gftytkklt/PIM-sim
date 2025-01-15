@@ -1,5 +1,5 @@
 #include "graph.h"
-#include "util.h"
+// #include "util.h"
 // #include <boost/graph/dijkstra_shortest_paths.hpp>
 // #include <boost/graph/betweenness_centrality.hpp>
 
@@ -601,6 +601,9 @@ void DGraph::analysis() {
         // std::cout << "after" << std::endl;
         // print_path_info();
     }
+    else {
+        xy_routing();
+    }
 }
 
 void DGraph::set_harbor() {
@@ -793,7 +796,11 @@ void DGraph::bce_routing() {
         //     std::cout << std::endl;
         // }
         scheduler.set_path_set(pathset);
-        pathset = scheduler.schedule();
+        // pathset = scheduler.schedule();
+        auto schedinfo = scheduler.schedule();
+        congestion_segs.push_back(schedinfo.first);
+        pathset = schedinfo.second;
+
         // std::cout << "dg Path after:" << std::endl;
         // for (const auto& path : pathset) {
         //     for (const auto& via : path.via) {
@@ -803,6 +810,18 @@ void DGraph::bce_routing() {
         // }
         // append final path to sdg
         for (const auto& path : pathset) {
+            add_path(path);
+        }
+    }
+}
+
+void DGraph::xy_routing() {
+    for (const auto& pathset: path_segs) {
+        scheduler.set_path_set(pathset);
+        auto schedinfo = scheduler.xy_routing();
+        congestion_segs.push_back(schedinfo.first);
+        auto path_seg = schedinfo.second;
+        for (const auto& path : path_seg) {
             add_path(path);
         }
     }

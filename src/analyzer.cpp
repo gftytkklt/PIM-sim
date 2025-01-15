@@ -53,37 +53,63 @@ void Analyzer::generate_analysis_result(){
     }
 }
 
+void Analyzer::generate_comm_info() {
+    // get path info from path_seg
+    auto path_segs = dg.get_path_segs();
+    int path_num = 0;
+    int datavolume = 0;
+    int total_hops = 0;
+    long long total_congestion = 0;
+    for (const auto& seg : path_segs) {
+        path_num += seg.size();
+        for (const auto& path : seg) {
+            datavolume += path.datavolume;
+            total_hops += path.via.size() - 1;
+        }
+    }
+    // get total congestion
+    for (const auto& congestion : dg.get_congestion_segs()) {
+        total_congestion += congestion;
+    }
+    comm_info = CommInfo{path_num, datavolume, total_hops, total_congestion};
+}
+
 void Analyzer::print_result() const {
     std::cout << "Analysis Result:" << std::endl;
-    for (const auto& info : result.deploy_info) {
-        std::cout << "Layer: " << info.layer << std::endl;
-        std::cout << "Tile: " << info.tile_id.first << "," << info.tile_id.second << std::endl;
-        std::cout << "Child Tile: ";
-        for (const auto& child : info.child_tile) {
-            std::cout << child.first << "," << child.second << " ";
-        }
-        std::cout << std::endl;
-        std::cout << "Paths: " << std::endl;
-        for (const auto& path : info.paths) {
-            std::cout << "Path: ";
-            for (const auto& via : path.via) {
-                std::cout << via.first << "," << via.second << " ";
-            }
-            std::cout << "Volume: " << path.datavolume << std::endl;
-        }
-        std::cout << "CNode: " << std::endl;
-        for (const auto& cnode : info.cnode) {
-            std::cout << "CNode: " << cnode << std::endl;
-        }
-    }
-    std::cout << "Data Matrix:" << std::endl;
-    for (const auto& data : result.datas) {
-        for (const auto& row : data) {
-            for (const auto& col : row) {
-                std::cout << col << " ";
-            }
-            std::cout << std::endl;
-        }
-        std::cout << std::endl;
-    }
+    // for (const auto& info : result.deploy_info) {
+    //     std::cout << "Layer: " << info.layer << std::endl;
+    //     std::cout << "Tile: " << info.tile_id.first << "," << info.tile_id.second << std::endl;
+    //     std::cout << "Child Tile: ";
+    //     for (const auto& child : info.child_tile) {
+    //         std::cout << child.first << "," << child.second << " ";
+    //     }
+    //     std::cout << std::endl;
+    //     std::cout << "Paths: " << std::endl;
+    //     for (const auto& path : info.paths) {
+    //         std::cout << "Path: ";
+    //         for (const auto& via : path.via) {
+    //             std::cout << via.first << "," << via.second << " ";
+    //         }
+    //         std::cout << "Volume: " << path.datavolume << std::endl;
+    //     }
+    //     std::cout << "CNode: " << std::endl;
+    //     for (const auto& cnode : info.cnode) {
+    //         std::cout << "CNode: " << cnode << std::endl;
+    //     }
+    // }
+    // std::cout << "Data Matrix:" << std::endl;
+    // for (const auto& data : result.datas) {
+    //     for (const auto& row : data) {
+    //         for (const auto& col : row) {
+    //             std::cout << col << " ";
+    //         }
+    //         std::cout << std::endl;
+    //     }
+    //     std::cout << std::endl;
+    // }
+    std::cout << "Comm Info:" << std::endl;
+    std::cout << "Path num: " << comm_info.path_num << std::endl;
+    std::cout << "Data volume: " << comm_info.datavolume << std::endl;
+    std::cout << "Total hops: " << comm_info.total_hops << std::endl;
+    std::cout << "Total congestion: " << comm_info.total_congestion << std::endl;
 }

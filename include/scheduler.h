@@ -125,6 +125,8 @@ struct WeightCalculator {
     }
 };
 
+using SchedInfo = std::pair<long long, std::vector<Path>>;
+
 class Scheduler {
 public:
     Scheduler() = default;
@@ -133,7 +135,9 @@ public:
     void set_path_set(std::vector<Path> path_set) {
         this->path_set = std::make_shared<std::vector<Path>>(path_set);
     }
-    std::vector<Path> schedule();
+    // std::vector<Path> schedule();
+    SchedInfo schedule();
+    SchedInfo xy_routing();
     auto id_to_xy(size_t id) const {
         return std::make_pair(id / tile_size.second, id % tile_size.second);
     }
@@ -149,6 +153,7 @@ private:
     std::map<size_t, CSum> congestion_map; // (path_id, congestion)
     void init_bce();
     void congestion_aware_routing();
+    
 };
 
 // struct constrained_dijkstra_visitor : boost::default_dijkstra_visitor {

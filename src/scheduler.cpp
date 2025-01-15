@@ -29,7 +29,8 @@ Scheduler::Scheduler(std::pair<int, int> tile_size)
     }
 }
 
-std::vector<Path> Scheduler::schedule() {
+// std::vector<Path> Scheduler::schedule() {
+SchedInfo Scheduler::schedule() {
     // print path set num
     // std::cout << "Path num: " << path_set->size() << std::endl;
     init_bce();
@@ -46,6 +47,10 @@ std::vector<Path> Scheduler::schedule() {
     //     std::cout << std::endl;
     // }
     congestion_aware_routing();
+    long long total_congestion = 0;
+    for (const auto& [key, val] : congestion_map) {
+        total_congestion += val.getCSum();
+    }
     // std::cout << "sch Path after:" << std::endl;
     // for (const auto& path : *path_set) {
     //     for (const auto& via : path.via) {
@@ -53,7 +58,28 @@ std::vector<Path> Scheduler::schedule() {
     //     }
     //     std::cout << std::endl;
     // }
-    return *path_set;
+    // return *path_set;
+    return SchedInfo{total_congestion, *path_set};
+}
+
+SchedInfo Scheduler::xy_routing() {
+    // don't care bce
+    congestion_map.clear();
+    // add congestion volume only
+    for (const auto& path : *path_set) {
+        // use default xy-routing
+        for (int i = 0; i < path.via.size() - 1; i++) {
+            auto src = xy_to_id(path.via[i]);
+            auto dst = xy_to_id(path.via[i + 1]);
+            auto edge_id = edge_map[UnorderedPair{src, dst}];
+            congestion_map[edge_id].insert(path.datavolume);
+        }
+    }
+    long long total_congestion = 0;
+    for (const auto& [key, val] : congestion_map) {
+        total_congestion += val.getCSum();
+    }
+    return SchedInfo{total_congestion, *path_set};
 }
 
 void Scheduler::init_bce() {

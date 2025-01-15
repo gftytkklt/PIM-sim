@@ -23,6 +23,13 @@ struct HWInfo {
     int pipeline_depth;
 };
 
+struct CommInfo {
+    int path_num;
+    int datavolume;
+    int total_hops;
+    long long total_congestion;
+};
+
 struct AnalysisResult {
     std::vector<DeployInfo> deploy_info; // deployment info of chip
     std::vector<DataMatrix> datas; // transfer data volume matricies
@@ -39,6 +46,8 @@ public:
     Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt);
     AnalysisResult get_analysis_result() const { return result; }
     void generate_analysis_result();
+    CommInfo get_comm_info() const { return comm_info; }
+    void generate_comm_info();
     void print_result() const;
 private:
     bool mapping_opt = true;
@@ -48,5 +57,6 @@ private:
     HGraph hg;
     DGraph dg;
     AnalysisResult result;
+    CommInfo comm_info;
 };
 #endif
