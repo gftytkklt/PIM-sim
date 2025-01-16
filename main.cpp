@@ -101,6 +101,8 @@ int test(const std::vector<NNkernel>& kernels) {
 auto analyze(const std::vector<NNkernel>& kernels, const HWInfo& info = {{1152, 256}, 2, {3, 3}, 1}, const OptInfo& opt = {true, true}) {
     Analyzer analyzer1 = Analyzer(kernels, info, opt);
     analyzer1.generate_analysis_result();
+    analyzer1.generate_comm_info();
+    analyzer1.print_result();
     return analyzer1.get_analysis_result();
 }
 

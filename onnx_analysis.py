@@ -271,18 +271,40 @@ def convert_to_cpp(conv_info_list):
         nnkernel_list.append(nnkernel)
     return nnkernel_list
 
-def analysis_model():
-    path=set_path()
+def make_default_hw_info():
+    hw_info = libmain.HWInfo()
+    hw_info.xbar_size = (64, 256) # 256 / (8 / 2)
+    hw_info.xbar_num = 16
+    hw_info.tile_size = (0, 0)
+    hw_info.pipeline_depth = 1
+    return hw_info
+
+def make_default_opt_info():
+    opt_info = libmain.OptInfo()
+    opt_info.mapping_opt = 1
+    opt_info.sched_opt = 1
+    return opt_info
+
+def make_opt_info(map=1, sched=1):
+    opt_info = libmain.OptInfo()
+    opt_info.mapping_opt = map
+    opt_info.sched_opt = sched
+    return opt_info
+
+def analysis_model(path=None, hw_info=None, opt_info=None):
+    path = path or set_path()
     model = load_model(path)
     print(f'Loading model: {path}\n')
     conv_info_list = build_conv_info(model)
     nnkernel_list = convert_to_cpp(conv_info_list)
-    return libmain.analyze(nnkernel_list)
+    hw_info = hw_info or make_default_hw_info()
+    opt_info = opt_info or make_default_opt_info()
+    return libmain.analyze(nnkernel_list, hw_info, opt_info)
 
 def main():
     """主函数"""
     res = analysis_model()
-    print(res.deploy_info[-1].tile_id)
+    # print(res.deploy_info[-1].tile_id)
     # 加载模型
     # model = load_model(path)
     # print(f'Loading model: {path}\n')
