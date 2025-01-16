@@ -98,9 +98,7 @@ int test(const std::vector<NNkernel>& kernels) {
     return 114514;
 }
 
-auto analyze(const std::vector<NNkernel>& kernels) {
-    HWInfo info = {{1152, 256}, 2, {3, 3}, 1};
-    OptInfo opt = {true, true};
+auto analyze(const std::vector<NNkernel>& kernels, const HWInfo& info = {{1152, 256}, 2, {3, 3}, 1}, const OptInfo& opt = {true, true}) {
     Analyzer analyzer1 = Analyzer(kernels, info, opt);
     analyzer1.generate_analysis_result();
     return analyzer1.get_analysis_result();
@@ -130,6 +128,18 @@ PYBIND11_MODULE(libmain, m) {
        .def_readwrite("depinfo", &NNkernel::depinfo)
        .def_readwrite("ifmap_size", &NNkernel::ifmap_size)
        .def_readwrite("ofmap_size", &NNkernel::ofmap_size);
+    
+    py::class_<HWInfo>(m, "HWInfo")
+        .def(py::init<>())
+        .def_readwrite("xbar_size", &HWInfo::xbar_size)
+        .def_readwrite("xbar_num", &HWInfo::xbar_num)
+        .def_readwrite("tile_size", &HWInfo::tile_size)
+        .def_readwrite("pipeline_depth", &HWInfo::pipeline_depth);
+
+    py::class_<OptInfo>(m, "OptInfo")
+        .def(py::init<>())
+        .def_readwrite("mapping_opt", &OptInfo::mapping_opt)
+        .def_readwrite("sched_opt", &OptInfo::sched_opt);
 
     py::class_<AnalysisResult>(m, "AnalysisResult")
         .def(py::init<>())
@@ -161,5 +171,9 @@ PYBIND11_MODULE(libmain, m) {
 
     m.def("test", &test, "Process data and return a result");
 
-    m.def("analyze", &analyze, "Analyze data and return a result");
+    m.def("analyze", &analyze, 
+        py::arg("kernels"),
+        py::arg("info") = HWInfo{{1152, 256}, 2, {3, 3}, 1},
+        py::arg("opt") = OptInfo{true, true},
+        "Analyze data and return a result");
 }

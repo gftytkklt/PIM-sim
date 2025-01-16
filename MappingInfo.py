@@ -17,8 +17,8 @@ def latency_est(SimConfig_path,inputbit,outputbit):
 
     tiles_by_layer = {}
     layer=[]
-    bus_width = 32 #byte  booksim
-    freq = 1000 #Hz
+    bus_width = 8 #byte  booksim
+    freq = 1000000 #Hz
     #search deploy_info
     #all_tiles_mapping_infos[i] represents a specifc tile
 
@@ -34,7 +34,7 @@ def latency_est(SimConfig_path,inputbit,outputbit):
     print('layer num is ',layer_num)
 
     inj_matrix=divide_list_elements_3(data_matrix_by_layer,bus_width*freq)
-    create_injection_rate_files(home_path, layer_num,inj_matrix)
+    create_injection_rate_files(home_path, layer_num, inj_matrix)
 
     for tile_info in all_tiles_mapping_infos:
         layer = tile_info.layer
