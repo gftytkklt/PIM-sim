@@ -12,3 +12,4 @@
 /build
 /booksim2
 !libmain.so
+/.idea
