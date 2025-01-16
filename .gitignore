@@ -12,3 +12,9 @@
 /build
 /booksim2
 !libmain.so
+/.idea
+!booksim
+!mesh_config_inj_rate
+!SimConfig.ini
+!techfile.txt
+!inj_rate.txt
