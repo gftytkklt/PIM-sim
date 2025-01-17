@@ -171,7 +171,7 @@ def build_conv_info(model):
                     output_name = name
                     break
             if not output_name:
-                print(f"Warning: conv_layers {idx+1} has no input from conv_layers {idx}")
+                # print(f"Warning: conv_layers {idx+1} has no input from conv_layers {idx}")
                 output_name = conv_layers[idx].output[len(conv_layers[idx].output)-1]
 
             input_shape = shapes.get(input_name, (-1, -1))  # (N, C, H, W)
@@ -273,7 +273,7 @@ def convert_to_cpp(conv_info_list):
 
 def make_default_hw_info():
     hw_info = libmain.HWInfo()
-    hw_info.xbar_size = (64, 256) # 256 / (8 / 2)
+    hw_info.xbar_size = (256, 256) # 256 / (8 / 2)
     hw_info.xbar_num = 16
     hw_info.tile_size = (0, 0)
     hw_info.pipeline_depth = 1
@@ -294,7 +294,7 @@ def make_opt_info(map=1, sched=1):
 def analysis_model(path=None, hw_info=None, opt_info=None):
     path = path or set_path()
     model = load_model(path)
-    print(f'Loading model: {path}\n')
+    print(f'Loading model: {path}')
     conv_info_list = build_conv_info(model)
     nnkernel_list = convert_to_cpp(conv_info_list)
     hw_info = hw_info or make_default_hw_info()

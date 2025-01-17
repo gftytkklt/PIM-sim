@@ -68,7 +68,7 @@ def run_regression_test(models_dir='models', max_workers=4):
                 hw_info=None,
                 opt_info=make_opt_info(opt1, opt2)
             )
-            logging.info(f"模型 '{model_name}' opt_info=({opt1},{opt2}) 测试成功。输出:\n{output}")
+            logging.info(f"模型 '{model_name}' opt_info=({opt1},{opt2}) 测试成功。")
             return (model_name, opt1, opt2, 'Success', output)
         except FileNotFoundError as e:
             error_msg = str(e)

@@ -8,9 +8,9 @@ from MNSIM.Latency_Model.Tile_latency import tile_latency_analysis
 from MNSIM.Latency_Model.Pooling_latency import pooling_latency_analysis
 from MNSIM.Hardware_Model.Buffer import buffer
 
-def latency_est(SimConfig_path,inputbit,outputbit):
+def latency_est(SimConfig_path,inputbit=8,outputbit=8,model=None,opt_info=None):
     home_path = os.getcwd()
-    mapping_res = analysis_model()
+    mapping_res = analysis_model(path=model, hw_info=None, opt_info=opt_info)
 
     all_tiles_mapping_infos = mapping_res.deploy_info
     data_matrix_by_layer = mapping_res.datas # Byte
@@ -27,7 +27,7 @@ def latency_est(SimConfig_path,inputbit,outputbit):
     tile_num = len(all_tiles_mapping_infos)
 
     for i in range(0,tile_num):
-        print(all_tiles_mapping_infos[i].layer)# layer of i_th tile
+        # print(all_tiles_mapping_infos[i].layer)# layer of i_th tile
         layer.append(all_tiles_mapping_infos[i].layer)
 
     layer_num = max(layer)+1
@@ -43,7 +43,7 @@ def latency_est(SimConfig_path,inputbit,outputbit):
         else :
             tiles_by_layer[layer] = [tile_info]
 
-    print(tiles_by_layer)
+    # print(tiles_by_layer)
 
     cur_tile_info = {}
     cur_tile_path = {}
@@ -62,7 +62,7 @@ def latency_est(SimConfig_path,inputbit,outputbit):
         print('########################')
 
         j=0
-        avgdelay_perpack = latency_array[i]
+        avgdelay_perpack = latency_array[i] / freq
         print('avgdelay_perpack is', avgdelay_perpack)
 
         if (i == 0):
@@ -77,40 +77,40 @@ def latency_est(SimConfig_path,inputbit,outputbit):
 
         for tile in  tiles_by_layer[i]:
 
-                tile_indata = 0
+            tile_indata = 0
 
-                print('************')
-                print('tile',j,tile.tile_id)
-                print('************')
-                cur_tile_info['tile_id']=  tile.tile_id
-                cur_tile_info['child_tile'] = tile.child_tile
-                cur_tile_info['paths'] = tile.paths
-                cur_tile_info['cnode'] = tile.cnode
-                j=j+1
+            print('************')
+            print('tile',j,tile.tile_id)
+            print('************')
+            cur_tile_info['tile_id']=  tile.tile_id
+            cur_tile_info['child_tile'] = tile.child_tile
+            cur_tile_info['paths'] = tile.paths
+            cur_tile_info['cnode'] = tile.cnode
+            j=j+1
 
-                pth = 0
-                for cnode in cur_tile_info['cnode']:#specifc tile specifc path
-                    tile_indata += cnode.ifmap_size
+            pth = 0
+            for cnode in cur_tile_info['cnode']:#specifc tile specifc path
+                tile_indata += cnode.ifmap_size
 
-                for path in cur_tile_info['paths']:#specifc tile specifc path
-                    print('-----------')
-                    print('path', pth)
-                    print('-----------')
-                    cur_tile_path['src'] = path.src
-                    cur_tile_path['dst'] = path.dst
-                    cur_tile_path['via'] = path.via # jumps
-                    cur_tile_path['data_vol'] = path.datavolume #num of packs
-                    print('src is',path.src)
-                    print('dst is',path.dst)
-                    print('datavolume is', path.datavolume)
-                    print('vias are', path.via) # in this version , via is the whole path
-                    print('-----------')
-                    pth=pth+1
-                    tile_delay = tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit)
-                    transdelay = int(begin_time) + int(len(path.via)-1) * int(avgdelay_perpack) * int(path.datavolume)
-                    Stile_Spath_delay = tile_delay+transdelay+int(begin_time)
-                    print('Stile_Spath_delay is',Stile_Spath_delay)
-                    PathDelay_cur_layer.append(int(Stile_Spath_delay))
+            for path in cur_tile_info['paths']:#specifc tile specifc path
+                print('-----------')
+                print('path', pth)
+                print('-----------')
+                cur_tile_path['src'] = path.src
+                cur_tile_path['dst'] = path.dst
+                cur_tile_path['via'] = path.via # jumps
+                cur_tile_path['data_vol'] = path.datavolume #num of packs
+                print('src is',path.src)
+                print('dst is',path.dst)
+                print('datavolume is', path.datavolume)
+                print('vias are', path.via) # in this version , via is the whole path
+                print('-----------')
+                pth=pth+1
+                tile_delay = tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit)
+                transdelay = int(begin_time) + int(len(path.via)-1) * int(avgdelay_perpack) * int(path.datavolume)
+                Stile_Spath_delay = tile_delay+transdelay+int(begin_time)
+                print('Stile_Spath_delay is',Stile_Spath_delay)
+                PathDelay_cur_layer.append(int(Stile_Spath_delay))
         print(PathDelay_cur_layer)
 
 
@@ -250,7 +250,7 @@ def trans_time_booksim(homepath):
 
     return latency_array, NoC_latency
 
-def create_injection_rate_files(homepath, layer_num,inj_matrix_by_layer):
+def create_injection_rate_files(homepath, layer_num, inj_matrix_by_layer):
     print("rgt homepath--------------------")
     print(homepath)
     injection_directory_name = homepath + '/inj_dir'
@@ -262,18 +262,22 @@ def create_injection_rate_files(homepath, layer_num,inj_matrix_by_layer):
     fac = 10000
 
     for layer_idx in range(0, layer_num - 1):
-            inj_matrix = inj_matrix_by_layer[layer_idx]
-            os.chdir(injection_directory_name)
-            filename = 'inj_rate_' + str(layer_idx) + '.txt'
-            np.savetxt(filename, inj_matrix, fmt='%.12f')
-            os.chdir("..")
+        # if layer_idx not in inj_matrix_by_layer:
+        #     continue
+        inj_matrix = inj_matrix_by_layer[layer_idx]
+        os.chdir(injection_directory_name)
+        filename = 'inj_rate_' + str(layer_idx) + '.txt'
+        np.savetxt(filename, inj_matrix, fmt='%.12f')
+        os.chdir("..")
 
     return 0
 
 def divide_list_elements_3(input_list, divisor):
     # 使用 numpy 数组进行元素的除法操作
     input_array = np.array(input_list)
-    result = input_array / divisor
+    # result = input_array / divisor
+    result_array = input_array / divisor
+    result = np.maximum(result_array, 1e-10)
     return result.tolist()
 
 if __name__ == '__main__':
