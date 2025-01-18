@@ -97,13 +97,15 @@ def plot_perf(comm_result):
     ax.set_xticklabels(models)
     ax.legend()
 
-    # save fig
-    fig.savefig('results/comparison_plot.pdf', bbox_inches='tight')
-    print("fig saved.")
+    
 
     # 显示图形
     plt.xticks(rotation=45, ha='right')  # 旋转x轴标签以适应
     plt.tight_layout()
+    # save fig
+    fig.savefig('results/comparison_plot.pdf', bbox_inches='tight')
+    print("fig saved.")
+    
     plt.show()
 
 def load_and_plot():
