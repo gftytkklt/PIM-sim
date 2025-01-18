@@ -46,16 +46,16 @@ def perf_test(models_dir='models'):
             try:
                 cur_opt_info=make_opt_info(opt1, opt2)
                 # plot test
-                # _,comminfo = analysis_model(
-                #     kernel_list=cur_kernel,
-                #     hw_info=None,
-                #     opt_info=cur_opt_info,
-                # )
-                # if model_name not in test_results:
-                #     test_results[model_name] = {}
-                # test_results[model_name][(opt1, opt2)] = comminfo.path_num
+                _,comminfo = analysis_model(
+                    kernel_list=cur_kernel,
+                    hw_info=None,
+                    opt_info=cur_opt_info,
+                )
+                if model_name not in test_results:
+                    test_results[model_name] = {}
+                test_results[model_name][(opt1, opt2)] = comminfo.path_num
                 # perf exec
-                latency_est(SimConfig_path, inputbit, outputbit, cur_kernel, cur_opt_info)
+                # latency_est(SimConfig_path, inputbit, outputbit, cur_kernel, cur_opt_info)
                 
 
                 success += 1
