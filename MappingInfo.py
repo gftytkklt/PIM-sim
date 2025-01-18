@@ -10,7 +10,7 @@ from MNSIM.Hardware_Model.Buffer import buffer
 
 def latency_est(SimConfig_path,inputbit=8,outputbit=8,model=None,opt_info=None):
     home_path = os.getcwd()
-    mapping_res = analysis_model(path=model, hw_info=None, opt_info=opt_info)
+    mapping_res,comm_res = analysis_model(path=model, hw_info=None, opt_info=opt_info)
 
     all_tiles_mapping_infos = mapping_res.deploy_info
     data_matrix_by_layer = mapping_res.datas # Byte
@@ -262,9 +262,10 @@ def create_injection_rate_files(homepath, layer_num, inj_matrix_by_layer):
     fac = 10000
 
     for layer_idx in range(0, layer_num - 1):
-        # if layer_idx not in inj_matrix_by_layer:
-        #     continue
-        inj_matrix = inj_matrix_by_layer[layer_idx]
+        try:
+            inj_matrix = inj_matrix_by_layer[layer_idx]
+        except IndexError as e:
+            print(f"Index {layer_idx} is out of range. Error message: {e}")
         os.chdir(injection_directory_name)
         filename = 'inj_rate_' + str(layer_idx) + '.txt'
         np.savetxt(filename, inj_matrix, fmt='%.12f')

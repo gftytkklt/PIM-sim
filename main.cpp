@@ -103,7 +103,7 @@ auto analyze(const std::vector<NNkernel>& kernels, const HWInfo& info = {{1152, 
     analyzer1.generate_analysis_result();
     analyzer1.generate_comm_info();
     analyzer1.print_result();
-    return analyzer1.get_analysis_result();
+    return std::make_pair<AnalysisResult, CommInfo>(analyzer1.get_analysis_result(), analyzer1.get_comm_info());
 }
 
 int main() {
@@ -142,6 +142,13 @@ PYBIND11_MODULE(libmain, m) {
         .def(py::init<>())
         .def_readwrite("mapping_opt", &OptInfo::mapping_opt)
         .def_readwrite("sched_opt", &OptInfo::sched_opt);
+
+    py::class_<CommInfo>(m, "CommInfo")
+        .def(py::init<>())
+        .def_readwrite("path_num", &CommInfo::path_num)
+        .def_readwrite("datavolume", &CommInfo::datavolume)
+        .def_readwrite("total_hops", &CommInfo::total_hops)
+        .def_readwrite("total_congestion", &CommInfo::total_congestion);
 
     py::class_<AnalysisResult>(m, "AnalysisResult")
         .def(py::init<>())

@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
+import matplotlib.pyplot as plt
+import numpy as np
 import logging
 from MappingInfo import latency_est
-from onnx_analysis import analysis_model, make_opt_info
+from onnx_analysis import analysis_model, make_opt_info, load_model
 
 def perf_test(models_dir='models'):
     models_path = Path(models_dir)
@@ -20,9 +22,9 @@ def perf_test(models_dir='models'):
 
     opt_configs = [
         (1, 1),
-        # (1, 0),
-        # (0, 1),
-        # (0, 0)
+        (1, 0),
+        (0, 1),
+        (0, 0)
     ]
 
     home_path = os.getcwd()
@@ -31,20 +33,26 @@ def perf_test(models_dir='models'):
     outputbit=8
 
     success = 0
+    test_results = {}
 
-    for model in model_files:
-        model_name = model.name
+    for model_path in model_files:
+        model_name = model_path.name
         logging.info(f"正在测试模型: {model_name}")
+        # model = load_model(model_path)
         for opt1, opt2 in opt_configs:
             logging.info(f"(opt_info=({opt1},{opt2}))")
             try:
-                # output = analysis_model(
-                #     path=model,
-                #     hw_info=None,
-                #     opt_info=make_opt_info(opt1, opt2)
-                # )
-                opt_info=make_opt_info(opt1, opt2)
-                latency_est(SimConfig_path, inputbit, outputbit, model, opt_info)
+                _,comminfo = analysis_model(
+                    path=model_path,
+                    hw_info=None,
+                    opt_info=make_opt_info(opt1, opt2)
+                )
+                # opt_info=make_opt_info(opt1, opt2)
+                # latency_est(SimConfig_path, inputbit, outputbit, model, opt_info)
+                if model_name not in test_results:
+                    test_results[model_name] = {}
+                test_results[model_name][(opt1, opt2)] = comminfo.path_num
+
                 success += 1
                 logging.info(f"模型 '{model_name}' opt_info=({opt1},{opt2}) 测试成功。")
                 print("\n")
@@ -57,6 +65,32 @@ def perf_test(models_dir='models'):
                 logging.exception(f"在测试模型 '{model_name}' opt_info=({opt1},{opt2}) 时发生未预料的错误。")
                 break
     print(f"成功测试 {success} 个模型。")
+    return test_results
 
 if __name__ == "__main__":
-    perf_test()
+    comm_result = perf_test()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    # 获取所有模型名称和优化选项组合
+    models = list(comm_result.keys())
+    opt_combinations = sorted(set(opt for opts in comm_result.values() for opt in opts))
+    # 设置柱状图的宽度
+    bar_width = 0.2
+    index = np.arange(len(models))
+
+    # 为每个优化选项组合绘制柱状图
+    for i, opt in enumerate(opt_combinations):
+        values = [comm_result[model].get(opt, 0) for model in models]  # 获取每个模型对应的值
+        ax.bar(index + i * bar_width, values, bar_width, label=f'opt_info={opt}')
+
+    # 设置图形的标签和标题
+    ax.set_xlabel('model')
+    ax.set_ylabel('opt info')
+    ax.set_title('path number under different opt_info')
+    ax.set_xticks(index + bar_width * len(opt_combinations) / 2 - bar_width / 2)
+    ax.set_xticklabels(models)
+    ax.legend()
+
+    # 显示图形
+    plt.xticks(rotation=45, ha='right')  # 旋转x轴标签以适应
+    plt.tight_layout()
+    plt.show()
