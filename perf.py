@@ -3,8 +3,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import logging
+import pickle
 from MappingInfo import latency_est
-from onnx_analysis import analysis_model, make_opt_info, load_model
+from onnx_analysis import analysis_model, make_opt_info, load_kernel
+
 
 def perf_test(models_dir='models'):
     models_path = Path(models_dir)
@@ -38,20 +40,23 @@ def perf_test(models_dir='models'):
     for model_path in model_files:
         model_name = model_path.name
         logging.info(f"正在测试模型: {model_name}")
-        # model = load_model(model_path)
+        cur_kernel = load_kernel(model_path)
         for opt1, opt2 in opt_configs:
             logging.info(f"(opt_info=({opt1},{opt2}))")
             try:
-                _,comminfo = analysis_model(
-                    path=model_path,
-                    hw_info=None,
-                    opt_info=make_opt_info(opt1, opt2)
-                )
-                # opt_info=make_opt_info(opt1, opt2)
-                # latency_est(SimConfig_path, inputbit, outputbit, model, opt_info)
-                if model_name not in test_results:
-                    test_results[model_name] = {}
-                test_results[model_name][(opt1, opt2)] = comminfo.path_num
+                cur_opt_info=make_opt_info(opt1, opt2)
+                # plot test
+                # _,comminfo = analysis_model(
+                #     kernel_list=cur_kernel,
+                #     hw_info=None,
+                #     opt_info=cur_opt_info,
+                # )
+                # if model_name not in test_results:
+                #     test_results[model_name] = {}
+                # test_results[model_name][(opt1, opt2)] = comminfo.path_num
+                # perf exec
+                latency_est(SimConfig_path, inputbit, outputbit, cur_kernel, cur_opt_info)
+                
 
                 success += 1
                 logging.info(f"模型 '{model_name}' opt_info=({opt1},{opt2}) 测试成功。")
@@ -65,10 +70,12 @@ def perf_test(models_dir='models'):
                 logging.exception(f"在测试模型 '{model_name}' opt_info=({opt1},{opt2}) 时发生未预料的错误。")
                 break
     print(f"成功测试 {success} 个模型。")
+    with open('results/comm_result.pkl', 'wb') as f:
+        pickle.dump(test_results, f)
+        print("Data saved.")
     return test_results
 
-if __name__ == "__main__":
-    comm_result = perf_test()
+def plot_perf(comm_result):
     fig, ax = plt.subplots(figsize=(10, 6))
     # 获取所有模型名称和优化选项组合
     models = list(comm_result.keys())
@@ -90,7 +97,21 @@ if __name__ == "__main__":
     ax.set_xticklabels(models)
     ax.legend()
 
+    # save fig
+    fig.savefig('results/comparison_plot.pdf', bbox_inches='tight')
+    print("fig saved.")
+
     # 显示图形
     plt.xticks(rotation=45, ha='right')  # 旋转x轴标签以适应
     plt.tight_layout()
     plt.show()
+
+def load_and_plot():
+    with open('results/comm_result.pkl', 'rb') as f:
+        comm_result = pickle.load(f)
+    plot_perf(comm_result)
+
+if __name__ == "__main__":
+    comm_result = perf_test()
+    plot_perf(comm_result)
+    # load_and_plot()

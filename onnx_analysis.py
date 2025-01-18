@@ -291,15 +291,24 @@ def make_opt_info(map=1, sched=1):
     opt_info.sched_opt = sched
     return opt_info
 
-def analysis_model(path=None, hw_info=None, opt_info=None):
+# def analysis_model(path=None, hw_info=None, opt_info=None):
+    # path = path or set_path()
+    # model = load_model(path)
+    # print(f'Loading model: {path}')
+def load_kernel(path):
     path = path or set_path()
     model = load_model(path)
     print(f'Loading model: {path}')
     conv_info_list = build_conv_info(model)
     nnkernel_list = convert_to_cpp(conv_info_list)
+    return nnkernel_list
+
+def analysis_model(kernel_list=None, hw_info=None, opt_info=None):
+    # conv_info_list = build_conv_info(model)
+    # nnkernel_list = convert_to_cpp(conv_info_list)
     hw_info = hw_info or make_default_hw_info()
     opt_info = opt_info or make_default_opt_info()
-    return libmain.analyze(nnkernel_list, hw_info, opt_info)
+    return libmain.analyze(kernel_list, hw_info, opt_info)
 
 def main():
     """主函数"""

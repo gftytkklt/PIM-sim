@@ -8,9 +8,9 @@ from MNSIM.Latency_Model.Tile_latency import tile_latency_analysis
 from MNSIM.Latency_Model.Pooling_latency import pooling_latency_analysis
 from MNSIM.Hardware_Model.Buffer import buffer
 
-def latency_est(SimConfig_path,inputbit=8,outputbit=8,model=None,opt_info=None):
+def latency_est(SimConfig_path,inputbit=8,outputbit=8,kernel=None,opt_info=None):
     home_path = os.getcwd()
-    mapping_res,comm_res = analysis_model(path=model, hw_info=None, opt_info=opt_info)
+    mapping_res,comm_res = analysis_model(kernel_list=kernel, hw_info=None, opt_info=opt_info)
 
     all_tiles_mapping_infos = mapping_res.deploy_info
     data_matrix_by_layer = mapping_res.datas # Byte
