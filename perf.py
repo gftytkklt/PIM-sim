@@ -53,10 +53,16 @@ def perf_test(models_dir='models'):
                 )
                 if model_name not in test_results:
                     test_results[model_name] = {}
-                test_results[model_name][(opt1, opt2)] = comminfo.path_num
+                # test_results[model_name][(opt1, opt2)] = comminfo.path_num
+                test_results[model_name][(opt1, opt2)] = {
+                    "path_num": comminfo.path_num,
+                    "datavolume": comminfo.datavolume,
+                    "total_hops": comminfo.total_hops,
+                    "total_congestion": comminfo.total_congestion,
+                }
+
                 # perf exec
-                # latency_est(SimConfig_path, inputbit, outputbit, cur_kernel, cur_opt_info)
-                
+                # latency_est(SimConfig_path, inputbit, outputbit, cur_kernel, cur_opt_info) 
 
                 success += 1
                 logging.info(f"模型 '{model_name}' opt_info=({opt1},{opt2}) 测试成功。")
@@ -75,7 +81,10 @@ def perf_test(models_dir='models'):
         print("Data saved.")
     return test_results
 
-def plot_perf(comm_result):
+def get_opt_str(opt_info):
+    return f"{'DP' if opt_info[0] else 'ZZ'}-{'CA' if opt_info[1] else 'XY'}"
+
+def plot_perf(comm_result, dict_key=None, norm=0):
     fig, ax = plt.subplots(figsize=(10, 6))
     # 获取所有模型名称和优化选项组合
     models = list(comm_result.keys())
@@ -85,35 +94,48 @@ def plot_perf(comm_result):
     index = np.arange(len(models))
 
     # 为每个优化选项组合绘制柱状图
+    if norm:
+        base_values = [
+            comm_result[model].get(opt_combinations[0], {}).get(dict_key, 0) 
+            for model in models
+        ]
     for i, opt in enumerate(opt_combinations):
-        values = [comm_result[model].get(opt, 0) for model in models]  # 获取每个模型对应的值
-        ax.bar(index + i * bar_width, values, bar_width, label=f'opt_info={opt}')
+        values = [comm_result[model].get(opt, 0).get(dict_key, 0) for model in models]  # 获取每个模型对应的值
+        if norm:
+            values = [value / base_value for value, base_value in zip(values, base_values)]
+        ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
 
     # 设置图形的标签和标题
-    ax.set_xlabel('model')
-    ax.set_ylabel('opt info')
-    ax.set_title('path number under different opt_info')
+    # ax.set_xlabel('model')
+    # ax.set_ylabel('value')
+    title = f'Normalized {dict_key} under different opt_info' if norm else f'{dict_key} under different opt_info'
+    ax.set_title(title)
     ax.set_xticks(index + bar_width * len(opt_combinations) / 2 - bar_width / 2)
-    ax.set_xticklabels(models)
-    ax.legend()
-
-    
+    models_name = [model.split('.')[0] for model in models]
+    ax.set_xticklabels(models_name)
+    # 设置y轴范围，确保有足够的空间给标签
+    ax.set_ylim(0, 1.4)  # 增加y轴的上限
+    ax.legend(loc='upper right', bbox_to_anchor=(1, 1))
 
     # 显示图形
     plt.xticks(rotation=45, ha='right')  # 旋转x轴标签以适应
-    plt.tight_layout()
     # save fig
-    fig.savefig('results/comparison_plot.pdf', bbox_inches='tight')
+    file_name = f'results/norm_{dict_key}.pdf' if norm else f'results/{dict_key}.pdf'
+    fig.savefig(file_name, bbox_inches='tight')
     print("fig saved.")
     
-    plt.show()
+    # plt.show()
 
-def load_and_plot():
+def load_and_plot(dict_key=None, norm=0):
     with open('results/comm_result.pkl', 'rb') as f:
         comm_result = pickle.load(f)
-    plot_perf(comm_result)
+    plot_perf(comm_result, dict_key, norm)
 
 if __name__ == "__main__":
-    comm_result = perf_test()
-    plot_perf(comm_result)
+    # comm_result = perf_test()
+    key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
+    for key in key_list:
+        # plot_perf(comm_result, key)
+        load_and_plot(key, 1)
+    # plot_perf(comm_result)
     # load_and_plot()

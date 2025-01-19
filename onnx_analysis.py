@@ -9,10 +9,10 @@ from typing import List, Tuple
 # 设置内置的onnx模型for test
 model_name = 'resnet18' # 'alexnet'  # 'yolov5m'  # 'resnet18' # 'mobilenetv2'
 model_paths = {
-    'alexnet': 'models/alexnet_Opset17.onnx',  # https://github.com/onnx/models/blob/main/Computer_Vision/alexnet_Opset17_torch_hub/alexnet_Opset17.onnx
+    'alexnet': 'models/alexnet.onnx',  # https://github.com/onnx/models/blob/main/Computer_Vision/alexnet_Opset17_torch_hub/alexnet_Opset17.onnx
     'yolov5m': 'models/yolov5m.onnx',  # https://github.com/ultralytics/yolov5/releases
-    'resnet18': 'models/resnet18_Opset18.onnx',  # https://github.com/onnx/models/blob/main/Computer_Vision/resnet18_Opset18_timm/resnet18_Opset18.onnx
-    'mobilenetv2': 'models/mobilenetv2-12.onnx', # https://github.com/onnx/models/tree/main/validated/vision/classification/mobilenet/model
+    'resnet18': 'models/resnet18.onnx',  # https://github.com/onnx/models/blob/main/Computer_Vision/resnet18_Opset18_timm/resnet18_Opset18.onnx
+    'mobilenetv2': 'models/mobilenetv2.onnx', # https://github.com/onnx/models/tree/main/validated/vision/classification/mobilenet/model
 }
 
 # 接受命令行自定义的模型路径参数
