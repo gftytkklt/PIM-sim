@@ -381,11 +381,16 @@ public:
     DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth, bool sched);
     std::pair<int, int> id_to_xy(size_t id) const {return hg_ref->id_to_xy(id);}
     size_t xy_to_id(std::pair<int, int> xy) const {return hg_ref->xy_to_id(xy);}
-    std::vector<Path> get_path(size_t src) const {
-        auto it = paths.find(src);
-        return it == paths.end() ? std::vector<Path>{} : it->second;
+    // get path ptr with src tnode id
+    std::vector<std::shared_ptr<Path>> get_tpath(size_t src) {
+        // auto it = paths.find(src);
+        auto it = path_map.find(src);
+        return it == path_map.end() ? std::vector<std::shared_ptr<Path>>{} : get_pathset(it->second);
     }
-    std::vector<std::vector<Path>> get_path_segs() const {return path_segs;}
+    // std::vector<std::vector<Path>> get_path_segs() const {return path_segs;}
+    std::vector<std::vector<int>> get_path_segs() const {return path_segs;}
+    std::vector<std::shared_ptr<Path>> get_pathset(std::vector<int> path_ids);
+    std::vector<std::shared_ptr<Path>> get_pathset(std::vector<int> path_ids) const;
     auto get_congestion_segs() const {return congestion_segs;}
     void print_graph_info() const;
     void print_path_info() const;
@@ -394,13 +399,16 @@ private:
     std::pair<int, int> tile_size; // (W, H) of tile array
     bool sched_opt = true; // scheduling optimization flag, default true
     UGraph sdg; // HCG node and path set
-    std::vector<std::vector<Path>> path_segs; // path subset of each DSeg
+    // std::vector<std::vector<Path>> path_segs; // path subset of each DSeg
+    std::vector<std::vector<int>> path_segs; // path subset of each DSeg
     std::shared_ptr<const HGraph> hg_ref; // HCG for DHCG inference
     std::shared_ptr<const TGraph> tg_ref; // T-VDFG for DHCG inference
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for DHCG inference
     std::map<size_t, std::vector<int>> tdep_map; // (prop_node, tdeps)
     std::map<int, size_t> harbor_map;
-    std::map<size_t, std::vector<Path>> paths; // path info with src tnode id
+    // std::map<size_t, std::vector<Path>> paths; // path info with src tnode id
+    std::map<size_t, std::vector<int>> path_map; // path info with src tnode id
+    std::vector<Path> paths; // path info
     std::vector<long long> congestion_segs; // congestion of each seg
     // std::map<size_t, double> congestion_map; // (path_id, congestion)
     // std::vector<Path> final_path; // final path set (poor design)
@@ -414,7 +422,7 @@ private:
     void create_DSeg();
     void bce_routing();
     void xy_routing();
-    void add_path(const Path& path);
+    void add_path(const std::shared_ptr<Path> path_ptr);
 };
 
 #endif

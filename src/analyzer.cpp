@@ -24,7 +24,8 @@ void Analyzer::generate_analysis_result(){
             return hg.get_hnode(node);
         });
         // get paths
-        std::vector<Path> paths = dg.get_path(v);
+        // std::vector<Path> paths = dg.get_tpath(v);
+        auto paths = dg.get_tpath(v);
         // get cnode
         auto cnode_id = tg.get_node_property(v, tgraph).cnode_id;
         // get layer
@@ -35,17 +36,27 @@ void Analyzer::generate_analysis_result(){
             return cnode;
             // return cg.get_node_property(node, cgraph);
         });
-        result.deploy_info.push_back(DeployInfo{layer, tile_id, child_tile, paths, cnode});
+        std::vector<Path> path_vec;
+        for (const auto& path : paths) {
+            path_vec.push_back(*path);
+        }
+        result.deploy_info.push_back(DeployInfo{layer, tile_id, child_tile, path_vec, cnode});
     }
     // create data matrix
     auto [rows, cols] = hg.get_shape();
     for (const auto& seg : dg.get_path_segs()) {
         DataMatrix data(rows*cols, std::vector<int>(rows*cols, 0));
-        for (const auto& path : seg) {
-            auto datavolume = path.datavolume;
-            for (int i = 0; i < path.via.size()-1; i++) {
-                auto src = hg.xy_to_id(path.via[i]);
-                auto dst = hg.xy_to_id(path.via[i+1]);
+        auto paths = dg.get_pathset(seg);
+        // for (const auto& path : seg) {
+        for (const auto& path : paths) {
+            // auto datavolume = path.datavolume;
+            auto datavolume = path->datavolume;
+            // for (int i = 0; i < path.via.size()-1; i++) {
+                // auto src = hg.xy_to_id(path.via[i]);
+                // auto dst = hg.xy_to_id(path.via[i+1]);
+            for (int i = 0; i < path->via.size()-1; i++) {
+                auto src = hg.xy_to_id(path->via[i]);
+                auto dst = hg.xy_to_id(path->via[i+1]);
                 data[src][dst] += datavolume;
             }
         }
@@ -62,9 +73,13 @@ void Analyzer::generate_comm_info() {
     long long total_congestion = 0;
     for (const auto& seg : path_segs) {
         path_num += seg.size();
-        for (const auto& path : seg) {
-            datavolume += path.datavolume;
-            total_hops += path.via.size() - 1;
+        auto paths = dg.get_pathset(seg);
+        // for (const auto& path : seg) {
+        for (const auto& path : paths) {
+            // datavolume += path.datavolume;
+            // total_hops += path.via.size() - 1;
+            datavolume += path->datavolume;
+            total_hops += path->via.size() - 1;
         }
     }
     // get total congestion

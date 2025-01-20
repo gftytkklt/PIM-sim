@@ -594,12 +594,12 @@ void DGraph::analysis() {
     set_harbor();
     set_sdg();
     create_DSeg();
-    // std::cout << "before" << std::endl;
-    // print_path_info();
+    std::cout << "before" << std::endl;
+    print_path_info();
     if (sched_opt) {
         bce_routing();
-        // std::cout << "after" << std::endl;
-        // print_path_info();
+        std::cout << "after" << std::endl;
+        print_path_info();
     }
     else {
         xy_routing();
@@ -703,7 +703,9 @@ void DGraph::set_sdg() {
             auto path = XYinit(src_tile, dst_tile);
             // add path to paths
             // paths.push_back(Path{path, datavolume});
-            paths[harbor_id].push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
+            // paths[harbor_id].push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
+            path_map[harbor_id].push_back(path_id);
+            paths.push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
         }
         // intra-layer tedge
         for (const auto& tdep_elem : tdep_ids) {
@@ -724,7 +726,9 @@ void DGraph::set_sdg() {
                         auto path = XYinit(src_tile, dst_tile);
                         // add path to paths
                         // paths.push_back(Path{path, datavolume});
-                        paths[src].push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
+                        // paths[src].push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
+                        path_map[src].push_back(path_id);
+                        paths.push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
                     }
                 }
             }
@@ -767,12 +771,14 @@ void DGraph::create_DSeg() {
     // if depth = 0, add standalone if branch to impl
     for (int i = 1; i < layer_num; i += pipeline_depth) {
         auto dst_layer = std::min(i + pipeline_depth, layer_num);
-        std::vector<Path> path_seg{};
+        // std::vector<Path> path_seg{};
+        std::vector<int> path_seg{};
         for (size_t id = 0; id < layer.size(); id++) {
             if (layer[id] >= i && layer[id] < dst_layer) {
                 // append edge to path_seg
                 auto tnode_id = topo_order[id];
-                auto pathset = paths[tnode_id];
+                // auto pathset = paths[tnode_id];
+                auto pathset = path_map[tnode_id];
                 path_seg.insert(path_seg.end(), 
                 std::make_move_iterator(pathset.begin()),
                 std::make_move_iterator(pathset.end()));
@@ -781,13 +787,30 @@ void DGraph::create_DSeg() {
         path_segs.push_back(path_seg);
     }
 }
+
+std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<int> path_ids) const {
+    std::vector<std::shared_ptr<Path>> pathset{};
+    std::transform(path_ids.begin(), path_ids.end(), std::back_inserter(pathset), [this](int idx) {
+            return std::make_shared<Path>(paths[idx]);  // 根据id提取对应的shared_ptr
+        });
+    return pathset;
+}
+
+std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<int> path_ids) {
+    std::vector<std::shared_ptr<Path>> pathset{};
+    std::transform(path_ids.begin(), path_ids.end(), std::back_inserter(pathset), [this](int idx) {
+            return std::make_shared<Path>(paths[idx]);  // 根据id提取对应的shared_ptr
+        });
+    return pathset;
+}
+
 /**
  * @brief use path_seg to optimize routing
  * 
  */
 void DGraph::bce_routing() {
     // schedule pathset-wise
-    for (auto& pathset : path_segs) {
+    for (auto& seg : path_segs) {
         // std::cout << "dg Path before:" << std::endl;
         // for (const auto& path : pathset) {
         //     for (const auto& via : path.via) {
@@ -795,11 +818,19 @@ void DGraph::bce_routing() {
         //     }
         //     std::cout << std::endl;
         // }
+        // pathset : std::vector<Path>
+        // auto pathset_ptr = get_pathset(seg);
+        // std::vector<Path> pathset{};
+        // std::transform(pathset_ptr.begin(), pathset_ptr.end(), std::back_inserter(pathset), [](std::shared_ptr<Path> path_ptr) {
+        //     return *path_ptr;
+        // });
+        // pathset : std::vector<std::shared_ptr<Path>>
+        auto pathset = get_pathset(seg);
         scheduler.set_path_set(pathset);
         // pathset = scheduler.schedule();
         auto schedinfo = scheduler.schedule();
         congestion_segs.push_back(schedinfo.first);
-        pathset = schedinfo.second;
+        // pathset = schedinfo.second;
 
         // std::cout << "dg Path after:" << std::endl;
         // for (const auto& path : pathset) {
@@ -816,18 +847,26 @@ void DGraph::bce_routing() {
 }
 
 void DGraph::xy_routing() {
-    for (const auto& pathset: path_segs) {
+    for (const auto& seg: path_segs) {
+        // auto pathset_ptr = get_pathset(seg);
+        // std::vector<Path> pathset{};
+        // std::transform(pathset_ptr.begin(), pathset_ptr.end(), std::back_inserter(pathset), [](std::shared_ptr<Path> path_ptr) {
+        //     return *path_ptr;
+        // });
+        auto pathset = get_pathset(seg);
         scheduler.set_path_set(pathset);
         auto schedinfo = scheduler.xy_routing();
         congestion_segs.push_back(schedinfo.first);
-        auto path_seg = schedinfo.second;
-        for (const auto& path : path_seg) {
+        // auto path_seg = schedinfo.second;
+        // for (const auto& path : path_seg) {
+        for (const auto& path : pathset) {
             add_path(path);
         }
     }
 }
 
-void DGraph::add_path(const Path& path) {
+void DGraph::add_path(const std::shared_ptr<Path> path_ptr) {
+    auto path = *path_ptr;
     const auto& via = path.via;
     for (int i = 0; i < via.size() - 1; i++) {
         auto src = xy_to_id(via[i]);
@@ -844,9 +883,11 @@ void DGraph::print_graph_info() const {
     // print seg num
     std::cout << "Segment num: " << path_segs.size() << std::endl;
     // print path info
-    for (const auto& [key, val] : paths) {
+    for (const auto& [key, val] : path_map) {
         std::cout << "Path of tile " << key << std::endl;
-        for (const auto& path : val) {
+        auto paths = get_pathset(val);
+        for (const auto& path_ptr : paths) {
+            auto path = *path_ptr;
             std::cout << "Path: ";
             for (const auto& node : path.via) {
                 std::cout << node.first << "," << node.second << " ";
@@ -861,7 +902,9 @@ void DGraph::print_path_info() const {
     int i = 0;
     for (const auto& seg : path_segs) {
         std::cout << "Segment " << i++ << std::endl;
-        for (const auto& path : seg) {
+        auto paths = get_pathset(seg);
+        for (const auto& path_ptr : paths) {
+            auto path = *path_ptr;
             std::cout << "Path: ";
             for (const auto& node : path.via) {
                 std::cout << node.first << "," << node.second << " ";
