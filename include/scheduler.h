@@ -125,15 +125,19 @@ struct WeightCalculator {
     }
 };
 
-using SchedInfo = std::pair<long long, std::vector<Path>>;
+// using SchedInfo = std::pair<long long, std::vector<Path>>;
+using SchedInfo = std::pair<long long, std::vector<std::shared_ptr<Path>>>;
 
 class Scheduler {
 public:
     Scheduler() = default;
     Scheduler(std::pair<int, int> tile_size);
     // use & to schedule via scheduler directly
-    void set_path_set(std::vector<Path> path_set) {
-        this->path_set = std::make_shared<std::vector<Path>>(path_set);
+    // void set_path_set(std::vector<Path> path_set) {
+    //     this->path_set = std::make_shared<std::vector<Path>>(path_set);
+    // }
+    void set_path_set(std::vector<std::shared_ptr<Path>> path_set) {
+        this->path_set = path_set;
     }
     // std::vector<Path> schedule();
     SchedInfo schedule();
@@ -146,7 +150,8 @@ public:
     }
 private:
     SGraph graph;
-    std::shared_ptr<std::vector<Path>> path_set;
+    // std::shared_ptr<std::vector<Path>> path_set;
+    std::vector<std::shared_ptr<Path>> path_set;
     std::pair<int, int> tile_size;
     std::map<UnorderedPair, size_t> edge_map;// edge, id map pair
     std::map<size_t, double> bce_map; // (path_id, bce)

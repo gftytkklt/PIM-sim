@@ -59,27 +59,49 @@ SchedInfo Scheduler::schedule() {
     //     std::cout << std::endl;
     // }
     // return *path_set;
-    return SchedInfo{total_congestion, *path_set};
+    // return SchedInfo{total_congestion, *path_set};
+    return SchedInfo{total_congestion, path_set};
 }
 
+// SchedInfo Scheduler::xy_routing() {
+//     // don't care bce
+//     congestion_map.clear();
+//     // add congestion volume only
+//     for (const auto& path : *path_set) {
+//         // use default xy-routing
+//         for (int i = 0; i < path.via.size() - 1; i++) {
+//             auto src = xy_to_id(path.via[i]);
+//             auto dst = xy_to_id(path.via[i + 1]);
+//             auto edge_id = edge_map[UnorderedPair{src, dst}];
+//             congestion_map[edge_id].insert(path.datavolume);
+//         }
+//     }
+//     long long total_congestion = 0;
+//     for (const auto& [key, val] : congestion_map) {
+//         total_congestion += val.getCSum();
+//     }
+//     return SchedInfo{total_congestion, *path_set};
+// }
+
+// modified version
 SchedInfo Scheduler::xy_routing() {
     // don't care bce
     congestion_map.clear();
     // add congestion volume only
-    for (const auto& path : *path_set) {
+    for (const auto& path : path_set) {
         // use default xy-routing
-        for (int i = 0; i < path.via.size() - 1; i++) {
-            auto src = xy_to_id(path.via[i]);
-            auto dst = xy_to_id(path.via[i + 1]);
+        for (int i = 0; i < path->via.size() - 1; i++) {
+            auto src = xy_to_id(path->via[i]);
+            auto dst = xy_to_id(path->via[i + 1]);
             auto edge_id = edge_map[UnorderedPair{src, dst}];
-            congestion_map[edge_id].insert(path.datavolume);
+            congestion_map[edge_id].insert(path->datavolume);
         }
     }
     long long total_congestion = 0;
     for (const auto& [key, val] : congestion_map) {
         total_congestion += val.getCSum();
     }
-    return SchedInfo{total_congestion, *path_set};
+    return SchedInfo{total_congestion, path_set};
 }
 
 void Scheduler::init_bce() {
@@ -88,7 +110,9 @@ void Scheduler::init_bce() {
     // clear bce_map first
     bce_map.clear();
     congestion_map.clear();
-    for (const auto& path : *path_set) {
+    // for (const auto& path : *path_set) {
+    for (const auto& path_ptr : path_set) {
+        auto& path = *path_ptr;
         // print path info
         // std::cout << "Path: " << path.id << " from " << path.src.first << "," << path.src.second << " to " << path.dst.first << "," << path.dst.second << std::endl;
         auto src = xy_to_id(path.src);
@@ -170,25 +194,36 @@ void Scheduler::init_bce() {
 void Scheduler::congestion_aware_routing() {
     // sort path by manhattan distance and data volume
     // path with min manhattan distance and max data volume is scheduled first
-    std::sort(path_set->begin(), path_set->end(), 
+    // std::sort(path_set->begin(), path_set->end(), 
+    // std::sort(path_set->begin(), path_set->end(),
+    std::sort(path_set.begin(), path_set.end(),
         [](const auto& p1, const auto& p2) {
-            auto m1 = manhattan_distance(p1.src, p1.dst);
-            auto m2 = manhattan_distance(p2.src, p2.dst);
+            // auto m1 = manhattan_distance(p1.src, p1.dst);
+            // auto m2 = manhattan_distance(p2.src, p2.dst);
+            auto m1 = manhattan_distance(p1->src, p1->dst);
+            auto m2 = manhattan_distance(p2->src, p2->dst);
             if(m1 != m2) {
                 return m1 < m2;
             }
-            return p1.datavolume > p2.datavolume;
+            // return p1.datavolume > p2.datavolume;
+            return p1->datavolume > p2->datavolume;
         });
     
     // schdeule path by path
-    for (auto& path : *path_set) {
+    // for (auto& path : *path_set) {
+    for (auto& path : path_set) {
         // print path src and dst
         // std::cout << path.src.first << "," << path.src.second << " -> " << path.dst.first << "," << path.dst.second << std::endl;
-        auto value = path.datavolume;
-        auto src = xy_to_id(path.src);
-        auto dst = xy_to_id(path.dst);
-        auto x_range = std::make_pair(std::min(path.src.first, path.dst.first), std::max(path.src.first, path.dst.first));
-        auto y_range = std::make_pair(std::min(path.src.second, path.dst.second), std::max(path.src.second, path.dst.second));
+        // auto value = path.datavolume;
+        auto value = path->datavolume;
+        // auto src = xy_to_id(path.src);
+        auto src = xy_to_id(path->src);
+        // auto dst = xy_to_id(path.dst);
+        auto dst = xy_to_id(path->dst);
+        // auto x_range = std::make_pair(std::min(path.src.first, path.dst.first), std::max(path.src.first, path.dst.first));
+        auto x_range = std::make_pair(std::min(path->src.first, path->dst.first), std::max(path->src.first, path->dst.first));
+        // auto y_range = std::make_pair(std::min(path.src.second, path.dst.second), std::max(path.src.second, path.dst.second));
+        auto y_range = std::make_pair(std::min(path->src.second, path->dst.second), std::max(path->src.second, path->dst.second));
         // weight calculator
         WeightCalculator weight_calculator{graph, edge_map, bce_map, congestion_map, tile_size, x_range, y_range, value};
         // constrained_dijkstra_visitor vis{path.src, path.dst, *this};
@@ -209,7 +244,8 @@ void Scheduler::congestion_aware_routing() {
             auto edge_id = edge_map[UnorderedPair{pred[v], v}];
             congestion_map[edge_id].insert(value);
         }
-        path_vec.push_back(path.src);
+        // path_vec.push_back(path.src);
+        path_vec.push_back(path->src);
         std::reverse(path_vec.begin(), path_vec.end());
         // print path via
         // for (const auto& node : path.via) {
@@ -220,7 +256,15 @@ void Scheduler::congestion_aware_routing() {
         //     std::cout << node.first << "," << node.second << " ";
         // }
         // std::cout << std::endl;
-        path.via = path_vec;
+        // path.via = path_vec;
+        path->via = path_vec;
         // std::cout << std::endl;
     }
+    // print path_set
+    // for (const auto& path : path_set) {
+    //     for (const auto& node : path->via) {
+    //         std::cout << node.first << "," << node.second << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
 }

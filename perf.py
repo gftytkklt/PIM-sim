@@ -1,4 +1,5 @@
 import os
+import csv
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
@@ -84,7 +85,7 @@ def perf_test(models_dir='models'):
 def get_opt_str(opt_info):
     return f"{'DP' if opt_info[0] else 'ZZ'}-{'CA' if opt_info[1] else 'XY'}"
 
-def plot_perf(comm_result, dict_key=None, norm=0):
+def plot_perf(comm_result, dict_key=None, norm=1):
     fig, ax = plt.subplots(figsize=(10, 6))
     # 获取所有模型名称和优化选项组合
     models = list(comm_result.keys())
@@ -131,11 +132,38 @@ def load_and_plot(dict_key=None, norm=0):
         comm_result = pickle.load(f)
     plot_perf(comm_result, dict_key, norm)
 
+def get_data_percentage(comm_result=None, dict_key=None):
+    if comm_result is None:
+        with open('results/comm_result.pkl', 'rb') as f:
+            comm_result = pickle.load(f)
+    # 获取所有模型名称和优化选项组合
+    models = list(comm_result.keys())
+    opt_combinations = sorted(set(opt for opts in comm_result.values() for opt in opts))
+    base_values = [
+        comm_result[model].get(opt_combinations[0], {}).get(dict_key, 0) 
+        for model in models
+    ]
+    output_file = f"results/{dict_key}.csv"
+    with open(output_file, 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(["opt_info", "values", "range", "average"])
+        for _, opt in enumerate(opt_combinations):
+            values = [comm_result[model].get(opt, 0).get(dict_key, 0) for model in models]  # 获取每个模型对应的值
+            values = [value / base_value for value, base_value in zip(values, base_values)]
+            value_range = (min(values), max(values))
+            average = sum(values) / len(values)
+            # 将结果写入文件
+            writer.writerow([get_opt_str(opt), values, value_range, average])
+            # f.write(f"opt_info={opt}, values={values}, range={value_range}\n")
+            # print(f"opt_info={opt}, values={values}, range={value_range}")  # 打印到控制台（可选）
+        
+
 if __name__ == "__main__":
-    # comm_result = perf_test()
+    comm_result = perf_test()
     key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     for key in key_list:
-        # plot_perf(comm_result, key)
-        load_and_plot(key, 1)
+        plot_perf(comm_result, key)
+        # load_and_plot(key, 1)
+        # get_data_percentage(comm_result=None, dict_key=key)
     # plot_perf(comm_result)
     # load_and_plot()
