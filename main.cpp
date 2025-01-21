@@ -153,7 +153,7 @@ PYBIND11_MODULE(libmain, m) {
     py::class_<AnalysisResult>(m, "AnalysisResult")
         .def(py::init<>())
         .def_readwrite("deploy_info", &AnalysisResult::deploy_info)
-        .def_readwrite("datas", &AnalysisResult::datas);
+        .def_readwrite("comm_segs", &AnalysisResult::comm_segs);
 
     py::class_<DeployInfo>(m, "DeployInfo")
         .def(py::init<>())
@@ -177,6 +177,11 @@ PYBIND11_MODULE(libmain, m) {
         .def_readwrite("ofmap_size", &CNode::ofmap_size)
         .def_readwrite("id_cin", &CNode::id_cin)
         .def_readwrite("id_cout", &CNode::id_cout);
+
+    py::class_<CommSeg>(m, "CommSeg")
+        .def(py::init<>())
+        .def_readwrite("layers", &CommSeg::layers)
+        .def_readwrite("datas", &CommSeg::datas);
 
     m.def("test", &test, "Process data and return a result");
 

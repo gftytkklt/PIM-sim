@@ -23,7 +23,7 @@ TEST_F(AnalyzerTest, OptAll) {
     Analyzer analyzer = Analyzer(kernels, info, opt);
     analyzer.generate_analysis_result();
     analyzer.generate_comm_info();
-    // analyzer.print_result();
+    analyzer.print_result();
 }
 
 // TEST_F(AnalyzerTest, OptSchedule) {

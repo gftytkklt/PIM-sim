@@ -44,23 +44,39 @@ void Analyzer::generate_analysis_result(){
     }
     // create data matrix
     auto [rows, cols] = hg.get_shape();
-    for (const auto& seg : dg.get_path_segs()) {
+    // for (const auto& seg : dg.get_path_segs()) {
+    //     DataMatrix data(rows*cols, std::vector<int>(rows*cols, 0));
+    //     auto paths = dg.get_pathset(seg);
+    //     // for (const auto& path : seg) {
+    //     for (const auto& path : paths) {
+    //         // auto datavolume = path.datavolume;
+    //         auto datavolume = path->datavolume;
+    //         // for (int i = 0; i < path.via.size()-1; i++) {
+    //             // auto src = hg.xy_to_id(path.via[i]);
+    //             // auto dst = hg.xy_to_id(path.via[i+1]);
+    //         for (int i = 0; i < path->via.size()-1; i++) {
+    //             auto src = hg.xy_to_id(path->via[i]);
+    //             auto dst = hg.xy_to_id(path->via[i+1]);
+    //             data[src][dst] += datavolume;
+    //         }
+    //     }
+    //     result.datas.push_back(data);
+    // }
+    auto path_segs = dg.get_path_segs();
+    auto layer_segs = dg.get_layer_segs();
+    for (auto i = 0;i < path_segs.size(); i++) {
         DataMatrix data(rows*cols, std::vector<int>(rows*cols, 0));
-        auto paths = dg.get_pathset(seg);
-        // for (const auto& path : seg) {
+        auto paths = dg.get_pathset(path_segs[i]);
         for (const auto& path : paths) {
-            // auto datavolume = path.datavolume;
             auto datavolume = path->datavolume;
-            // for (int i = 0; i < path.via.size()-1; i++) {
-                // auto src = hg.xy_to_id(path.via[i]);
-                // auto dst = hg.xy_to_id(path.via[i+1]);
             for (int i = 0; i < path->via.size()-1; i++) {
                 auto src = hg.xy_to_id(path->via[i]);
                 auto dst = hg.xy_to_id(path->via[i+1]);
                 data[src][dst] += datavolume;
             }
         }
-        result.datas.push_back(data);
+        auto layer_seg_vec = std::vector<int>(layer_segs[i].begin(), layer_segs[i].end());
+        result.comm_segs.push_back(CommSeg{layer_seg_vec, data});
     }
 }
 
@@ -122,6 +138,20 @@ void Analyzer::print_result() const {
     //     }
     //     std::cout << std::endl;
     // }
+    std::cout << "Comm Segs:" << std::endl;
+    for (const auto& seg : result.comm_segs) {
+        std::cout << "Layers: ";
+        for (const auto& layer : seg.layers) {
+            std::cout << layer << " ";
+        }
+        std::cout << std::endl;
+        for (const auto& row : seg.datas) {
+            for (const auto& col : row) {
+                std::cout << col << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
     std::cout << "Comm Info:" << std::endl;
     std::cout << "Path num: " << comm_info.path_num << std::endl;
     std::cout << "Data volume: " << comm_info.datavolume << std::endl;

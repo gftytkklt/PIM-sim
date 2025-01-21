@@ -23,6 +23,11 @@ struct HWInfo {
     int pipeline_depth;
 };
 
+struct CommSeg {
+    std::vector<int> layers;
+    DataMatrix datas;
+};
+
 struct CommInfo {
     int path_num;
     int datavolume;
@@ -32,7 +37,8 @@ struct CommInfo {
 
 struct AnalysisResult {
     std::vector<DeployInfo> deploy_info; // deployment info of chip
-    std::vector<DataMatrix> datas; // transfer data volume matricies
+    // std::vector<DataMatrix> datas; // transfer data volume matricies
+    std::vector<CommSeg> comm_segs;
 };
 
 struct OptInfo {
