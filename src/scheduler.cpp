@@ -261,10 +261,10 @@ void Scheduler::congestion_aware_routing() {
         // std::cout << std::endl;
     }
     // print path_set
-    for (const auto& path : path_set) {
-        for (const auto& node : path->via) {
-            std::cout << node.first << "," << node.second << " ";
-        }
-        std::cout << std::endl;
-    }
+    // for (const auto& path : path_set) {
+    //     for (const auto& node : path->via) {
+    //         std::cout << node.first << "," << node.second << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
 }

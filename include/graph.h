@@ -408,7 +408,8 @@ private:
     std::map<int, size_t> harbor_map;
     // std::map<size_t, std::vector<Path>> paths; // path info with src tnode id
     std::map<size_t, std::vector<int>> path_map; // path info with src tnode id
-    std::vector<Path> paths; // path info
+    // std::vector<Path> paths; // path info
+    std::vector<std::shared_ptr<Path>> paths; // path info
     std::vector<long long> congestion_segs; // congestion of each seg
     // std::map<size_t, double> congestion_map; // (path_id, congestion)
     // std::vector<Path> final_path; // final path set (poor design)

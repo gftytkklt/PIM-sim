@@ -85,7 +85,7 @@ def perf_test(models_dir='models'):
 def get_opt_str(opt_info):
     return f"{'DP' if opt_info[0] else 'ZZ'}-{'CA' if opt_info[1] else 'XY'}"
 
-def plot_perf(comm_result, dict_key=None, norm=0):
+def plot_perf(comm_result, dict_key=None, norm=1):
     fig, ax = plt.subplots(figsize=(10, 6))
     # 获取所有模型名称和优化选项组合
     models = list(comm_result.keys())
@@ -159,11 +159,11 @@ def get_data_percentage(comm_result=None, dict_key=None):
         
 
 if __name__ == "__main__":
-    # comm_result = perf_test()
+    comm_result = perf_test()
     key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     for key in key_list:
-        # plot_perf(comm_result, key)
+        plot_perf(comm_result, key)
         # load_and_plot(key, 1)
-        get_data_percentage(comm_result=None, dict_key=key)
+        # get_data_percentage(comm_result=None, dict_key=key)
     # plot_perf(comm_result)
     # load_and_plot()

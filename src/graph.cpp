@@ -594,12 +594,12 @@ void DGraph::analysis() {
     set_harbor();
     set_sdg();
     create_DSeg();
-    std::cout << "before" << std::endl;
-    print_path_info();
+    // std::cout << "before" << std::endl;
+    // print_path_info();
     if (sched_opt) {
         bce_routing();
-        std::cout << "after" << std::endl;
-        print_path_info();
+        // std::cout << "after" << std::endl;
+        // print_path_info();
     }
     else {
         xy_routing();
@@ -702,10 +702,9 @@ void DGraph::set_sdg() {
             auto dst_tile = get_core(child);
             auto path = XYinit(src_tile, dst_tile);
             // add path to paths
-            // paths.push_back(Path{path, datavolume});
-            // paths[harbor_id].push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
             path_map[harbor_id].push_back(path_id);
-            paths.push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
+            paths.emplace_back(std::make_shared<Path>(path_id++, src_tile, dst_tile, path, datavolume));
+            // paths.push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
         }
         // intra-layer tedge
         for (const auto& tdep_elem : tdep_ids) {
@@ -728,7 +727,8 @@ void DGraph::set_sdg() {
                         // paths.push_back(Path{path, datavolume});
                         // paths[src].push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
                         path_map[src].push_back(path_id);
-                        paths.push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
+                        paths.emplace_back(std::make_shared<Path>(path_id++, src_tile, dst_tile, path, datavolume));
+                        // paths.push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
                     }
                 }
             }
@@ -791,7 +791,7 @@ void DGraph::create_DSeg() {
 std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<int> path_ids) const {
     std::vector<std::shared_ptr<Path>> pathset{};
     std::transform(path_ids.begin(), path_ids.end(), std::back_inserter(pathset), [this](int idx) {
-            return std::make_shared<Path>(paths[idx]);  // 根据id提取对应的shared_ptr
+            return paths[idx];  // 根据id提取对应的shared_ptr
         });
     return pathset;
 }
@@ -799,7 +799,7 @@ std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<int> path_ids
 std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<int> path_ids) {
     std::vector<std::shared_ptr<Path>> pathset{};
     std::transform(path_ids.begin(), path_ids.end(), std::back_inserter(pathset), [this](int idx) {
-            return std::make_shared<Path>(paths[idx]);  // 根据id提取对应的shared_ptr
+            return paths[idx];  // 根据id提取对应的shared_ptr
         });
     return pathset;
 }
