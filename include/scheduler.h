@@ -125,23 +125,16 @@ struct WeightCalculator {
     }
 };
 
-// using SchedInfo = std::pair<long long, std::vector<Path>>;
-using SchedInfo = std::pair<long long, std::vector<std::shared_ptr<Path>>>;
-
 class Scheduler {
 public:
     Scheduler() = default;
     Scheduler(std::pair<int, int> tile_size);
-    // use & to schedule via scheduler directly
-    // void set_path_set(std::vector<Path> path_set) {
-    //     this->path_set = std::make_shared<std::vector<Path>>(path_set);
-    // }
     void set_path_set(std::vector<std::shared_ptr<Path>> path_set) {
         this->path_set = path_set;
     }
-    // std::vector<Path> schedule();
-    SchedInfo schedule();
-    SchedInfo xy_routing();
+    // return congestion volume of cur seg
+    long long schedule();
+    long long xy_routing();
     auto id_to_xy(size_t id) const {
         return std::make_pair(id / tile_size.second, id % tile_size.second);
     }
@@ -150,7 +143,6 @@ public:
     }
 private:
     SGraph graph;
-    // std::shared_ptr<std::vector<Path>> path_set;
     std::vector<std::shared_ptr<Path>> path_set;
     std::pair<int, int> tile_size;
     std::map<UnorderedPair, size_t> edge_map;// edge, id map pair
@@ -161,23 +153,5 @@ private:
     
 };
 
-// struct constrained_dijkstra_visitor : boost::default_dijkstra_visitor {
-//     std::pair<int, int> s, t;
-//     std::pair<int, int> x_range, y_range;
-//     const Scheduler& scheduler;
-
-//     constrained_dijkstra_visitor(std::pair<int, int> s, std::pair<int, int> t, const Scheduler& scheduler) 
-//     : s(s), t(t), x_range{std::min(s.first, t.first), std::max(s.first,t.first)}, 
-//     y_range{std::min(s.second, t.second), std::max(s.second,t.second)}, scheduler(scheduler){}
-
-//     template <typename Edge, typename Graph>
-//     void edge_relaxed(Edge e, const Graph& g) const {
-//         auto dst = boost::target(e, g);
-//         auto dst_tile = scheduler.id_to_xy(dst);
-//         if (dst_tile.first < x_range.first || dst_tile.first > x_range.second || dst_tile.second < y_range.first || dst_tile.second > y_range.second) {
-//             throw std::runtime_error("Constrained edge found");
-//         }
-//     }
-// };
 
 #endif

@@ -389,6 +389,7 @@ public:
     }
     // std::vector<std::vector<Path>> get_path_segs() const {return path_segs;}
     std::vector<std::vector<int>> get_path_segs() const {return path_segs;}
+    std::vector<std::set<int>> get_layer_segs() const {return layer_segs;}
     std::vector<std::shared_ptr<Path>> get_pathset(std::vector<int> path_ids);
     std::vector<std::shared_ptr<Path>> get_pathset(std::vector<int> path_ids) const;
     auto get_congestion_segs() const {return congestion_segs;}
@@ -401,6 +402,7 @@ private:
     UGraph sdg; // HCG node and path set
     // std::vector<std::vector<Path>> path_segs; // path subset of each DSeg
     std::vector<std::vector<int>> path_segs; // path subset of each DSeg
+    std::vector<std::set<int>> layer_segs; // layer subset of each DSeg
     std::shared_ptr<const HGraph> hg_ref; // HCG for DHCG inference
     std::shared_ptr<const TGraph> tg_ref; // T-VDFG for DHCG inference
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for DHCG inference

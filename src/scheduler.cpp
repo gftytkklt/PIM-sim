@@ -30,7 +30,7 @@ Scheduler::Scheduler(std::pair<int, int> tile_size)
 }
 
 // std::vector<Path> Scheduler::schedule() {
-SchedInfo Scheduler::schedule() {
+long long Scheduler::schedule() {
     // print path set num
     // std::cout << "Path num: " << path_set->size() << std::endl;
     init_bce();
@@ -60,7 +60,7 @@ SchedInfo Scheduler::schedule() {
     // }
     // return *path_set;
     // return SchedInfo{total_congestion, *path_set};
-    return SchedInfo{total_congestion, path_set};
+    return total_congestion;
 }
 
 // SchedInfo Scheduler::xy_routing() {
@@ -84,7 +84,7 @@ SchedInfo Scheduler::schedule() {
 // }
 
 // modified version
-SchedInfo Scheduler::xy_routing() {
+long long Scheduler::xy_routing() {
     // don't care bce
     congestion_map.clear();
     // add congestion volume only
@@ -101,7 +101,7 @@ SchedInfo Scheduler::xy_routing() {
     for (const auto& [key, val] : congestion_map) {
         total_congestion += val.getCSum();
     }
-    return SchedInfo{total_congestion, path_set};
+    return total_congestion;
 }
 
 void Scheduler::init_bce() {
