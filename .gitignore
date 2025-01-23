@@ -14,6 +14,6 @@
 !libmain.so
 /.idea
 !booksim
-!mesh_config_inj_rate
+!booksim_cfg
 !SimConfig.ini
 !techfile.txt

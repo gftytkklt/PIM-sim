@@ -102,7 +102,7 @@ auto analyze(const std::vector<NNkernel>& kernels, const HWInfo& info = {{1152, 
     Analyzer analyzer1 = Analyzer(kernels, info, opt);
     analyzer1.generate_analysis_result();
     analyzer1.generate_comm_info();
-    analyzer1.print_result();
+    // analyzer1.print_result();
     return std::make_pair<AnalysisResult, CommInfo>(analyzer1.get_analysis_result(), analyzer1.get_comm_info());
 }
 

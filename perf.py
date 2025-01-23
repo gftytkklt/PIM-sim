@@ -25,18 +25,14 @@ def perf_test(models_dir='models'):
 
     opt_configs = [
         (1, 1),
-        (1, 0),
-        (0, 1),
-        (0, 0)
+        # (1, 0),
+        # (0, 1),
+        # (0, 0)
     ]
 
-    home_path = os.getcwd()
-    SimConfig_path = os.path.join(home_path, "SimConfig.ini")
-    inputbit=8
-    outputbit=8
-
     success = 0
-    test_results = {}
+    comm_results = {}
+    comm_segs = {}
 
     for model_path in model_files:
         model_name = model_path.name
@@ -47,20 +43,23 @@ def perf_test(models_dir='models'):
             try:
                 cur_opt_info=make_opt_info(opt1, opt2)
                 # plot test
-                _,comminfo = analysis_model(
+                comm_seg,comminfo = analysis_model(
                     kernel_list=cur_kernel,
                     hw_info=None,
                     opt_info=cur_opt_info,
                 )
-                if model_name not in test_results:
-                    test_results[model_name] = {}
-                # test_results[model_name][(opt1, opt2)] = comminfo.path_num
-                test_results[model_name][(opt1, opt2)] = {
+                if model_name not in comm_results:
+                    comm_results[model_name] = {}
+                if model_name not in comm_segs:
+                    comm_segs[model_name] = {}
+                # comm_results[model_name][(opt1, opt2)] = comminfo.path_num
+                comm_results[model_name][(opt1, opt2)] = {
                     "path_num": comminfo.path_num,
                     "datavolume": comminfo.datavolume,
                     "total_hops": comminfo.total_hops,
                     "total_congestion": comminfo.total_congestion,
                 }
+                comm_segs[model_name][(opt1, opt2)] = comm_seg
 
                 # perf exec
                 # latency_est(SimConfig_path, inputbit, outputbit, cur_kernel, cur_opt_info) 
@@ -77,15 +76,18 @@ def perf_test(models_dir='models'):
                 logging.exception(f"在测试模型 '{model_name}' opt_info=({opt1},{opt2}) 时发生未预料的错误。")
                 break
     print(f"成功测试 {success} 个模型。")
-    with open('results/comm_result.pkl', 'wb') as f:
-        pickle.dump(test_results, f)
-        print("Data saved.")
-    return test_results
+    # with open('results/comm_result.pkl', 'wb') as f:
+    #     pickle.dump(comm_results, f)
+    #     print("Data saved.")
+    # with open('results/analy_res.pkl', 'wb') as f:
+    #     pickle.dump(comm_segs, f)
+    #     print("Data saved.")
+    return comm_segs, comm_results
 
 def get_opt_str(opt_info):
     return f"{'DP' if opt_info[0] else 'ZZ'}-{'CA' if opt_info[1] else 'XY'}"
 
-def plot_perf(comm_result, dict_key=None, norm=1):
+def plot_comm(comm_result, dict_key=None, norm=1):
     fig, ax = plt.subplots(figsize=(10, 6))
     # 获取所有模型名称和优化选项组合
     models = list(comm_result.keys())
@@ -127,10 +129,30 @@ def plot_perf(comm_result, dict_key=None, norm=1):
     
     # plt.show()
 
+# parse seg elems in this function and plot
+def plot_perf(comm_segs, norm=1):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    # 获取所有模型名称和优化选项组合
+    models = list(comm_segs.keys())
+    opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
+    # 设置柱状图的宽度
+    bar_width = 0.2
+    index = np.arange(len(models))
+
+    home_path = os.getcwd()
+    SimConfig_path = os.path.join(home_path, "SimConfig.ini")
+    inputbit=8
+    outputbit=8
+
+    # 为每个优化选项组合绘制柱状图
+    for i, opt in enumerate(opt_combinations):
+        values = [latency_est(SimConfig_path, inputbit, outputbit, comm_segs[model].get(opt, 0)) for model in models]  # 获取每个模型对应的值
+        ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
+
 def load_and_plot(dict_key=None, norm=0):
     with open('results/comm_result.pkl', 'rb') as f:
         comm_result = pickle.load(f)
-    plot_perf(comm_result, dict_key, norm)
+    plot_comm(comm_result, dict_key, norm)
 
 def get_data_percentage(comm_result=None, dict_key=None):
     if comm_result is None:
@@ -159,11 +181,12 @@ def get_data_percentage(comm_result=None, dict_key=None):
         
 
 if __name__ == "__main__":
-    comm_result = perf_test()
-    key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
-    for key in key_list:
-        plot_perf(comm_result, key)
+    comm_segs, comm_result = perf_test()
+    plot_perf(comm_segs)
+    # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
+    # for key in key_list:
+    #     plot_comm(comm_result, key)
         # load_and_plot(key, 1)
         # get_data_percentage(comm_result=None, dict_key=key)
-    # plot_perf(comm_result)
+    # plot_comm(comm_result)
     # load_and_plot()

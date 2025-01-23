@@ -8,43 +8,64 @@ from MNSIM.Latency_Model.Tile_latency import tile_latency_analysis
 from MNSIM.Latency_Model.Pooling_latency import pooling_latency_analysis
 from MNSIM.Hardware_Model.Buffer import buffer
 
-def latency_est(SimConfig_path,inputbit=8,outputbit=8,kernel=None,opt_info=None):
+# mapping_res: deploy_info, comm_segs
+def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
     home_path = os.getcwd()
-    mapping_res,comm_res = analysis_model(kernel_list=kernel, hw_info=None, opt_info=opt_info)
-
+    # get mapping results
     all_tiles_mapping_infos = mapping_res.deploy_info
-    data_matrix_by_layer = mapping_res.datas # Byte
-
+    print("tile num is", len(all_tiles_mapping_infos))
+    all_comm_segs = mapping_res.comm_segs # comm_seg: layer and data matrix
+    # extract tile info by layer
     tiles_by_layer = {}
-    layer=[]
-    bus_width = 8 #byte  booksim
-    freq = 1000000 #Hz
-    #search deploy_info
-    #all_tiles_mapping_infos[i] represents a specifc tile
-
-    #print(len(all_tiles_mapping_infos));
-
-    tile_num = len(all_tiles_mapping_infos)
-
-    for i in range(0,tile_num):
-        # print(all_tiles_mapping_infos[i].layer)# layer of i_th tile
-        layer.append(all_tiles_mapping_infos[i].layer)
-
-    layer_num = max(layer)+1
-    print('layer num is ',layer_num)
-
-    inj_matrix=divide_list_elements_3(data_matrix_by_layer,bus_width*freq)
-    create_injection_rate_files(home_path, layer_num, inj_matrix)
-
+    # tiles-layer map
     for tile_info in all_tiles_mapping_infos:
         layer = tile_info.layer
         if layer in tiles_by_layer:
             tiles_by_layer[layer].append(tile_info)
         else :
             tiles_by_layer[layer] = [tile_info]
+    
+    # inter-tile latency estimation by booksim2
+    # init sim comfig
+    mesh_size = int(math.sqrt(len(all_comm_segs[0].datas)))
+    cfg_file = 'booksim_cfg'
+    with open(cfg_file, 'r') as f:
+        lines = f.readlines()
+    # modify mesh size
+    for i, line in enumerate(lines):
+        line = line.strip()
+        matchobj = re.match(r'^k=', line)
+        if matchobj:
+            lines[i] = 'k=' + str(mesh_size) + ';' + '\n'
+            break
+    with open(cfg_file, 'w') as f:
+        f.writelines(lines)
 
-    # print(tiles_by_layer)
-
+    bus_width = 8 #byte  booksim
+    freq = 1000000000 #Hz
+    bandwidth = bus_width * freq / 1e9 #GB/s
+    fps = 100
+    latency_map = {}
+    for idx, comm_seg in enumerate(all_comm_segs):
+        layers = comm_seg.layers
+        # set injection matrix
+        data_matrix = comm_seg.datas
+        inj_matrix = divide_list_elements_3(data_matrix, bus_width * freq / fps)
+        np.savetxt("inj_rate.txt", inj_matrix, fmt='%.12f')
+        log_file = home_path + '/logs/' + str(idx) + '.log'
+        booksim_command = home_path + '/booksim ' + cfg_file + ' > ' + log_file
+        os.system(booksim_command)
+        latency = os.popen(
+                'grep "Packet latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
+        if math.isnan(float(latency)):
+            print("Warning: latency is nan")
+            latency = 12 # default latency
+        # cur_avglat = trans_time_est(cfg_file)
+        for layer in layers:
+            print("layer", layer, "latency is", latency)
+            latency_map[layer] = latency
+    return 0
+    # tile latency estimation
     cur_tile_info = {}
     cur_tile_path = {}
     avg_delay_pack=[]
@@ -52,8 +73,7 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8,kernel=None,opt_info=None)
     finishTime_by_layer = []
     PathDelay_cur_layer = []
 
-    latency_array, NoC_latency = trans_time_booksim(home_path)
-    print('latency_array is', latency_array)
+    
 
 
     for i in range(0,layer_num-1):
@@ -276,9 +296,9 @@ def create_injection_rate_files(homepath, layer_num, inj_matrix_by_layer):
 def divide_list_elements_3(input_list, divisor):
     # 使用 numpy 数组进行元素的除法操作
     input_array = np.array(input_list)
-    # result = input_array / divisor
-    result_array = input_array / divisor
-    result = np.maximum(result_array, 1e-10)
+    result = input_array / divisor
+    # result_array = input_array / divisor
+    # result = np.maximum(result_array, 1e-10)
     return result.tolist()
 
 if __name__ == '__main__':

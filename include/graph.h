@@ -320,6 +320,10 @@ public:
     Graph& get_graph() { return tg; }
     const TDep& get_tdep() const { return tdeps; }
     TDep& get_tdep() { return tdeps; }
+    int get_layer(Node tnode) const {
+        auto cnode_id = get_node_property(tnode, tg).cnode_id[0];
+        return cg_ref->get_node_property(cnode_id, cg_ref->get_graph()).layer;
+    }
     void print_graph_info() const;
 private:
     Graph tg; // T-VDFG

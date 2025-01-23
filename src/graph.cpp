@@ -769,6 +769,7 @@ void DGraph::create_DSeg() {
     auto layer_num = *std::max_element(layer.begin(), layer.end());
     const auto& hg = hg_ref->get_graph();
     // if depth = 0, add standalone if branch to impl
+    // i begins from 1
     for (int i = 1; i < layer_num; i += pipeline_depth) {
         auto dst_layer = std::min(i + pipeline_depth, layer_num);
         // std::vector<Path> path_seg{};
@@ -776,7 +777,8 @@ void DGraph::create_DSeg() {
         std::set<int> layer_seg{};
         for (size_t id = 0; id < layer.size(); id++) {
             if (layer[id] >= i && layer[id] < dst_layer) {
-                layer_seg.insert(layer[id]);
+                // layer_seg.insert(layer[id]);
+                layer_seg.insert(tg_ref->get_layer(id));
                 // append edge to path_seg
                 auto tnode_id = topo_order[id];
                 // auto pathset = paths[tnode_id];
