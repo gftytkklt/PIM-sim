@@ -75,6 +75,7 @@ def perf_test(models_dir='models'):
                 error_msg = str(e)
                 logging.exception(f"在测试模型 '{model_name}' opt_info=({opt1},{opt2}) 时发生未预料的错误。")
                 break
+        break
     print(f"成功测试 {success} 个模型。")
     # with open('results/comm_result.pkl', 'wb') as f:
     #     pickle.dump(comm_results, f)

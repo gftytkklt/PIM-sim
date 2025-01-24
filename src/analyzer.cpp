@@ -14,8 +14,18 @@ void Analyzer::generate_analysis_result(){
     auto tgraph = tg.get_graph();
     // auto hgraph = hg.get_graph();
     // auto dgraph = dg.get_graph();
-    // traverse tnodes
-    for (const auto& v : boost::make_iterator_range(boost::vertices(tgraph))) {
+    // traverse tnodes in topo order
+    std::vector<size_t> topo_order;
+    try {
+        boost::topological_sort(tgraph, std::back_inserter(topo_order));
+    }
+    catch(boost::not_a_dag& e) {
+        std::cerr << "Not a DAG!" << std::endl;
+        return;
+    }
+    std::reverse(topo_order.begin(), topo_order.end());
+    // for (const auto& v : boost::make_iterator_range(boost::vertices(tgraph))) {
+    for (const auto& v : topo_order) {
         auto tile_id = hg.get_hnode(v);
         auto child_tnodes = tg.get_adjacent_nodes(v, tgraph);
         std::vector<std::pair<int, int>> child_tile;

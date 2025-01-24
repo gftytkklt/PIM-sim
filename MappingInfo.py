@@ -18,13 +18,15 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
     # extract tile info by layer
     tiles_by_layer = {}
     # tiles-layer map
+    layer_num = 0 # consecutive layer number
     for tile_info in all_tiles_mapping_infos:
         layer = tile_info.layer
         if layer in tiles_by_layer:
             tiles_by_layer[layer].append(tile_info)
         else :
+            layer_num = max(layer_num, layer+1)
             tiles_by_layer[layer] = [tile_info]
-    
+    print("layer num is", layer_num)
     # inter-tile latency estimation by booksim2
     # init sim comfig
     mesh_size = int(math.sqrt(len(all_comm_segs[0].datas)))
@@ -55,15 +57,22 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
         log_file = home_path + '/logs/' + str(idx) + '.log'
         booksim_command = home_path + '/booksim ' + cfg_file + ' > ' + log_file
         os.system(booksim_command)
-        latency = os.popen(
-                'grep "Packet latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
-        if math.isnan(float(latency)):
-            print("Warning: latency is nan")
-            latency = 12 # default latency
+        # additional latency estimation
+        packet_latency = os.popen('grep "Packet latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
+        network_latency = os.popen('grep "Network latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
+        print("packet latency is", packet_latency)
+        print("network latency is", network_latency)
+        if math.isnan(float(packet_latency)) or math.isnan(float(network_latency)):
+            latency = 0 # default latency
+        else:
+            latency = max(float(packet_latency) - float(network_latency), 0)
         # cur_avglat = trans_time_est(cfg_file)
         for layer in layers:
-            print("layer", layer, "latency is", latency)
+            # print("layer", layer, "latency is", latency)
             latency_map[layer] = latency
+    
+    # set tile latency layer by layer
+
     return 0
     # tile latency estimation
     cur_tile_info = {}
@@ -82,7 +91,7 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
         print('########################')
 
         j=0
-        avgdelay_perpack = latency_array[i] / freq
+        avgdelay_perpack = latency_map[i] / freq
         print('avgdelay_perpack is', avgdelay_perpack)
 
         if (i == 0):
@@ -298,7 +307,7 @@ def divide_list_elements_3(input_list, divisor):
     input_array = np.array(input_list)
     result = input_array / divisor
     # result_array = input_array / divisor
-    # result = np.maximum(result_array, 1e-10)
+    # result = np.maximum(result, 1e-4)
     return result.tolist()
 
 if __name__ == '__main__':
