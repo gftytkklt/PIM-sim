@@ -15,18 +15,6 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
     all_tiles_mapping_infos = mapping_res.deploy_info
     print("tile num is", len(all_tiles_mapping_infos))
     all_comm_segs = mapping_res.comm_segs # comm_seg: layer and data matrix
-    # extract tile info by layer
-    tiles_by_layer = {}
-    # tiles-layer map
-    layer_num = 0 # consecutive layer number
-    for tile_info in all_tiles_mapping_infos:
-        layer = tile_info.layer
-        if layer in tiles_by_layer:
-            tiles_by_layer[layer].append(tile_info)
-        else :
-            layer_num = max(layer_num, layer+1)
-            tiles_by_layer[layer] = [tile_info]
-    print("layer num is", layer_num)
     # inter-tile latency estimation by booksim2
     # init sim comfig
     mesh_size = int(math.sqrt(len(all_comm_segs[0].datas)))
@@ -70,10 +58,12 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
         for layer in layers:
             # print("layer", layer, "latency is", latency)
             latency_map[layer] = latency
-    
+    return latency_map
     # set tile latency layer by layer
-
-    return 0
+    # update tile exec info
+    exec_info = {}
+    for idx, tile_info in enumerate(all_tiles_mapping_infos):
+        break
     # tile latency estimation
     cur_tile_info = {}
     cur_tile_path = {}

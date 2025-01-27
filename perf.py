@@ -8,8 +8,8 @@ import pickle
 from MappingInfo import latency_est
 from onnx_analysis import analysis_model, make_opt_info, load_kernel
 
-
-def perf_test(models_dir='models'):
+# demo for debug, models for run
+def perf_test(models_dir='demo'):
     models_path = Path(models_dir)
 
     if not models_path.exists() or not models_path.is_dir():
@@ -75,7 +75,6 @@ def perf_test(models_dir='models'):
                 error_msg = str(e)
                 logging.exception(f"在测试模型 '{model_name}' opt_info=({opt1},{opt2}) 时发生未预料的错误。")
                 break
-        break
     print(f"成功测试 {success} 个模型。")
     # with open('results/comm_result.pkl', 'wb') as f:
     #     pickle.dump(comm_results, f)
@@ -150,6 +149,29 @@ def plot_perf(comm_segs, norm=1):
         values = [latency_est(SimConfig_path, inputbit, outputbit, comm_segs[model].get(opt, 0)) for model in models]  # 获取每个模型对应的值
         ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
 
+def save_comm_result(comm_segs):
+    # 获取所有模型名称和优化选项组合
+    models = list(comm_segs.keys())
+    opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
+
+    home_path = os.getcwd()
+    SimConfig_path = os.path.join(home_path, "SimConfig.ini")
+    inputbit = 8
+    outputbit = 8
+
+    # 用字典存储模型和优化方法对应的latency列表
+    latency_dict = {}
+
+    # 为每个优化选项组合绘制柱状图
+    for i, opt in enumerate(opt_combinations):
+        for model in models:
+            latency = latency_est(SimConfig_path, inputbit, outputbit, comm_segs[model].get(opt, 0))  # 获取每个模型对应的值
+            latency_dict[(model, opt)] = latency  # 将latency值按模型和优化方法存储到字典
+
+    with open('results/latency_dict.pkl', 'wb') as f:
+        pickle.dump(latency_dict, f)
+        print("Data saved.")
+
 def load_and_plot(dict_key=None, norm=0):
     with open('results/comm_result.pkl', 'rb') as f:
         comm_result = pickle.load(f)
@@ -183,7 +205,12 @@ def get_data_percentage(comm_result=None, dict_key=None):
 
 if __name__ == "__main__":
     comm_segs, comm_result = perf_test()
-    plot_perf(comm_segs)
+    save_comm_result(comm_segs)
+    # with open('results/latency_dict.pkl', 'rb') as f:
+    #     load_data = pickle.load(f)
+    # print(load_data)
+    # latency=load_data[('alexnet.onnx', (1, 1))]
+    # print(latency)
     # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     # for key in key_list:
     #     plot_comm(comm_result, key)
