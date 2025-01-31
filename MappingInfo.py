@@ -9,128 +9,135 @@ from MNSIM.Latency_Model.Pooling_latency import pooling_latency_analysis
 from MNSIM.Hardware_Model.Buffer import buffer
 
 # mapping_res: deploy_info, comm_segs
-def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
+def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None, bus_width=8, freq = 1000000000,comm_lat=None):
     home_path = os.getcwd()
     # get mapping results
     all_tiles_mapping_infos = mapping_res.deploy_info
     print("tile num is", len(all_tiles_mapping_infos))
-    all_comm_segs = mapping_res.comm_segs # comm_seg: layer and data matrix
-    # inter-tile latency estimation by booksim2
-    # init sim comfig
-    mesh_size = int(math.sqrt(len(all_comm_segs[0].datas)))
-    cfg_file = 'booksim_cfg'
-    with open(cfg_file, 'r') as f:
-        lines = f.readlines()
-    # modify mesh size
-    for i, line in enumerate(lines):
-        line = line.strip()
-        matchobj = re.match(r'^k=', line)
-        if matchobj:
-            lines[i] = 'k=' + str(mesh_size) + ';' + '\n'
-            break
-    with open(cfg_file, 'w') as f:
-        f.writelines(lines)
+    if comm_lat is None:
+        all_comm_segs = mapping_res.comm_segs # comm_seg: layer and data matrix
+        # inter-tile latency estimation by booksim2
+        # init sim comfig
+        mesh_size = int(math.sqrt(len(all_comm_segs[0].datas)))
+        cfg_file = 'booksim_cfg'
+        with open(cfg_file, 'r') as f:
+            lines = f.readlines()
+        # modify mesh size
+        for i, line in enumerate(lines):
+            line = line.strip()
+            matchobj = re.match(r'^k=', line)
+            if matchobj:
+                lines[i] = 'k=' + str(mesh_size) + ';' + '\n'
+                break
+        with open(cfg_file, 'w') as f:
+            f.writelines(lines)
 
-    bus_width = 8 #byte  booksim
-    freq = 1000000000 #Hz
-    bandwidth = bus_width * freq / 1e9 #GB/s
-    fps = 100
-    latency_map = {}
-    for idx, comm_seg in enumerate(all_comm_segs):
-        layers = comm_seg.layers
-        # set injection matrix
-        data_matrix = comm_seg.datas
-        inj_matrix = divide_list_elements_3(data_matrix, bus_width * freq / fps)
-        np.savetxt("inj_rate.txt", inj_matrix, fmt='%.12f')
-        log_file = home_path + '/logs/' + str(idx) + '.log'
-        booksim_command = home_path + '/booksim ' + cfg_file + ' > ' + log_file
-        os.system(booksim_command)
-        # additional latency estimation
-        packet_latency = os.popen('grep "Packet latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
-        network_latency = os.popen('grep "Network latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
-        print("packet latency is", packet_latency)
-        print("network latency is", network_latency)
-        if math.isnan(float(packet_latency)) or math.isnan(float(network_latency)):
-            latency = 0 # default latency
-        else:
-            latency = max(float(packet_latency) - float(network_latency), 0)
-        # cur_avglat = trans_time_est(cfg_file)
-        for layer in layers:
-            # print("layer", layer, "latency is", latency)
-            latency_map[layer] = latency
-    return latency_map
+        fps = 100
+        latency_map = {}
+        for idx, comm_seg in enumerate(all_comm_segs):
+            layers = comm_seg.layers
+            # set injection matrix
+            data_matrix = comm_seg.datas
+            inj_matrix = divide_list_elements_3(data_matrix, bus_width * freq / fps)
+            np.savetxt("inj_rate.txt", inj_matrix, fmt='%.12f')
+            log_file = home_path + '/logs/' + str(idx) + '.log'
+            booksim_command = home_path + '/booksim ' + cfg_file + ' > ' + log_file
+            os.system(booksim_command)
+            # additional latency estimation
+            packet_latency = os.popen('grep "Packet latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
+            network_latency = os.popen('grep "Network latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
+            print("packet latency is", packet_latency)
+            print("network latency is", network_latency)
+            if math.isnan(float(packet_latency)) or math.isnan(float(network_latency)):
+                latency = 0 # default latency
+            else:
+                latency = max(float(packet_latency) - float(network_latency), 0)
+            # cur_avglat = trans_time_est(cfg_file)
+            for layer in layers:
+                # print("layer", layer, "latency is", latency)
+                latency_map[layer] = latency
+        # return latency_map
+    else:
+        # inter tile comm latency
+        latency_map = comm_lat # lat_layer = latency_map[layer]
+        bandwidth = bus_width * freq #B/s
+        exec_info = {}
+        for idx, tile_info in enumerate(all_tiles_mapping_infos):
+            break
+    # use latency_map to estimate inter-tile latency
+
     # set tile latency layer by layer
     # update tile exec info
-    exec_info = {}
-    for idx, tile_info in enumerate(all_tiles_mapping_infos):
-        break
-    # tile latency estimation
-    cur_tile_info = {}
-    cur_tile_path = {}
-    avg_delay_pack=[]
-    beginTime_by_layer=[]
-    finishTime_by_layer = []
-    PathDelay_cur_layer = []
+    # exec_info = {}
+    # for idx, tile_info in enumerate(all_tiles_mapping_infos):
+    #     break
+    # # tile latency estimation
+    # cur_tile_info = {}
+    # cur_tile_path = {}
+    # avg_delay_pack=[]
+    # beginTime_by_layer=[]
+    # finishTime_by_layer = []
+    # PathDelay_cur_layer = []
 
     
 
 
-    for i in range(0,layer_num-1):
-        print('########################')
-        print('#########layer',i,'######')
-        print('########################')
+    # for i in range(0,layer_num-1):
+    #     print('########################')
+    #     print('#########layer',i,'######')
+    #     print('########################')
 
-        j=0
-        avgdelay_perpack = latency_map[i] / freq
-        print('avgdelay_perpack is', avgdelay_perpack)
+    #     j=0
+    #     avgdelay_perpack = latency_map[i] / freq
+    #     print('avgdelay_perpack is', avgdelay_perpack)
 
-        if (i == 0):
-            begin_time = 0
-        else:
-            begin_time = max(PathDelay_cur_layer) # actually ,this  is pathdelay of last layer
-        beginTime_by_layer.append(begin_time)
-        print('layer',i,'begin time is ',begin_time)
+    #     if (i == 0):
+    #         begin_time = 0
+    #     else:
+    #         begin_time = max(PathDelay_cur_layer) # actually ,this  is pathdelay of last layer
+    #     beginTime_by_layer.append(begin_time)
+    #     print('layer',i,'begin time is ',begin_time)
 
-        #reset the path delay list for each layer
-        PathDelay_cur_layer = []
+    #     #reset the path delay list for each layer
+    #     PathDelay_cur_layer = []
 
-        for tile in  tiles_by_layer[i]:
+    #     for tile in  tiles_by_layer[i]:
 
-            tile_indata = 0
+    #         tile_indata = 0
 
-            print('************')
-            print('tile',j,tile.tile_id)
-            print('************')
-            cur_tile_info['tile_id']=  tile.tile_id
-            cur_tile_info['child_tile'] = tile.child_tile
-            cur_tile_info['paths'] = tile.paths
-            cur_tile_info['cnode'] = tile.cnode
-            j=j+1
+    #         print('************')
+    #         print('tile',j,tile.tile_id)
+    #         print('************')
+    #         cur_tile_info['tile_id']=  tile.tile_id
+    #         cur_tile_info['child_tile'] = tile.child_tile
+    #         cur_tile_info['paths'] = tile.paths
+    #         cur_tile_info['cnode'] = tile.cnode
+    #         j=j+1
 
-            pth = 0
-            for cnode in cur_tile_info['cnode']:#specifc tile specifc path
-                tile_indata += cnode.ifmap_size
+    #         pth = 0
+    #         for cnode in cur_tile_info['cnode']:#specifc tile specifc path
+    #             tile_indata += cnode.ifmap_size
 
-            for path in cur_tile_info['paths']:#specifc tile specifc path
-                print('-----------')
-                print('path', pth)
-                print('-----------')
-                cur_tile_path['src'] = path.src
-                cur_tile_path['dst'] = path.dst
-                cur_tile_path['via'] = path.via # jumps
-                cur_tile_path['data_vol'] = path.datavolume #num of packs
-                print('src is',path.src)
-                print('dst is',path.dst)
-                print('datavolume is', path.datavolume)
-                print('vias are', path.via) # in this version , via is the whole path
-                print('-----------')
-                pth=pth+1
-                tile_delay = tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit)
-                transdelay = int(begin_time) + int(len(path.via)-1) * int(avgdelay_perpack) * int(path.datavolume)
-                Stile_Spath_delay = tile_delay+transdelay+int(begin_time)
-                print('Stile_Spath_delay is',Stile_Spath_delay)
-                PathDelay_cur_layer.append(int(Stile_Spath_delay))
-        print(PathDelay_cur_layer)
+    #         for path in cur_tile_info['paths']:#specifc tile specifc path
+    #             print('-----------')
+    #             print('path', pth)
+    #             print('-----------')
+    #             cur_tile_path['src'] = path.src
+    #             cur_tile_path['dst'] = path.dst
+    #             cur_tile_path['via'] = path.via # jumps
+    #             cur_tile_path['data_vol'] = path.datavolume #num of packs
+    #             print('src is',path.src)
+    #             print('dst is',path.dst)
+    #             print('datavolume is', path.datavolume)
+    #             print('vias are', path.via) # in this version , via is the whole path
+    #             print('-----------')
+    #             pth=pth+1
+    #             tile_delay = tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit)
+    #             transdelay = int(begin_time) + int(len(path.via)-1) * int(avgdelay_perpack) * int(path.datavolume)
+    #             Stile_Spath_delay = tile_delay+transdelay+int(begin_time)
+    #             print('Stile_Spath_delay is',Stile_Spath_delay)
+    #             PathDelay_cur_layer.append(int(Stile_Spath_delay))
+    #     print(PathDelay_cur_layer)
 
 
 def tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit):

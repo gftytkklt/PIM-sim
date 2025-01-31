@@ -5,11 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import logging
 import pickle
+import time
 from MappingInfo import latency_est
-from onnx_analysis import analysis_model, make_opt_info, load_kernel
+from onnx_analysis import analysis_model, make_opt_info, load_kernel, make_hw_info
 
 # demo for debug, models for run
-def perf_test(models_dir='demo'):
+def perf_test(models_dir='demo', hwinfo=None):
     models_path = Path(models_dir)
 
     if not models_path.exists() or not models_path.is_dir():
@@ -25,9 +26,9 @@ def perf_test(models_dir='demo'):
 
     opt_configs = [
         (1, 1),
-        # (1, 0),
-        # (0, 1),
-        # (0, 0)
+        (1, 0),
+        (0, 1),
+        (0, 0)
     ]
 
     success = 0
@@ -45,7 +46,7 @@ def perf_test(models_dir='demo'):
                 # plot test
                 comm_seg,comminfo = analysis_model(
                     kernel_list=cur_kernel,
-                    hw_info=None,
+                    hw_info=hwinfo,
                     opt_info=cur_opt_info,
                 )
                 if model_name not in comm_results:
@@ -149,7 +150,8 @@ def plot_perf(comm_segs, norm=1):
         values = [latency_est(SimConfig_path, inputbit, outputbit, comm_segs[model].get(opt, 0)) for model in models]  # 获取每个模型对应的值
         ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
 
-def save_comm_result(comm_segs):
+# use for save inter layer comm result, deprecated now
+def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
     # 获取所有模型名称和优化选项组合
     models = list(comm_segs.keys())
     opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
@@ -165,10 +167,13 @@ def save_comm_result(comm_segs):
     # 为每个优化选项组合绘制柱状图
     for i, opt in enumerate(opt_combinations):
         for model in models:
-            latency = latency_est(SimConfig_path, inputbit, outputbit, comm_segs[model].get(opt, 0))  # 获取每个模型对应的值
+            start_time = time.time()
+            latency = latency_est(SimConfig_path, inputbit, outputbit, comm_segs[model].get(opt, 0), bus_width)  # 获取每个模型对应的值
             latency_dict[(model, opt)] = latency  # 将latency值按模型和优化方法存储到字典
+            print(f"model={model}, opt={opt}, time={time.time()-start_time}")
 
-    with open('results/latency_dict.pkl', 'wb') as f:
+    filename = f"results/latency_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
+    with open(filename, 'wb') as f:
         pickle.dump(latency_dict, f)
         print("Data saved.")
 
@@ -204,8 +209,15 @@ def get_data_percentage(comm_result=None, dict_key=None):
         
 
 if __name__ == "__main__":
-    comm_segs, comm_result = perf_test()
-    save_comm_result(comm_segs)
+    xbar = [(256, 256), (512, 256), (1024, 512), (1152, 1024)]
+    hw_infos = [make_hw_info(xbar) for xbar in xbar]
+    for hw_info in hw_infos:
+        comm_segs, comm_result = perf_test(models_dir='models', hwinfo = hw_info)
+        begin_time = time.time()
+        bus_width = [1,2,4,6,8]
+        for _, bw in enumerate(bus_width):
+            save_comm_result(comm_segs, bw, hw_info.xbar_size)
+        print(f"Total Time: {time.time()-begin_time}")
     # with open('results/latency_dict.pkl', 'rb') as f:
     #     load_data = pickle.load(f)
     # print(load_data)
