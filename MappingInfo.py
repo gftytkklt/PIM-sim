@@ -1,7 +1,7 @@
 import os, re, glob, sys, math
 import numpy as np
 import pandas as pd
-from onnx_analysis import analysis_model
+from collections import defaultdict
 import configparser as cp
 from MNSIM.Interface.interface import *
 from MNSIM.Latency_Model.Tile_latency import tile_latency_analysis
@@ -61,16 +61,45 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None, bus_wid
         # inter tile comm latency
         latency_map = comm_lat # lat_layer = latency_map[layer]
         bandwidth = bus_width * freq #B/s
-        exec_info = {}
+        # update tile exec info
+        tile_by_layer = defaultdict(list)
+        exec_info = defaultdict(dict)
         for idx, tile_info in enumerate(all_tiles_mapping_infos):
-            break
-    # use latency_map to estimate inter-tile latency
-
-    # set tile latency layer by layer
-    # update tile exec info
-    # exec_info = {}
-    # for idx, tile_info in enumerate(all_tiles_mapping_infos):
-    #     break
+            # local info
+            tile_id = tile_info.tile_id
+            # get ifm size to compute cal latency
+            ifm_size = sum(cn.ifmap_size for cn in tile_info.cnode)
+            exec_info[tile_id]['cal_lat'] = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit)
+            # tile-layer map regestration
+            cur_layer = tile_info.layer
+            tile_by_layer[cur_layer].append(idx)
+            exec_info[tile_id]['layer'] = cur_layer
+            # equivalent bandwidth computation (B/s)
+            cur_effbw = bandwidth / (1 + latency_map[cur_layer])
+            exec_info[tile_id]['bandwidth'] = cur_effbw
+            max_path_delay = 0
+            # update child info by path info
+            for path in tile_info.paths:
+                child_id = path.dst
+                path_delay = (len(path.via)-1) * path.datavolume / cur_effbw
+                max_path_delay = max(max_path_delay, path_delay)
+                # parent info dict: src layer, path delay, tile id
+                if 'parent' not in exec_info[child_id]:
+                    exec_info[child_id]['parent'] = []
+                exec_info[child_id]['parent'].append((cur_layer, path_delay, tile_id))
+            # update time info
+            if 'parent' not in exec_info[tile_id]:
+                exec_info[tile_id]['begin_time'] = 0
+            else:
+                # merge time: intra-layer data driven
+                # TODO: impl merge time dep
+                # trans time: inter-layer data driven
+                exec_info[tile_id]['begin_time'] = max(
+                    path_delay + exec_info[parent_id]['begin_time'] + exec_info[parent_id]['cal_lat']
+                    for layer, path_delay, parent_id in exec_info[tile_id]['parent']
+                    if layer != cur_layer  # inter-layer path only
+                )
+            exec_info[tile_id]['end_time'] = exec_info[tile_id]['begin_time'] + exec_info[tile_id]['cal_lat'] + max_path_delay
     # # tile latency estimation
     # cur_tile_info = {}
     # cur_tile_path = {}
