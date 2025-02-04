@@ -82,24 +82,51 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None, bus_wid
             for path in tile_info.paths:
                 child_id = path.dst
                 path_delay = (len(path.via)-1) * path.datavolume / cur_effbw
+                # update trans time info(cur tile as parent)
                 max_path_delay = max(max_path_delay, path_delay)
                 # parent info dict: src layer, path delay, tile id
                 if 'parent' not in exec_info[child_id]:
                     exec_info[child_id]['parent'] = []
                 exec_info[child_id]['parent'].append((cur_layer, path_delay, tile_id))
-            # update time info
+            # update time dep info(cur tile as child)
             if 'parent' not in exec_info[tile_id]:
                 exec_info[tile_id]['begin_time'] = 0
+                exec_info[tile_id]['merge_time'] = 0
             else:
                 # merge time: intra-layer data driven
                 # TODO: impl merge time dep
                 # trans time: inter-layer data driven
+                # exec_info[tile_id]['begin_time'] = max(
+                #     path_delay + exec_info[parent_id]['begin_time'] + exec_info[parent_id]['cal_lat']
+                #     for layer, path_delay, parent_id in exec_info[tile_id]['parent']
+                #     if layer != cur_layer  # inter-layer path only
+                # )
+                # # get merge and trans list
+                # merge_list = [exec_info[parent_id] for layer, _, parent_id in exec_info[tile_id]['parent'] if layer == cur_layer]
+                # trans_list = [exec_info[parent_id] for layer, _, parent_id in exec_info[tile_id]['parent'] if layer != cur_layer]
+                merge_list = [
+                    element
+                    for element in exec_info[tile_id]['parent']
+                    if isinstance(element, (list, tuple)) and len(element) > 0
+                    and element[0] == cur_layer
+                ]
+                trans_list = [
+                    element
+                    for element in exec_info[tile_id]['parent']
+                    if isinstance(element, (list, tuple)) and len(element) > 0
+                    and element[0] != cur_layer
+                ]
+                # update merge time
+                if not merge_list:
+                    exec_info[tile_id]['merge_time'] = 0
+                else:
+                    exec_info[tile_id]['merge_time'] = max(merge_lat for _, merge_lat, _ in merge_list)
+                # update begin time(consider inter-layer parent only)
                 exec_info[tile_id]['begin_time'] = max(
-                    path_delay + exec_info[parent_id]['begin_time'] + exec_info[parent_id]['cal_lat']
-                    for layer, path_delay, parent_id in exec_info[tile_id]['parent']
-                    if layer != cur_layer  # inter-layer path only
-                )
-            exec_info[tile_id]['end_time'] = exec_info[tile_id]['begin_time'] + exec_info[tile_id]['cal_lat'] + max_path_delay
+                    path_delay + exec_info[parent_id]['begin_time'] + exec_info[parent_id]['cal_lat'] + exec_info[parent_id]['merge_time']
+                    for _, path_delay, parent_id in trans_list)
+            # begin->compute->merge->trans
+            exec_info[tile_id]['end_time'] = exec_info[tile_id]['begin_time'] + exec_info[tile_id]['cal_lat'] + exec_info['merge_time'] + max_path_delay
     # # tile latency estimation
     # cur_tile_info = {}
     # cur_tile_path = {}
