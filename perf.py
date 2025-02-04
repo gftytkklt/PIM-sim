@@ -207,17 +207,35 @@ def get_data_percentage(comm_result=None, dict_key=None):
             # f.write(f"opt_info={opt}, values={values}, range={value_range}\n")
             # print(f"opt_info={opt}, values={values}, range={value_range}")  # 打印到控制台（可选）
         
+def load_lat_result(bw, xbar_size):
+    filename = f"results/latency_dict_bw={bw}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
+    with open(filename, 'rb') as f:
+        latency_dict = pickle.load(f)
+    return latency_dict
 
 if __name__ == "__main__":
-    xbar = [(256, 256), (512, 256), (1024, 512), (1152, 1024)]
-    hw_infos = [make_hw_info(xbar) for xbar in xbar]
-    for hw_info in hw_infos:
-        comm_segs, comm_result = perf_test(models_dir='models', hwinfo = hw_info)
-        begin_time = time.time()
-        bus_width = [1,2,4,6,8]
-        for _, bw in enumerate(bus_width):
-            save_comm_result(comm_segs, bw, hw_info.xbar_size)
-        print(f"Total Time: {time.time()-begin_time}")
+    bw = 4
+    xbar_size = (256, 256)
+    latency_dict = load_lat_result(bw, xbar_size)
+    model_name = "alexnet.onnx"
+    hw_info = make_hw_info(xbar_size)
+    comm_segs, _ = perf_test(models_dir='demo', hwinfo = hw_info)
+    # opt_info = (0, 0)
+    opt_list = [(1, 1), (1, 0), (0, 1), (0, 0)]
+    for opt_info in opt_list:
+        comm_seg = comm_segs[model_name][(opt_info)]
+        latency_map = latency_dict[(model_name, opt_info)]
+        latency = latency_est(bus_width=bw,mapping_res=comm_seg,comm_lat=latency_map)
+        print(f"model={model_name}, opt_info={opt_info}, latency={latency}")
+    # xbar = [(256, 256), (512, 256), (1024, 512), (1152, 1024)]
+    # hw_infos = [make_hw_info(xbar) for xbar in xbar]
+    # for hw_info in hw_infos:
+    #     comm_segs, comm_result = perf_test(models_dir='models', hwinfo = hw_info)
+    #     begin_time = time.time()
+    #     bus_width = [1,2,4,6,8]
+    #     for _, bw in enumerate(bus_width):
+    #         save_comm_result(comm_segs, bw, hw_info.xbar_size)
+    #     print(f"Total Time: {time.time()-begin_time}")
     # with open('results/latency_dict.pkl', 'rb') as f:
     #     load_data = pickle.load(f)
     # print(load_data)
