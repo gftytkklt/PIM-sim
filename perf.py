@@ -214,7 +214,7 @@ def load_lat_result(bw, xbar_size):
     return latency_dict
 
 if __name__ == "__main__":
-    bw = 4
+    bw = 8
     xbar_size = (256, 256)
     latency_dict = load_lat_result(bw, xbar_size)
     model_name = "alexnet.onnx"

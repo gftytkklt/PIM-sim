@@ -72,6 +72,7 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8,outputbit=8, mapping_r
         # get ifm size to compute cal latency
         ifm_size = sum(cn.ifmap_size for cn in tile_info.cnode)
         exec_info[tile_id]['cal_lat'] = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit)
+        exec_info[tile_id]['cal_lat'] /= 100000000 # ns to s, freq = 100MHz
         # tile-layer map regestration
         cur_layer = tile_info.layer
         tile_by_layer[cur_layer].append(idx)
@@ -123,74 +124,6 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8,outputbit=8, mapping_r
         exec_info[tile_id]['end_time'] = exec_info[tile_id]['begin_time'] + exec_info[tile_id]['cal_lat'] + exec_info[tile_id]['merge_time'] + max_path_delay
         ovarall_latency = max(ovarall_latency, exec_info[tile_id]['end_time'])
     return ovarall_latency
-    # # tile latency estimation
-    # cur_tile_info = {}
-    # cur_tile_path = {}
-    # avg_delay_pack=[]
-    # beginTime_by_layer=[]
-    # finishTime_by_layer = []
-    # PathDelay_cur_layer = []
-
-    
-
-
-    # for i in range(0,layer_num-1):
-    #     print('########################')
-    #     print('#########layer',i,'######')
-    #     print('########################')
-
-    #     j=0
-    #     avgdelay_perpack = latency_map[i] / freq
-    #     print('avgdelay_perpack is', avgdelay_perpack)
-
-    #     if (i == 0):
-    #         begin_time = 0
-    #     else:
-    #         begin_time = max(PathDelay_cur_layer) # actually ,this  is pathdelay of last layer
-    #     beginTime_by_layer.append(begin_time)
-    #     print('layer',i,'begin time is ',begin_time)
-
-    #     #reset the path delay list for each layer
-    #     PathDelay_cur_layer = []
-
-    #     for tile in  tiles_by_layer[i]:
-
-    #         tile_indata = 0
-
-    #         print('************')
-    #         print('tile',j,tile.tile_id)
-    #         print('************')
-    #         cur_tile_info['tile_id']=  tile.tile_id
-    #         cur_tile_info['child_tile'] = tile.child_tile
-    #         cur_tile_info['paths'] = tile.paths
-    #         cur_tile_info['cnode'] = tile.cnode
-    #         j=j+1
-
-    #         pth = 0
-    #         for cnode in cur_tile_info['cnode']:#specifc tile specifc path
-    #             tile_indata += cnode.ifmap_size
-
-    #         for path in cur_tile_info['paths']:#specifc tile specifc path
-    #             print('-----------')
-    #             print('path', pth)
-    #             print('-----------')
-    #             cur_tile_path['src'] = path.src
-    #             cur_tile_path['dst'] = path.dst
-    #             cur_tile_path['via'] = path.via # jumps
-    #             cur_tile_path['data_vol'] = path.datavolume #num of packs
-    #             print('src is',path.src)
-    #             print('dst is',path.dst)
-    #             print('datavolume is', path.datavolume)
-    #             print('vias are', path.via) # in this version , via is the whole path
-    #             print('-----------')
-    #             pth=pth+1
-    #             tile_delay = tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit)
-    #             transdelay = int(begin_time) + int(len(path.via)-1) * int(avgdelay_perpack) * int(path.datavolume)
-    #             Stile_Spath_delay = tile_delay+transdelay+int(begin_time)
-    #             print('Stile_Spath_delay is',Stile_Spath_delay)
-    #             PathDelay_cur_layer.append(int(Stile_Spath_delay))
-    #     print(PathDelay_cur_layer)
-
 
 def tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit):
     modelL_config = cp.ConfigParser()
