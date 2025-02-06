@@ -9,11 +9,11 @@ from MNSIM.Latency_Model.Pooling_latency import pooling_latency_analysis
 from MNSIM.Hardware_Model.Buffer import buffer
 
 # mapping_res: deploy_info, comm_segs
-def latency_est(SimConfig_path='SimConfig.ini',inputbit=8,outputbit=8, mapping_res=None, bus_width=8, freq = 1000000000,comm_lat=None):
+def latency_est(SimConfig_path='SimConfig.ini',inputbit=8,outputbit=8, mapping_res=None, bus_width=8, freq = 1000000000, comm_lat=None, ideal = 0):
     home_path = os.getcwd()
     # get mapping results
     all_tiles_mapping_infos = mapping_res.deploy_info
-    print("tile num is", len(all_tiles_mapping_infos))
+    # print("tile num is", len(all_tiles_mapping_infos))
     # get inter-tile lat first if not provided
     if comm_lat is None:
         all_comm_segs = mapping_res.comm_segs # comm_seg: layer and data matrix
@@ -60,7 +60,10 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8,outputbit=8, mapping_r
         # return latency_map
     # compute overall latency
     # inter tile comm latency
-    latency_map = comm_lat # lat_layer = latency_map[layer]
+    if ideal == 1:
+        latency_map = {}
+    else:
+        latency_map = comm_lat # lat_layer = latency_map[layer]
     bandwidth = bus_width * freq #B/s
     # update tile exec info
     tile_by_layer = defaultdict(list)
