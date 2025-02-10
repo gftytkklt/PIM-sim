@@ -129,7 +129,7 @@ def plot_comm(comm_result, dict_key=None, norm=1):
     # plt.show()
 
 # parse seg elems in this function and plot
-def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0):
+def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     fig, ax = plt.subplots(figsize=(10, 6))
     # 获取所有模型名称和优化选项组合
     models = list(comm_segs.keys())
@@ -154,8 +154,17 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0):
                 for bar in bars:
                     height = bar.get_height()
                     ax.text(bar.get_x() + bar.get_width() / 2, height, f'{height:.2f}', ha='center', va='bottom', fontsize=9)
-    dict_key = "latency_"+str(bw)
-    title = f'Normalized {dict_key} under different opt_info' if norm else f'{dict_key} under different opt_info'
+    list_id = None
+    if plot_type == "latency":
+        ax.set_ylim(0, 1.4)
+        list_id = 0
+    elif plot_type == "throughput":
+        list_id = 1
+    else:
+        print("plot type error")
+        return
+    dict_key = plot_type + "_"+str(bw)
+    # title = f'Normalized {dict_key} under different opt_info' if norm else f'{dict_key} under different opt_info'
     # ax.set_title(title)
     ax.set_xticks(index + bar_width * len(opt_combinations) / 2 - bar_width / 2)
     models_name = [model.split('.')[0] for model in models]
@@ -235,7 +244,7 @@ def load_lat_result(bw, xbar_size):
         return None
 
 if __name__ == "__main__":
-    bw_list = [1]
+    # bw_list = [1]
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 4)
     begin_time = time.time()
@@ -244,6 +253,10 @@ if __name__ == "__main__":
     # for bw in bw_list:
     #     latency_dict = load_lat_result(bw, xbar_size)
     #     plot_perf(mapping_result, latency_dict, bw, norm=1)
+    bw = 1
+    latency_dict = load_lat_result(bw, xbar_size)
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     for key in key_list:
         plot_comm(comm_result, key)
