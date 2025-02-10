@@ -142,18 +142,6 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     # 为每个优化选项组合绘制柱状图
     base_values = []
     ideal = 0
-    for i, opt in enumerate(opt_combinations):
-        if i == 4:
-            ideal = 1
-        values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[0] for model in models]  # 获取每个模型对应的值
-        if norm and i == 0:
-            base_values = values
-        values = [value / base_value for value, base_value in zip(values, base_values)]
-        bars = ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
-        if opt == (1, 1):
-                for bar in bars:
-                    height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width() / 2, height, f'{height:.2f}', ha='center', va='bottom', fontsize=9)
     list_id = None
     if plot_type == "latency":
         ax.set_ylim(0, 1.4)
@@ -163,6 +151,18 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     else:
         print("plot type error")
         return
+    for i, opt in enumerate(opt_combinations):
+        if i == 4:
+            ideal = 1
+        values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[list_id] for model in models]  # 获取每个模型对应的值
+        if norm and i == 0:
+            base_values = values
+        values = [value / base_value for value, base_value in zip(values, base_values)]
+        bars = ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
+        if opt == (1, 1):
+                for bar in bars:
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width() / 2, height, f'{height:.2f}', ha='center', va='bottom', fontsize=9)
     dict_key = plot_type + "_"+str(bw)
     # title = f'Normalized {dict_key} under different opt_info' if norm else f'{dict_key} under different opt_info'
     # ax.set_title(title)
@@ -244,7 +244,6 @@ def load_lat_result(bw, xbar_size):
         return None
 
 if __name__ == "__main__":
-    # bw_list = [1]
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 4)
     begin_time = time.time()
@@ -253,10 +252,11 @@ if __name__ == "__main__":
     # for bw in bw_list:
     #     latency_dict = load_lat_result(bw, xbar_size)
     #     plot_perf(mapping_result, latency_dict, bw, norm=1)
-    bw = 1
-    latency_dict = load_lat_result(bw, xbar_size)
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    bw_list = [1, 2]
+    for bw in bw_list:
+        latency_dict = load_lat_result(bw, xbar_size)
+        plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+        plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     for key in key_list:
         plot_comm(comm_result, key)
