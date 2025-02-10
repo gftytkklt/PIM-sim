@@ -77,12 +77,6 @@ def perf_test(models_dir='demo', hwinfo=None):
                 logging.exception(f"在测试模型 '{model_name}' opt_info=({opt1},{opt2}) 时发生未预料的错误。")
                 break
     print(f"成功测试 {success} 个模型。")
-    # with open('results/comm_result.pkl', 'wb') as f:
-    #     pickle.dump(comm_results, f)
-    #     print("Data saved.")
-    # with open('results/analy_res.pkl', 'wb') as f:
-    #     pickle.dump(comm_segs, f)
-    #     print("Data saved.")
     return comm_segs, comm_results
 
 def get_opt_str(opt_info):
@@ -107,12 +101,16 @@ def plot_comm(comm_result, dict_key=None, norm=1):
         values = [comm_result[model].get(opt, 0).get(dict_key, 0) for model in models]  # 获取每个模型对应的值
         if norm:
             values = [value / base_value for value, base_value in zip(values, base_values)]
-        ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
+        bars = ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
+        if opt == (1, 1):
+                for bar in bars:
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width() / 2, height, f'{height:.2f}', ha='center', va='bottom', fontsize=9)
 
     # 设置图形的标签和标题
     # ax.set_xlabel('model')
     # ax.set_ylabel('value')
-    title = f'Normalized {dict_key} under different opt_info' if norm else f'{dict_key} under different opt_info'
+    title = f'Normalized {dict_key}' if norm else f'{dict_key} under different opt_info'
     ax.set_title(title)
     ax.set_xticks(index + bar_width * len(opt_combinations) / 2 - bar_width / 2)
     models_name = [model.split('.')[0] for model in models]
@@ -136,7 +134,7 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0):
     # 获取所有模型名称和优化选项组合
     models = list(comm_segs.keys())
     opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
-    opt_combinations.append((1, 1))
+    # opt_combinations.append((1, 1))
     # 设置柱状图的宽度
     bar_width = 0.18
     index = np.arange(len(models))
@@ -147,15 +145,18 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0):
     for i, opt in enumerate(opt_combinations):
         if i == 4:
             ideal = 1
-        values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal) for model in models]  # 获取每个模型对应的值
+        values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[0] for model in models]  # 获取每个模型对应的值
         if norm and i == 0:
             base_values = values
         values = [value / base_value for value, base_value in zip(values, base_values)]
-        ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
-    
+        bars = ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
+        if opt == (1, 1):
+                for bar in bars:
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width() / 2, height, f'{height:.2f}', ha='center', va='bottom', fontsize=9)
     dict_key = "latency_"+str(bw)
     title = f'Normalized {dict_key} under different opt_info' if norm else f'{dict_key} under different opt_info'
-    ax.set_title(title)
+    # ax.set_title(title)
     ax.set_xticks(index + bar_width * len(opt_combinations) / 2 - bar_width / 2)
     models_name = [model.split('.')[0] for model in models]
     ax.set_xticklabels(models_name)
@@ -234,19 +235,18 @@ def load_lat_result(bw, xbar_size):
         return None
 
 if __name__ == "__main__":
-    bw_list = [1, 2, 4, 8]
+    bw_list = [1]
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 4)
     begin_time = time.time()
-    result, _ = perf_test(models_dir='models', hwinfo = hw_info)
+    mapping_result, comm_result = perf_test(models_dir='models', hwinfo = hw_info)
     print(f"Total Time: {time.time()-begin_time}")
-    for bw in bw_list:
-        begin_time = time.time()
-        print(f"bw={bw}")
-        save_comm_result(result, bw, xbar_size)
-        print(f"Total Time: {time.time()-begin_time}")
-        # latency_dict = load_lat_result(bw, xbar_size)
-        # plot_perf(result, latency_dict, bw, norm=1)
+    # for bw in bw_list:
+    #     latency_dict = load_lat_result(bw, xbar_size)
+    #     plot_perf(mapping_result, latency_dict, bw, norm=1)
+    key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
+    for key in key_list:
+        plot_comm(comm_result, key)
     # opt_info = (0, 0)
     # test model by model
     # model_name = "alexnet.onnx"
@@ -271,9 +271,7 @@ if __name__ == "__main__":
     # print(load_data)
     # latency=load_data[('alexnet.onnx', (1, 1))]
     # print(latency)
-    # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
-    # for key in key_list:
-    #     plot_comm(comm_result, key)
+
         # load_and_plot(key, 1)
         # get_data_percentage(comm_result=None, dict_key=key)
     # plot_comm(comm_result)
