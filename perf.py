@@ -180,7 +180,7 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     print("fig saved.")
     
     # plt.show()
-# use for save inter layer comm result, deprecated now
+# use for save inter layer comm result
 def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
     # 获取所有模型名称和优化选项组合
     models = list(comm_segs.keys())
@@ -249,17 +249,15 @@ if __name__ == "__main__":
     begin_time = time.time()
     mapping_result, comm_result = perf_test(models_dir='models', hwinfo = hw_info)
     print(f"Total Time: {time.time()-begin_time}")
-    # for bw in bw_list:
-    #     latency_dict = load_lat_result(bw, xbar_size)
-    #     plot_perf(mapping_result, latency_dict, bw, norm=1)
     bw_list = [1, 2]
     for bw in bw_list:
         latency_dict = load_lat_result(bw, xbar_size)
         plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-        plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
-    key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
-    for key in key_list:
-        plot_comm(comm_result, key)
+        # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
+    # for key in key_list:
+    #     plot_comm(comm_result, key)
+    #     get_data_percentage(comm_result, dict_key=key)
     # opt_info = (0, 0)
     # test model by model
     # model_name = "alexnet.onnx"

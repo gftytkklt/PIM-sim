@@ -52,7 +52,7 @@ def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
             latency_map[layer] = latency
     return latency_map
 # mapping_res: deploy_info, comm_segs
-def latency_est(SimConfig_path='SimConfig.ini',inputbit=8,outputbit=8, mapping_res=None, bus_width=8, freq = 1000000000, comm_lat=None, ideal = 0):
+def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_res=None, bus_width=8, freq = 1000000000, comm_lat=None, ideal = 0, syn = 1):
     # get mapping results
     all_tiles_mapping_infos = mapping_res.deploy_info
     all_comm_segs = mapping_res.comm_segs # comm_seg: layer and data matrix
@@ -157,10 +157,14 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8,outputbit=8, mapping_r
                 for _, path_delay, parent_id in trans_list)
         # begin->compute->merge->trans
         exec_info[tile_id]['end_time'] = exec_info[tile_id]['begin_time'] + exec_info[tile_id]['cal_lat'] + exec_info[tile_id]['merge_time'] + max_path_delay
-        layer_latdict[cur_layer] = max(layer_latdict.get(cur_layer, 0), exec_info[tile_id]['end_time']) 
-        ovarall_latency = max(ovarall_latency, exec_info[tile_id]['end_time'])
+        layer_latdict[cur_layer] = max(layer_latdict.get(cur_layer, 0), exec_info[tile_id]['end_time'] - exec_info[tile_id]['begin_time'])
+        if not syn:
+            ovarall_latency = max(ovarall_latency, exec_info[tile_id]['end_time'])
     # throughput get from layer_latdict
     overall_throughput = 1 / max(layer_latdict.values())
+    # if sychronous, update latency by layer
+    if syn:
+        ovarall_latency = sum(layer_latdict.values())
     return ovarall_latency, overall_throughput
 
 def tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit):
