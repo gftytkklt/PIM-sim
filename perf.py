@@ -158,18 +158,18 @@ def plot_comm(comm_result, ax=None, dict_key=None, norm=1, subplot_label=None):
     ax.legend(loc='upper right', bbox_to_anchor=(1, 1))
     # 显示图形
     # plt.xticks(rotation=45, ha='right')  # 旋转x轴标签以适应
-    fig.tight_layout()
-    # # save fig
-    file_name = f'results/norm_{dict_key}.pdf' if norm else f'results/{dict_key}.pdf'
-    bbox = ax.get_tightbbox(fig.canvas.get_renderer()).expanded(1.02, 1.02)
-    fig.savefig(file_name, bbox_inches=bbox.transformed(fig.dpi_scale_trans.inverted()))
+    # fig.tight_layout()
+    # # # save fig
+    # file_name = f'results/norm_{dict_key}.pdf' if norm else f'results/{dict_key}.pdf'
+    # bbox = ax.get_tightbbox(fig.canvas.get_renderer()).expanded(1.02, 1.02)
+    # fig.savefig(file_name, bbox_inches=bbox.transformed(fig.dpi_scale_trans.inverted()))
     # fig.savefig(file_name, bbox_inches='tight')
     # print("fig saved.")
     if subplot_label:
         ax.text(0.5, -0.1, f'({subplot_label})',  # 调整y坐标控制标签位置
                 transform=ax.transAxes,
                 ha='center', va='center',
-                fontsize=14, fontname='Times New Roman')
+                fontsize=20, fontname='Times New Roman')
 
     return fig, ax
     # plt.show()
