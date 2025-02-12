@@ -82,14 +82,49 @@ def perf_test(models_dir='demo', hwinfo=None):
 def get_opt_str(opt_info):
     return f"{'DP' if opt_info[0] else 'ZZ'}-{'CA' if opt_info[1] else 'XY'}"
 
-def plot_comm(comm_result, dict_key=None, norm=1):
-    fig, ax = plt.subplots(figsize=(10, 6))
+# 主调用函数
+def plot_all_comm(dict_list, comm_result):
+    # 创建2x2子图布局
     plt.rcParams["font.family"] = "Times New Roman"
+    plt.rcParams["axes.labelsize"] = 14
+    plt.rcParams["axes.titlesize"] = 20
+    plt.rcParams["xtick.labelsize"] = 14
+    plt.rcParams["ytick.labelsize"] = 14
+    fig, axs = plt.subplots(2, 2, figsize=(16, 12))
+    
+    # 展平axes数组便于遍历
+    axs = axs.flatten()
+    
+    # 遍历四个数据集
+    for idx, dict_key in enumerate(dict_list):
+        # 调用修改后的绘图函数
+        plot_comm(comm_result, 
+                 ax=axs[idx],
+                 dict_key=dict_key,
+                 norm=1,
+                 subplot_label=chr(97+idx))  # 97是ASCII码的'a'
+
+    # 调整布局
+    plt.tight_layout(pad=3.0, w_pad=2.0, h_pad=4.0)  # 增加子图间距
+    fig.subplots_adjust(bottom=0.15)  # 为全局标注留出空间
+    
+    # 统一保存
+    fig.savefig('results/combined_plot.pdf', bbox_inches='tight')
+    plt.close()
+
+def plot_comm(comm_result, ax=None, dict_key=None, norm=1, subplot_label=None):
+    # 创建子图或使用现有axes
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 6))
+    else:
+        fig = ax.figure
     # 获取所有模型名称和优化选项组合
+    plt.tick_params(labelsize=14)
     models = list(comm_result.keys())
     opt_combinations = sorted(set(opt for opts in comm_result.values() for opt in opts))
     # 设置柱状图的宽度
     bar_width = 0.2
+    inner_space = 0.1
     index = np.arange(len(models))
 
     # 为每个优化选项组合绘制柱状图
@@ -102,31 +137,41 @@ def plot_comm(comm_result, dict_key=None, norm=1):
         values = [comm_result[model].get(opt, 0).get(dict_key, 0) for model in models]  # 获取每个模型对应的值
         if norm:
             values = [value / base_value for value, base_value in zip(values, base_values)]
-        bars = ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
+        bars = ax.bar(index + i * (bar_width * (1 + inner_space)), values, bar_width, label=f'{get_opt_str(opt)}')
+        # bars = ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
         if opt == (1, 1):
                 for bar in bars:
                     height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width() / 2, height, f'{height:.2f}', ha='center', va='bottom', fontsize=9)
+                    ax.text(bar.get_x() + bar.get_width() / 2, height, f'{height:.2f}', ha='center', va='bottom', fontsize=10)
 
     # 设置图形的标签和标题
     # ax.set_xlabel('model')
     # ax.set_ylabel('value')
     title = f'Normalized {dict_key}' if norm else f'{dict_key} under different opt_info'
     ax.set_title(title)
-    ax.set_xticks(index + bar_width * len(opt_combinations) / 2 - bar_width / 2)
+    # ax.set_xticks(index + bar_width * len(opt_combinations) / 2 - bar_width / 2)
+    ax.set_xticks(index + (len(opt_combinations)-1) * bar_width * (1 + inner_space) / 2)
     models_name = [model.split('.')[0] for model in models]
     ax.set_xticklabels(models_name)
     # 设置y轴范围，确保有足够的空间给标签
     ax.set_ylim(0, 1.4)  # 增加y轴的上限
     ax.legend(loc='upper right', bbox_to_anchor=(1, 1))
-
     # 显示图形
-    plt.xticks(rotation=45, ha='right')  # 旋转x轴标签以适应
-    # save fig
+    # plt.xticks(rotation=45, ha='right')  # 旋转x轴标签以适应
+    fig.tight_layout()
+    # # save fig
     file_name = f'results/norm_{dict_key}.pdf' if norm else f'results/{dict_key}.pdf'
-    fig.savefig(file_name, bbox_inches='tight')
-    print("fig saved.")
-    
+    bbox = ax.get_tightbbox(fig.canvas.get_renderer()).expanded(1.02, 1.02)
+    fig.savefig(file_name, bbox_inches=bbox.transformed(fig.dpi_scale_trans.inverted()))
+    # fig.savefig(file_name, bbox_inches='tight')
+    # print("fig saved.")
+    if subplot_label:
+        ax.text(0.5, -0.1, f'({subplot_label})',  # 调整y坐标控制标签位置
+                transform=ax.transAxes,
+                ha='center', va='center',
+                fontsize=14, fontname='Times New Roman')
+
+    return fig, ax
     # plt.show()
 
 # parse seg elems in this function and plot
@@ -139,7 +184,7 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
     # opt_combinations.append((1, 1))
     # 设置柱状图的宽度
-    bar_width = 0.18
+    bar_width = 0.2
     inner_space = 0.1
     index = np.arange(len(models))
 
@@ -179,8 +224,8 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
 
     # 显示图形
     # plt.xticks(rotation=45, ha='right')
-    plt.xticks(fontproperties = 'Times New Roman', size = 12)
-    plt.yticks(fontproperties = 'Times New Roman', size = 14)
+    plt.xticks(fontproperties = 'Times New Roman', size = 14)
+    plt.yticks(fontproperties = 'Times New Roman', size = 12)
     # save fig
     file_name = f'results/norm_{dict_key}.pdf' if norm else f'results/{dict_key}.pdf'
     fig.savefig(file_name, bbox_inches='tight')
@@ -256,14 +301,15 @@ if __name__ == "__main__":
     begin_time = time.time()
     mapping_result, comm_result = perf_test(models_dir='models', hwinfo = hw_info)
     print(f"Total Time: {time.time()-begin_time}")
-    bw_list = [1, 2]
-    for bw in bw_list:
-        latency_dict = load_lat_result(bw, xbar_size)
-        plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-        plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    # bw_list = [1, 2]
+    # for bw in bw_list:
+    #     latency_dict = load_lat_result(bw, xbar_size)
+    #     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    #     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
-    for key in key_list:
-        plot_comm(comm_result, key)
+    plot_all_comm(key_list, comm_result)
+    # for key in key_list:
+    #     plot_comm(comm_result, key)
     #     get_data_percentage(comm_result, dict_key=key)
     # opt_info = (0, 0)
     # test model by model
