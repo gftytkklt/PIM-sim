@@ -232,6 +232,26 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     fig.savefig(file_name, bbox_inches='tight')
     print("fig saved.")
 
+def brkdown_stat(comm_segs, latency_dict, bw=1):
+    models = list(comm_segs.keys())
+    opt_combinations = [(0, 0), (1, 1)]
+    perf_dict = {}
+    for opt in opt_combinations:
+        perf_dict[opt] = {}
+        stats = [latency_est(mapping_res=comm_segs[model].get(opt, 0), 
+                            bus_width=bw, 
+                            comm_lat=latency_dict[(model, opt)])
+                 for model in models]
+        overall_stats = [stat[0] for stat in stats]
+        cal_stats = [stat[2] for stat in stats]
+        merge_stats = [stat[4] for stat in stats]
+        trans_stats = [overall_stat - cal_stat - merge_stat for overall_stat, cal_stat, merge_stat in zip(overall_stats, cal_stats, merge_stats)]
+        perf_dict[opt]["overall"] = overall_stats
+        perf_dict[opt]["cal"] = cal_stats
+        perf_dict[opt]["merge"] = merge_stats
+        perf_dict[opt]["trans"] = trans_stats
+    pickle.dump(perf_dict, open("results/perf_dict.pkl", "wb"))
+
 def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1):
     plt.rcParams["font.family"] = "Times New Roman"
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))  # 1x2 子图布局
@@ -245,11 +265,11 @@ def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1):
         # 获取数据
         cm_pers = [latency_est(mapping_res=comm_segs[model].get(opt, 0), 
                             bus_width=bw, 
-                            comm_lat=latency_dict[(model, opt)])[3:5] 
+                            comm_lat=latency_dict[(model, opt)])[3:6] 
                  for model in models]
         
         cal_pers = [cm_per[0] for cm_per in cm_pers]
-        merge_pers = [cm_per[1] for cm_per in cm_pers]
+        merge_pers = [cm_per[2] for cm_per in cm_pers]
         lat_pers = [1 - cal_per - merge_per for cal_per, merge_per in zip(cal_pers, merge_pers)]
         
         # 绘制堆叠条形图
@@ -297,36 +317,6 @@ def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1):
     plt.tight_layout()
     fig.savefig('results/lat_breakdown.pdf', bbox_inches='tight')
 
-# def plot_brkdown(comm_segs, latency_dict, bw=1):
-#     fig, ax = plt.subplots(figsize=(10, 6))
-#     plt.rcParams["font.family"] = "Times New Roman"
-
-#     # 获取所有模型名称和优化选项组合
-#     models = list(comm_segs.keys())
-#     # opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
-#     opt_combinations = [(0,0),(1,1)]
-#     bar_width = 0.2
-#     inner_space = 0.1
-#     index = np.arange(len(models))
-#     for i, opt in enumerate(opt_combinations):
-#         cm_pers = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)])[3:5] for model in models]  # 获取每个模型对应的值
-#         cal_pers = [cm_per[0] for cm_per in cm_pers]
-#         merge_pers = [cm_per[1] for cm_per in cm_pers]
-#         lat_pers = [1 - cal_per - merge_per for cal_per, merge_per in zip(cal_pers, merge_pers)]
-#         total = [cal_per + merge_per + lat_per for cal_per, merge_per, lat_per in zip(cal_pers, merge_pers, lat_pers)]
-#         # lat_pers = [1 - cal_per - merge_pers for cal_per in cal_pers]
-#         print(f"cal_pers={cal_pers}, merge_pers={merge_pers} lat_pers={lat_pers}, total={total} opt={opt}")
-#         ax.barh(index + i * (bar_width * (1 + inner_space)), cal_pers, bar_width, label=f'{get_opt_str(opt)}', color='b')
-#         ax.barh(index + i * (bar_width * (1 + inner_space)), merge_pers, bar_width, left=cal_pers, label=f'{get_opt_str(opt)}', color='g')
-#         ax.barh(index + i * (bar_width * (1 + inner_space)), lat_pers, bar_width, left=[cal_per + merge_per for cal_per, merge_per in zip(cal_pers, merge_pers)], label=f'{get_opt_str(opt)}', color='r')
-
-#     ax.set_yticks(index + (len(opt_combinations)-1) * bar_width * (1 + inner_space) / 2)
-#     ax.set_yticklabels(models)
-#     plt.xticks(fontproperties = 'Times New Roman', size = 14)
-#     plt.yticks(fontproperties = 'Times New Roman', size = 12)
-#     file_name = f'results/lat_breakdown.pdf'
-#     fig.savefig(file_name, bbox_inches='tight')
-    # plt.show()
 # use for save inter layer comm result
 def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
     # 获取所有模型名称和优化选项组合
@@ -398,7 +388,8 @@ if __name__ == "__main__":
     print(f"Total Time: {time.time()-begin_time}")
     bw = 1
     latency_dict = load_lat_result(bw, xbar_size)
-    plot_brkdown(mapping_result, latency_dict, bw=1)
+    brkdown_stat(mapping_result, latency_dict, bw)
+    # plot_brkdown(mapping_result, latency_dict, bw=1)
     # bw_list = [1, 2]
     # for bw in bw_list:
     #     latency_dict = load_lat_result(bw, xbar_size)

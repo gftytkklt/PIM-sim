@@ -172,8 +172,9 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     # get overall cal latency
     overall_cal_latency = sum(layer_caldict.values())
     cal_per = overall_cal_latency / ovarall_latency
+    overall_merge_latency = sum(layer_mergedict.values())
     merge_per = sum(layer_mergedict.values()) / ovarall_latency
-    return ovarall_latency, overall_throughput, overall_cal_latency, cal_per, merge_per, effbw
+    return ovarall_latency, overall_throughput, overall_cal_latency, cal_per, overall_merge_latency, merge_per, effbw
 
 def tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit):
     modelL_config = cp.ConfigParser()
