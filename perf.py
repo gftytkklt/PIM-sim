@@ -2,6 +2,7 @@ import os
 import csv
 from pathlib import Path
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 import numpy as np
 import logging
 import pickle
@@ -10,7 +11,7 @@ from MappingInfo import latency_est, booksim_eval
 from onnx_analysis import analysis_model, make_opt_info, load_kernel, make_hw_info
 
 # demo for debug, models for run
-def perf_test(models_dir='demo', hwinfo=None):
+def perf_analysis(models_dir='demo', hwinfo=None):
     models_path = Path(models_dir)
 
     if not models_path.exists() or not models_path.is_dir():
@@ -105,7 +106,7 @@ def plot_all_comm(dict_list, comm_result):
                  subplot_label=chr(97+idx))  # 97是ASCII码的'a'
 
     # 调整布局
-    plt.tight_layout(pad=3.0, w_pad=2.0, h_pad=4.0)  # 增加子图间距
+    plt.tight_layout(pad=3.0, w_pad=2.0, h_pad=3.0)  # 增加子图间距
     fig.subplots_adjust(bottom=0.15)  # 为全局标注留出空间
     
     # 统一保存
@@ -230,7 +231,101 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     file_name = f'results/norm_{dict_key}.pdf' if norm else f'results/{dict_key}.pdf'
     fig.savefig(file_name, bbox_inches='tight')
     print("fig saved.")
-    
+
+def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1):
+    plt.rcParams["font.family"] = "Times New Roman"
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))  # 1x2 子图布局
+    models = list(comm_segs.keys())
+    opt_combinations = [(0, 0), (1, 1)]
+    bar_width = 0.6  # 加宽条形以适应单个子图
+    index = np.arange(len(models))
+
+    for i, opt in enumerate(opt_combinations):
+        ax = axes[i]
+        # 获取数据
+        cm_pers = [latency_est(mapping_res=comm_segs[model].get(opt, 0), 
+                            bus_width=bw, 
+                            comm_lat=latency_dict[(model, opt)])[3:5] 
+                 for model in models]
+        
+        cal_pers = [cm_per[0] for cm_per in cm_pers]
+        merge_pers = [cm_per[1] for cm_per in cm_pers]
+        lat_pers = [1 - cal_per - merge_per for cal_per, merge_per in zip(cal_pers, merge_pers)]
+        
+        # 绘制堆叠条形图
+        bars1 = ax.barh(index, cal_pers, bar_width, color='#56B4D3', label='Compute', edgecolor='black', linewidth=0.8)
+        bars2 = ax.barh(index, merge_pers, bar_width, left=cal_pers, color='#A3BE8C', label='Merge', edgecolor='black', linewidth=0.8)
+        bars3 = ax.barh(index, lat_pers, bar_width, 
+                       left=[c + m for c, m in zip(cal_pers, merge_pers)], 
+                       color='#E69F00', label='Latency', edgecolor='black', linewidth=0.8)
+        
+        # 添加占比百分比标签
+        for j, (cal_per, merge_per, lat_per) in enumerate(zip(cal_pers, merge_pers, lat_pers)):
+            if cal_per > threshold:
+                ax.text(cal_per / 2, j, f'{cal_per*100:.1f}%', ha='center', va='center', fontsize=16, color='black')
+            if merge_per > threshold:
+                ax.text(cal_per + merge_per / 2, j, f'{merge_per*100:.1f}%', ha='center', va='center', fontsize=16, color='black')
+            if lat_per > threshold:
+                ax.text(cal_per + merge_per + lat_per / 2, j, f'{lat_per*100:.1f}%', ha='center', va='center', fontsize=16, color='black')
+
+        # 设置子图属性
+        ax.set_title(get_opt_str(opt), fontsize=20)
+        ax.set_yticks(index)
+        models_name = [model.split('.')[0] for model in models]
+        if i == 0:  # 只在左边子图显示模型标签
+            ax.set_yticklabels(models_name, fontsize=20)
+        else:
+            ax.set_yticklabels([])
+        ax.tick_params(axis='x', labelsize=20)
+        ax.grid(True, axis='x', linestyle='--', alpha=0.6)
+
+        # 设置x轴为百分比格式
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x*100:.0f}%'))
+        sublabel = chr(97+i)  # 97是ASCII码的'a'
+        ax.text(0.5, -0.1, f'({sublabel})',  # 调整y坐标控制标签位置
+                transform=ax.transAxes,
+                ha='center', va='center',
+                fontsize=20, fontname='Times New Roman')
+
+    # 统一图例
+    handles = [bars1, bars2, bars3]
+    labels = ['Compute', 'Merge', 'Trans']
+    fig.legend(handles, labels, loc='upper center', 
+              ncol=3, bbox_to_anchor=(0.5, 1.1),
+              prop={'size': 16})
+
+    plt.tight_layout()
+    fig.savefig('results/lat_breakdown.pdf', bbox_inches='tight')
+
+# def plot_brkdown(comm_segs, latency_dict, bw=1):
+#     fig, ax = plt.subplots(figsize=(10, 6))
+#     plt.rcParams["font.family"] = "Times New Roman"
+
+#     # 获取所有模型名称和优化选项组合
+#     models = list(comm_segs.keys())
+#     # opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
+#     opt_combinations = [(0,0),(1,1)]
+#     bar_width = 0.2
+#     inner_space = 0.1
+#     index = np.arange(len(models))
+#     for i, opt in enumerate(opt_combinations):
+#         cm_pers = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)])[3:5] for model in models]  # 获取每个模型对应的值
+#         cal_pers = [cm_per[0] for cm_per in cm_pers]
+#         merge_pers = [cm_per[1] for cm_per in cm_pers]
+#         lat_pers = [1 - cal_per - merge_per for cal_per, merge_per in zip(cal_pers, merge_pers)]
+#         total = [cal_per + merge_per + lat_per for cal_per, merge_per, lat_per in zip(cal_pers, merge_pers, lat_pers)]
+#         # lat_pers = [1 - cal_per - merge_pers for cal_per in cal_pers]
+#         print(f"cal_pers={cal_pers}, merge_pers={merge_pers} lat_pers={lat_pers}, total={total} opt={opt}")
+#         ax.barh(index + i * (bar_width * (1 + inner_space)), cal_pers, bar_width, label=f'{get_opt_str(opt)}', color='b')
+#         ax.barh(index + i * (bar_width * (1 + inner_space)), merge_pers, bar_width, left=cal_pers, label=f'{get_opt_str(opt)}', color='g')
+#         ax.barh(index + i * (bar_width * (1 + inner_space)), lat_pers, bar_width, left=[cal_per + merge_per for cal_per, merge_per in zip(cal_pers, merge_pers)], label=f'{get_opt_str(opt)}', color='r')
+
+#     ax.set_yticks(index + (len(opt_combinations)-1) * bar_width * (1 + inner_space) / 2)
+#     ax.set_yticklabels(models)
+#     plt.xticks(fontproperties = 'Times New Roman', size = 14)
+#     plt.yticks(fontproperties = 'Times New Roman', size = 12)
+#     file_name = f'results/lat_breakdown.pdf'
+#     fig.savefig(file_name, bbox_inches='tight')
     # plt.show()
 # use for save inter layer comm result
 def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
@@ -299,15 +394,18 @@ if __name__ == "__main__":
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 4)
     begin_time = time.time()
-    mapping_result, comm_result = perf_test(models_dir='models', hwinfo = hw_info)
+    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
     print(f"Total Time: {time.time()-begin_time}")
+    bw = 1
+    latency_dict = load_lat_result(bw, xbar_size)
+    plot_brkdown(mapping_result, latency_dict, bw=1)
     # bw_list = [1, 2]
     # for bw in bw_list:
     #     latency_dict = load_lat_result(bw, xbar_size)
     #     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
     #     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
-    key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
-    plot_all_comm(key_list, comm_result)
+    # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
+    # plot_all_comm(key_list, comm_result)
     # for key in key_list:
     #     plot_comm(comm_result, key)
     #     get_data_percentage(comm_result, dict_key=key)

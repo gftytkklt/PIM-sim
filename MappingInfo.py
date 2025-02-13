@@ -71,6 +71,8 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     effbw = {}
     path_delaydict = {}
     layer_latdict = {}
+    layer_caldict = {}
+    layer_mergedict = {}
     ovarall_latency = 0.0
     overall_throughput = 0.0
     # set tile by layer info
@@ -158,6 +160,8 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
         # begin->compute->merge->trans
         exec_info[tile_id]['end_time'] = exec_info[tile_id]['begin_time'] + exec_info[tile_id]['cal_lat'] + exec_info[tile_id]['merge_time'] + max_path_delay
         layer_latdict[cur_layer] = max(layer_latdict.get(cur_layer, 0), exec_info[tile_id]['end_time'] - exec_info[tile_id]['begin_time'])
+        layer_caldict[cur_layer] = max(layer_caldict.get(cur_layer, 0), exec_info[tile_id]['cal_lat'])
+        layer_mergedict[cur_layer] = max(layer_mergedict.get(cur_layer, 0), exec_info[tile_id]['merge_time'])
         if not syn:
             ovarall_latency = max(ovarall_latency, exec_info[tile_id]['end_time'])
     # throughput get from layer_latdict
@@ -165,7 +169,11 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     # if sychronous, update latency by layer
     if syn:
         ovarall_latency = sum(layer_latdict.values())
-    return ovarall_latency, overall_throughput
+    # get overall cal latency
+    overall_cal_latency = sum(layer_caldict.values())
+    cal_per = overall_cal_latency / ovarall_latency
+    merge_per = sum(layer_mergedict.values()) / ovarall_latency
+    return ovarall_latency, overall_throughput, overall_cal_latency, cal_per, merge_per, effbw
 
 def tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit):
     modelL_config = cp.ConfigParser()
