@@ -379,6 +379,7 @@ def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
     with open(filename, 'wb') as f:
         pickle.dump(latency_dict, f)
         print("Data saved.")
+    return latency_dict
 
 def load_and_plot(dict_key=None, norm=0):
     with open('results/comm_result.pkl', 'rb') as f:
@@ -423,21 +424,24 @@ def load_lat_result(bw, xbar_size):
         return None
 
 if __name__ == "__main__":
-    # bw = 1
-    # xbar_size = (128, 128)
-    # hw_info = make_hw_info(xbar_size, 4)
-    # begin_time = time.time()
-    # mapping_result, comm_result = perf_analysis(models_dir='demo', hwinfo = hw_info)
-    # print(f"Total Time: {time.time()-begin_time}")
-    # latency_dict = load_lat_result(bw, xbar_size)
-    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
-    # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
-    # plot_all_comm(key_list, comm_result)
-    # for key in key_list:
-    #     get_data_percentage(comm_result, dict_key=key)
-    # brkdown_stat(mapping_result, latency_dict, bw)
-    # plot_brkdown(mapping_result, latency_dict, bw=1)
+    bw = 1
+    xbar_size = (256, 256)
+    hw_info = make_hw_info(xbar_size, 4)
+    begin_time = time.time()
+    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
+    print(f"Total Time: {time.time()-begin_time}")
+    latency_dict = load_lat_result(bw, xbar_size)
+    if latency_dict is None:
+        print("latency dict not found. generate by mapping result...")
+        latency_dict = save_comm_result(mapping_result, bw, xbar_size)
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
+    plot_all_comm(key_list, comm_result)
+    for key in key_list:
+        get_data_percentage(comm_result, dict_key=key)
+    brkdown_stat(mapping_result, latency_dict, bw)
+    plot_brkdown(mapping_result, latency_dict, bw=1)
     brkdown_analysis()
     # opt_info = (0, 0)
     # test model by model

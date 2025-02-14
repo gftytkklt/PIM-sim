@@ -52,6 +52,7 @@ def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
             # print("layer", layer, "latency is", latency)
             latency_map[layer] = latency
     return latency_map
+
 # mapping_res: deploy_info, comm_segs
 def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_res=None, bus_width=8, freq = 1000000000, comm_lat=None, ideal = 0, syn = 1):
     # get mapping results
@@ -62,7 +63,7 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     if comm_lat is None and ideal == 0:
         latency_map = booksim_eval(all_comm_segs, bus_width, freq)
         # modify filename manually after saving
-        pickle.dump(latency_map, open(f"results/new_latdict.pkl", "wb"))
+        # pickle.dump(latency_map, open(f"results/latency_dict_bw=1_xbar=256_256.pkl", "wb"))
     elif ideal == 1:
         latency_map = {}
     else:
