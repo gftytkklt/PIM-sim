@@ -252,6 +252,48 @@ def brkdown_stat(comm_segs, latency_dict, bw=1):
         perf_dict[opt]["trans"] = trans_stats
     pickle.dump(perf_dict, open("results/perf_dict.pkl", "wb"))
 
+def brkdown_analysis():
+    stats = pickle.load(open("results_256_256_4/perf_dict.pkl", "rb"))
+    base_stats = stats[(0, 0)]
+    opt_stats = stats[(1, 1)]
+    base_cal = base_stats["cal"]
+    base_merge = base_stats["merge"]
+    base_trans = base_stats["trans"]
+    opt_cal = opt_stats["cal"]
+    opt_merge = opt_stats["merge"]
+    opt_trans = opt_stats["trans"]
+    cal_improve = [(opt - base) / base for base, opt in zip(base_cal, opt_cal)]
+    merge_improve = [(opt - base) / base for base, opt in zip(base_merge, opt_merge)]
+    trans_improve = [(opt - base) / base for base, opt in zip(base_trans, opt_trans)]
+    # print base stat, transfer to ms
+    # base_cal = [f"{stat*10:.2f}ms" for stat in base_cal]
+    # base_merge = [f"{stat*10:.2f}ms" for stat in base_merge]
+    # base_trans = [f"{stat*10:.2f}ms" for stat in base_trans]
+    # multiple by 10 to transfer to ms
+    base_cal = [f"{stat*10}" for stat in base_cal]
+    base_merge = [f"{stat*10}" for stat in base_merge]
+    base_trans = [f"{stat*10}" for stat in base_trans]
+    opt_cal = [f"{stat*10}" for stat in opt_cal]
+    opt_merge = [f"{stat*10}" for stat in opt_merge]
+    opt_trans = [f"{stat*10}" for stat in opt_trans]
+    print("base_cal:", base_cal)
+    print("base_merge:", base_merge)
+    print("base_trans:", base_trans)
+    # print improve stat, transfer to ms
+    # opt_cal = [f"{stat*10:.2f}ms" for stat in opt_cal]
+    # opt_merge = [f"{stat*10:.2f}ms" for stat in opt_merge]
+    # opt_trans = [f"{stat*10:.2f}ms" for stat in opt_trans]
+    print("opt_cal:", opt_cal)
+    print("opt_merge:", opt_merge)
+    print("opt_trans:", opt_trans)
+    # transfer to percentage, reserve 2 decimal
+    cal_improve = [f"{improve:.2%}" for improve in cal_improve]  
+    merge_improve = [f"{improve:.2%}" for improve in merge_improve]
+    trans_improve = [f"{improve:.2%}" for improve in trans_improve]
+    print("cal_improve:", cal_improve)
+    print("merge_improve:", merge_improve)
+    print("trans_improve:", trans_improve)
+
 def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1):
     plt.rcParams["font.family"] = "Times New Roman"
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))  # 1x2 子图布局
@@ -381,25 +423,22 @@ def load_lat_result(bw, xbar_size):
         return None
 
 if __name__ == "__main__":
-    xbar_size = (256, 256)
-    hw_info = make_hw_info(xbar_size, 4)
-    begin_time = time.time()
-    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
-    print(f"Total Time: {time.time()-begin_time}")
-    bw = 1
-    latency_dict = load_lat_result(bw, xbar_size)
-    brkdown_stat(mapping_result, latency_dict, bw)
-    # plot_brkdown(mapping_result, latency_dict, bw=1)
-    # bw_list = [1, 2]
-    # for bw in bw_list:
-    #     latency_dict = load_lat_result(bw, xbar_size)
-    #     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    #     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    # bw = 1
+    # xbar_size = (128, 128)
+    # hw_info = make_hw_info(xbar_size, 4)
+    # begin_time = time.time()
+    # mapping_result, comm_result = perf_analysis(models_dir='demo', hwinfo = hw_info)
+    # print(f"Total Time: {time.time()-begin_time}")
+    # latency_dict = load_lat_result(bw, xbar_size)
+    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     # plot_all_comm(key_list, comm_result)
     # for key in key_list:
-    #     plot_comm(comm_result, key)
     #     get_data_percentage(comm_result, dict_key=key)
+    # brkdown_stat(mapping_result, latency_dict, bw)
+    # plot_brkdown(mapping_result, latency_dict, bw=1)
+    brkdown_analysis()
     # opt_info = (0, 0)
     # test model by model
     # model_name = "alexnet.onnx"

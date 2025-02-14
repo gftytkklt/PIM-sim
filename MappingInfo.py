@@ -1,3 +1,4 @@
+import pickle
 import os, re, glob, sys, math
 import numpy as np
 import pandas as pd
@@ -60,6 +61,8 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     # get inter-tile lat first if not provided
     if comm_lat is None and ideal == 0:
         latency_map = booksim_eval(all_comm_segs, bus_width, freq)
+        # modify filename manually after saving
+        pickle.dump(latency_map, open(f"results/new_latdict.pkl", "wb"))
     elif ideal == 1:
         latency_map = {}
     else:
