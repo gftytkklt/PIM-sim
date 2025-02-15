@@ -77,6 +77,7 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     layer_latdict = {}
     layer_caldict = {}
     layer_mergedict = {}
+    layer_transdict = {}
     ovarall_latency = 0.0
     overall_throughput = 0.0
     # set tile by layer info
@@ -117,8 +118,12 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
         tile_id = tile_info.tile_id
         # get ifm size to compute cal latency
         ifm_size = sum(cn.ifmap_size for cn in tile_info.cnode)
-        exec_info[tile_id]['cal_lat'] = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit)
-        exec_info[tile_id]['cal_lat'] /= 100000000 # ns to s, freq = 100MHz
+        # exec_info[tile_id]['cal_lat'] = 0
+        if ideal == 1:
+            exec_info[tile_id]['cal_lat'] = 0
+        else:
+            exec_info[tile_id]['cal_lat'] = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit)
+            exec_info[tile_id]['cal_lat'] /= 100000000 # ns to s, freq = 100MHz
         # tile-layer map regestration
         cur_layer = tile_info.layer
         max_path_delay = 0.0
@@ -166,13 +171,17 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
         layer_latdict[cur_layer] = max(layer_latdict.get(cur_layer, 0), exec_info[tile_id]['end_time'] - exec_info[tile_id]['begin_time'])
         layer_caldict[cur_layer] = max(layer_caldict.get(cur_layer, 0), exec_info[tile_id]['cal_lat'])
         layer_mergedict[cur_layer] = max(layer_mergedict.get(cur_layer, 0), exec_info[tile_id]['merge_time'])
+        layer_transdict[cur_layer] = max(layer_transdict.get(cur_layer, 0), max_path_delay)
         if not syn:
             ovarall_latency = max(ovarall_latency, exec_info[tile_id]['end_time'])
     # throughput get from layer_latdict
     overall_throughput = 1 / max(layer_latdict.values())
     # if sychronous, update latency by layer
     if syn:
+        for layer in layer_latdict.keys():
+            layer_latdict[layer] = layer_caldict[layer] + layer_mergedict[layer] + layer_transdict[layer]
         ovarall_latency = sum(layer_latdict.values())
+        overall_throughput = 1 / max(layer_latdict.values())
     # get overall cal latency
     overall_cal_latency = sum(layer_caldict.values())
     cal_per = overall_cal_latency / ovarall_latency

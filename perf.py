@@ -85,152 +85,244 @@ def get_opt_str(opt_info):
 
 # 主调用函数
 def plot_all_comm(dict_list, comm_result):
-    # 创建2x2子图布局
-    plt.rcParams["font.family"] = "Times New Roman"
-    plt.rcParams["axes.labelsize"] = 14
-    plt.rcParams["axes.titlesize"] = 20
-    plt.rcParams["xtick.labelsize"] = 14
-    plt.rcParams["ytick.labelsize"] = 14
-    fig, axs = plt.subplots(2, 2, figsize=(16, 12))
+    # 全局样式设置
+    plt.style.use('seaborn-v0_8-paper')
+    plt.rcParams.update({
+        "font.family": "serif",
+        "font.serif": ["Times New Roman"],
+        # "axes.labelsize": 12,
+        # "axes.titlesize": 14,
+        # "xtick.labelsize": 10,
+        # "ytick.labelsize": 10,
+        # "legend.fontsize": 10,
+        "axes.titlesize": 14,
+        "axes.labelsize": 16,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
+        "legend.fontsize": 12,
+        "hatch.linewidth": 0.5
+    })
     
-    # 展平axes数组便于遍历
+    # 创建子图布局
+    fig, axs = plt.subplots(2, 2, figsize=(16, 9))  # 适合双栏布局的尺寸
     axs = axs.flatten()
     
-    # 遍历四个数据集
+    # 统一配色方案和阴影模式
+    palette = ['#2b83ba', '#abdda4', '#fdae61', '#d7191c']  # ColorBrewer 4-class
+    hatches = ['///', '\\\\\\', '|||', '---']
+    
+    # 遍历数据集
     for idx, dict_key in enumerate(dict_list):
-        # 调用修改后的绘图函数
         plot_comm(comm_result, 
                  ax=axs[idx],
                  dict_key=dict_key,
                  norm=1,
-                 subplot_label=chr(97+idx))  # 97是ASCII码的'a'
+                 palette=palette,
+                 hatches=hatches,
+                 subplot_label=f'({chr(97+idx)})')  # (a), (b) 格式
 
-    # 调整布局
-    plt.tight_layout(pad=3.0, w_pad=2.0, h_pad=3.0)  # 增加子图间距
-    fig.subplots_adjust(bottom=0.15)  # 为全局标注留出空间
+    # 统一图例
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(handles, labels, 
+              loc='lower center', 
+              ncol=4,
+              bbox_to_anchor=(0.5, 0.02),
+              frameon=True,
+              fancybox=False)
     
-    # 统一保存
-    fig.savefig('results/combined_plot.pdf', bbox_inches='tight')
+    # 布局优化
+    plt.tight_layout(pad=2.0, w_pad=2.5, h_pad=3.0)
+    fig.subplots_adjust(bottom=0.15, top=0.92)
+    
+    # 高质量保存
+    fig.savefig('results/combined_plot.pdf', dpi=600, bbox_inches='tight')
     plt.close()
 
-def plot_comm(comm_result, ax=None, dict_key=None, norm=1, subplot_label=None):
-    # 创建子图或使用现有axes
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(10, 6))
-    else:
-        fig = ax.figure
-    # 获取所有模型名称和优化选项组合
-    plt.tick_params(labelsize=14)
+def plot_comm(comm_result, ax=None, dict_key=None, norm=1, 
+             palette=None, hatches=None, subplot_label=None):
+    # 初始化参数
+    bar_width = 0.18
+    inner_space = 0.2
+    index = np.arange(len(comm_result))
+    
+    # 获取数据
     models = list(comm_result.keys())
     opt_combinations = sorted(set(opt for opts in comm_result.values() for opt in opts))
-    # 设置柱状图的宽度
-    bar_width = 0.2
-    inner_space = 0.1
-    index = np.arange(len(models))
-
-    # 为每个优化选项组合绘制柱状图
-    if norm:
-        base_values = [
-            comm_result[model].get(opt_combinations[0], {}).get(dict_key, 0) 
-            for model in models
-        ]
+    
+    # 标准化处理
+    base_values = [comm_result[model][opt_combinations[0]].get(dict_key, 1e-6) 
+                  for model in models] if norm else None
+    
+    # 绘制柱状图
     for i, opt in enumerate(opt_combinations):
-        values = [comm_result[model].get(opt, 0).get(dict_key, 0) for model in models]  # 获取每个模型对应的值
-        if norm:
-            values = [value / base_value for value, base_value in zip(values, base_values)]
-        bars = ax.bar(index + i * (bar_width * (1 + inner_space)), values, bar_width, label=f'{get_opt_str(opt)}')
-        # bars = ax.bar(index + i * bar_width, values, bar_width, label=f'{get_opt_str(opt)}')
+        values = [comm_result[model].get(opt, {}).get(dict_key, 0) 
+                 for model in models]
+        if norm and base_values:
+            values = [v/b for v, b in zip(values, base_values)]
+        
+        # 图形属性设置
+        pos = index + i * bar_width * (1 + inner_space)
+        color = palette[i%len(palette)] if palette else None
+        hatch = hatches[i%len(hatches)] if hatches else None
+        
+        bars = ax.bar(pos, values, bar_width,
+                      color=color,
+                      edgecolor='black',
+                      linewidth=0.6,
+                      hatch=hatch,
+                      alpha=0.9,
+                      label=f'{get_opt_str(opt)}',
+                      zorder=3)
+        
+        # 数据标注
+        # if opt == (1, 1):
+        #     for bar in bars:
+        #         height = bar.get_height()
+        #         ax.text(bar.get_x() + bar.width/2, height*1.05,
+        #                 f'{height:.2f}',
+        #                 ha='center', va='bottom',
+        #                 fontsize=9,
+        #                 rotation=90)
         if opt == (1, 1):
-                for bar in bars:
-                    height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width() / 2, height, f'{height:.2f}', ha='center', va='bottom', fontsize=10)
-
-    # 设置图形的标签和标题
-    # ax.set_xlabel('model')
-    # ax.set_ylabel('value')
-    title = f'Normalized {dict_key}' if norm else f'{dict_key} under different opt_info'
-    ax.set_title(title)
-    # ax.set_xticks(index + bar_width * len(opt_combinations) / 2 - bar_width / 2)
-    ax.set_xticks(index + (len(opt_combinations)-1) * bar_width * (1 + inner_space) / 2)
-    models_name = [model.split('.')[0] for model in models]
-    ax.set_xticklabels(models_name)
-    # 设置y轴范围，确保有足够的空间给标签
-    ax.set_ylim(0, 1.4)  # 增加y轴的上限
-    ax.legend(loc='upper right', bbox_to_anchor=(1, 1))
-    # 显示图形
-    # plt.xticks(rotation=45, ha='right')  # 旋转x轴标签以适应
-    # fig.tight_layout()
-    # # # save fig
-    # file_name = f'results/norm_{dict_key}.pdf' if norm else f'results/{dict_key}.pdf'
-    # bbox = ax.get_tightbbox(fig.canvas.get_renderer()).expanded(1.02, 1.02)
-    # fig.savefig(file_name, bbox_inches=bbox.transformed(fig.dpi_scale_trans.inverted()))
-    # fig.savefig(file_name, bbox_inches='tight')
-    # print("fig saved.")
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2, height, 
+                        f'{height:.2f}', 
+                        ha='center', va='bottom',
+                        fontsize=8, rotation=0,
+                        bbox=dict(facecolor='white', alpha=0.8, 
+                                edgecolor='none', pad=0.2))
+    
+    # 坐标轴优化
+    # ax.set_xticks(index + bar_width*(len(opt_combinations)/2))
+    # ax.set_xticks(index + (len(opt_combinations)-1) * bar_width * (1 + 0.1) / 2)
+    # 计算总位移量 (考虑间距系数)
+    total_offset = (len(opt_combinations)-1) * bar_width * (1 + inner_space)
+    
+    # 核心修正：正确定位x轴刻度
+    ax.set_xticks(index + total_offset/2)  # 居中定位
+    ax.set_xticklabels([m.split('.')[0] for m in models], 
+                      rotation=0, ha='center', rotation_mode='anchor')
+    ax.set_ylabel('Normalized Value' if norm else 'Absolute Value', 
+                 labelpad=8)
+    
+    # 网格和边框
+    ax.yaxis.grid(True, linestyle=':', alpha=0.6, zorder=0)
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.5)
+    
+    # 子图标签
     if subplot_label:
-        ax.text(0.5, -0.1, f'({subplot_label})',  # 调整y坐标控制标签位置
+        ax.text(0.5, -0.15, subplot_label,
                 transform=ax.transAxes,
-                ha='center', va='center',
-                fontsize=20, fontname='Times New Roman')
-
-    return fig, ax
-    # plt.show()
+                fontsize=14,
+                # fontweight='bold',
+                ha='center',
+                va='center')
+    
+    return ax
 
 # parse seg elems in this function and plot
 def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    plt.rcParams["font.family"] = "Times New Roman"
+    # 设置学术风格参数
+    plt.style.use('seaborn-v0_8-paper')
+    plt.rcParams.update({
+        "font.family": "Times New Roman",
+        "mathtext.fontset": "stix",
+        "axes.titlesize": 20,
+        "axes.labelsize": 16,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
+        "legend.fontsize": 12,
+        "grid.linewidth": 0.5,
+        "lines.linewidth": 1,
+        "hatch.linewidth": 0.5
+    })
+    fig, ax = plt.subplots(figsize=(8, 4.5))  # 更适合论文栏宽的尺寸
 
-    # 获取所有模型名称和优化选项组合
+    # 学术配色方案（ColorBrewer Set1 + 灰度扩展）
+    palette = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#b07aa1', '#9c755f']
+    hatch_patterns = ['//', '\\\\', '||', '--', '++', 'xx', 'oo']
+    
+    # 获取绘图数据
     models = list(comm_segs.keys())
     opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
-    # opt_combinations.append((1, 1))
-    # 设置柱状图的宽度
-    bar_width = 0.2
-    inner_space = 0.1
+    bar_width = 0.18  # 调整宽度适应更多分组
+    inner_space = 0.2
     index = np.arange(len(models))
-
-    # 为每个优化选项组合绘制柱状图
+    
+    # 绘图参数初始化
     base_values = []
-    ideal = 0
-    list_id = None
-    if plot_type == "latency":
-        ax.set_ylim(0, 1.4)
-        list_id = 0
-    elif plot_type == "throughput":
-        list_id = 1
-    else:
-        print("plot type error")
-        return
+    list_id = 0 if plot_type == "latency" else 1
+    error_kw = dict(lw=0.8, capsize=3, capthick=0.8)  # 误差线样式
+    
+    # 绘制柱状图
     for i, opt in enumerate(opt_combinations):
-        if i == 4:
-            ideal = 1
-        values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[list_id] for model in models]  # 获取每个模型对应的值
+        ideal = 1 if i == 4 else 0
+        values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[list_id] for model in models]  # 保持原有计算逻辑
+        
+        # 标准化处理
         if norm and i == 0:
             base_values = values
-        values = [value / base_value for value, base_value in zip(values, base_values)]
-        bars = ax.bar(index + i * (bar_width * (1 + inner_space)), values, bar_width, label=f'{get_opt_str(opt)}')
+        values = [v/b for v, b in zip(values, base_values)] if norm else values
+        
+        # 创建柱状图
+        pos = index + i * bar_width * (1 + inner_space)
+        bars = ax.bar(pos, values, bar_width,
+                      color=palette[i%len(palette)],
+                      edgecolor='black',
+                      linewidth=0.6,
+                      hatch=hatch_patterns[i%len(hatch_patterns)],
+                      alpha=0.9,
+                      label=f'{get_opt_str(opt)}',
+                      error_kw=error_kw)
+        
+        # 特殊标注理想情况
         if opt == (1, 1):
-                for bar in bars:
-                    height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width() / 2, height, f'{height:.2f}', ha='center', va='bottom', fontsize=10)
-    dict_key = plot_type + "_"+str(bw)
-    # title = f'Normalized {dict_key} under different opt_info' if norm else f'{dict_key} under different opt_info'
-    # ax.set_title(title)
-    # ax.set_xticks(index + bar_width * len(opt_combinations) / 2 - bar_width / 2)
-    ax.set_xticks(index + (len(opt_combinations)-1) * bar_width * (1 + inner_space) / 2)
-    models_name = [model.split('.')[0] for model in models]
-    ax.set_xticklabels(models_name)
-    # 设置y轴范围，确保有足够的空间给标签
-    ax.legend(loc='upper right', bbox_to_anchor=(1, 1))
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2, height, 
+                        f'{height:.2f}', 
+                        ha='center', va='bottom',
+                        fontsize=8, rotation=0,
+                        bbox=dict(facecolor='white', alpha=0.8, 
+                                edgecolor='none', pad=0.2))
+    
+    # 坐标轴和标签优化
+    ylabel = f"Normalized {plot_type}" if norm else plot_type
+    ax.set_ylabel(ylabel, 
+                fontsize=10, labelpad=5)
+    ax.set_xlabel('Model Architectures', fontsize=10, labelpad=5)
+    # ax.set_xticks(index + bar_width*(len(opt_combinations)/2))
+    # ax.set_xticks(index + (len(opt_combinations)-1) * bar_width * (1 + 0.1) / 2)
+    # 计算总位移量 (考虑间距系数)
+    total_offset = (len(opt_combinations)-1) * bar_width * (1 + inner_space)
+    
+    # 核心修正：正确定位x轴刻度
+    ax.set_xticks(index + total_offset/2)  # 居中定位
+    ax.set_xticklabels([m.split('.')[0] for m in models], 
+                     rotation=0, ha='center', rotation_mode='anchor')
+    
+    # 网格和边框优化
+    ax.yaxis.grid(True, linestyle='--', alpha=0.6)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_linewidth(0.5)
+    ax.spines['left'].set_linewidth(0.5)
 
-    # 显示图形
-    # plt.xticks(rotation=45, ha='right')
-    plt.xticks(fontproperties = 'Times New Roman', size = 14)
-    plt.yticks(fontproperties = 'Times New Roman', size = 12)
-    # save fig
-    file_name = f'results/norm_{dict_key}.pdf' if norm else f'results/{dict_key}.pdf'
-    fig.savefig(file_name, bbox_inches='tight')
-    print("fig saved.")
+    legend = ax.legend(ncol=2, loc='upper left', 
+                     bbox_to_anchor=(0, 1.15),
+                     frameon=True,
+                     fancybox=False,
+                     shadow=False,
+                     edgecolor='black')
+    legend.get_frame().set_linewidth(0.5)
+    
+    # 紧凑布局并保存
+    plt.tight_layout(pad=1.5)
+    file_name = f'results/norm_{plot_type}_{bw}.pdf'
+    fig.savefig(file_name, dpi=600, bbox_inches='tight')
 
 def brkdown_stat(comm_segs, latency_dict, bw=1):
     models = list(comm_segs.keys())
@@ -253,7 +345,7 @@ def brkdown_stat(comm_segs, latency_dict, bw=1):
     pickle.dump(perf_dict, open("results/perf_dict.pkl", "wb"))
 
 def brkdown_analysis():
-    stats = pickle.load(open("results_256_256_4/perf_dict.pkl", "rb"))
+    stats = pickle.load(open("results/perf_dict.pkl", "rb"))
     base_stats = stats[(0, 0)]
     opt_stats = stats[(1, 1)]
     base_cal = base_stats["cal"]
@@ -359,6 +451,27 @@ def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1):
     plt.tight_layout()
     fig.savefig('results/lat_breakdown.pdf', bbox_inches='tight')
 
+def plot_bw(comm_segs, latency_dict, bw=1):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    plt.rcParams["font.family"] = "Times New Roman"
+
+    # 获取所有模型名称和优化选项组合
+    models = list(comm_segs.keys())
+    opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
+    for i, model in enumerate(models):
+        values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)]) for opt in opt_combinations]
+        ideal_values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)], ideal=1) for opt in opt_combinations]
+        comm_lat = [value[0] - value[2] for value in values]
+        ideal_lat = [value[0] - value[2] for value in values]
+        ax.plot(opt_combinations, comm_lat, label=f"{model.split('.')[0]}")
+    # for i, opt in enumerate(opt_combinations):
+    #     values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)]) for model in models]
+    #     ideal_values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)], ideal=1) for model in models]
+    #     comm_lat = [value[0] - value[2] for value in values]
+    #     ideal_lat = [value[0] - value[2] for value in ideal_values]
+    #     util_per = [100 * ideal / lat for lat, ideal in zip(comm_lat, ideal_lat)]
+        # print(f"opt={opt}, util_per={util_per}")
+
 # use for save inter layer comm result
 def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
     # 获取所有模型名称和优化选项组合
@@ -434,41 +547,13 @@ if __name__ == "__main__":
     if latency_dict is None:
         print("latency dict not found. generate by mapping result...")
         latency_dict = save_comm_result(mapping_result, bw, xbar_size)
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     plot_all_comm(key_list, comm_result)
     for key in key_list:
         get_data_percentage(comm_result, dict_key=key)
     brkdown_stat(mapping_result, latency_dict, bw)
-    plot_brkdown(mapping_result, latency_dict, bw=1)
+    plot_brkdown(mapping_result, latency_dict, bw)
     brkdown_analysis()
-    # opt_info = (0, 0)
-    # test model by model
-    # model_name = "alexnet.onnx"
-    # opt_list = [(1, 1), (1, 0), (0, 1), (0, 0)]
-    # for opt_info in opt_list:
-    #     comm_seg = comm_segs[model_name][(opt_info)]
-    #     latency_map = latency_dict[(model_name, opt_info)]
-    #     latency = latency_est(bus_width=bw,mapping_res=comm_seg,comm_lat=latency_map)
-    #     print(f"model={model_name}, opt_info={opt_info}, latency={latency}")
-    # save comm result
-    # xbar = [(256, 256), (512, 256), (1024, 512), (1152, 1024)]
-    # hw_infos = [make_hw_info(xbar) for xbar in xbar]
-    # for hw_info in hw_infos:
-    #     comm_segs, comm_result = perf_test(models_dir='models', hwinfo = hw_info)
-    #     begin_time = time.time()
-    #     bus_width = [1,2,4,6,8]
-    #     for _, bw in enumerate(bus_width):
-    #         save_comm_result(comm_segs, bw, hw_info.xbar_size)
-    #     print(f"Total Time: {time.time()-begin_time}")
-    # with open('results/latency_dict.pkl', 'rb') as f:
-    #     load_data = pickle.load(f)
-    # print(load_data)
-    # latency=load_data[('alexnet.onnx', (1, 1))]
-    # print(latency)
-
-        # load_and_plot(key, 1)
-        # get_data_percentage(comm_result=None, dict_key=key)
-    # plot_comm(comm_result)
-    # load_and_plot()
+    # plot_bw(mapping_result, latency_dict, bw)
