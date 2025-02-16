@@ -3,6 +3,7 @@ import csv
 from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import PercentFormatter
 import numpy as np
 import logging
 import pickle
@@ -203,8 +204,9 @@ def plot_comm(comm_result, ax=None, dict_key=None, norm=1,
     ax.set_xticks(index + total_offset/2)  # 居中定位
     ax.set_xticklabels([m.split('.')[0] for m in models], 
                       rotation=0, ha='center', rotation_mode='anchor')
-    ax.set_ylabel('Normalized Value' if norm else 'Absolute Value', 
-                 labelpad=8)
+    ax.set_title(f'Normalized {dict_key}', fontsize=14)
+    # ax.set_ylabel('Value' if norm else 'Absolute Value', 
+    #              labelpad=8)
     
     # 网格和边框
     ax.yaxis.grid(True, linestyle=':', alpha=0.6, zorder=0)
@@ -291,9 +293,8 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     
     # 坐标轴和标签优化
     ylabel = f"Normalized {plot_type}" if norm else plot_type
-    ax.set_ylabel(ylabel, 
-                fontsize=10, labelpad=5)
-    ax.set_xlabel('Model Architectures', fontsize=10, labelpad=5)
+    ax.set_ylabel(ylabel, labelpad=5)
+    # ax.set_xlabel('Model Architectures', fontsize=10, labelpad=5)
     # ax.set_xticks(index + bar_width*(len(opt_combinations)/2))
     # ax.set_xticks(index + (len(opt_combinations)-1) * bar_width * (1 + 0.1) / 2)
     # 计算总位移量 (考虑间距系数)
@@ -386,20 +387,30 @@ def brkdown_analysis():
     print("merge_improve:", merge_improve)
     print("trans_improve:", trans_improve)
 
-def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1):
+def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1, ideal = 0):
     plt.rcParams["font.family"] = "Times New Roman"
-    fig, axes = plt.subplots(1, 2, figsize=(12, 6))  # 1x2 子图布局
+    plt.rcParams.update({
+        'font.size': 10,          # 基础字号
+        'axes.titlesize': 12,     # 子图标题
+        'axes.labelsize': 10,    # 坐标轴标签
+        'xtick.labelsize': 9,     # x轴刻度
+        'ytick.labelsize': 10     # y轴刻度
+    })
+    fig, axes = plt.subplots(1, 2, figsize=(8, 3.5))  # 1x2 子图布局
     models = list(comm_segs.keys())
     opt_combinations = [(0, 0), (1, 1)]
     bar_width = 0.6  # 加宽条形以适应单个子图
     index = np.arange(len(models))
+    color_palette = ['#4C72B0', '#55A868', '#C44E52']  # 优化颜色对比度
+
+    plt.subplots_adjust(wspace=0.25, left=0.15, right=0.95, top=0.85)
 
     for i, opt in enumerate(opt_combinations):
         ax = axes[i]
         # 获取数据
         cm_pers = [latency_est(mapping_res=comm_segs[model].get(opt, 0), 
                             bus_width=bw, 
-                            comm_lat=latency_dict[(model, opt)])[3:6] 
+                            comm_lat=latency_dict[(model, opt)], ideal=ideal)[3:6] 
                  for model in models]
         
         cal_pers = [cm_per[0] for cm_per in cm_pers]
@@ -407,71 +418,175 @@ def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1):
         lat_pers = [1 - cal_per - merge_per for cal_per, merge_per in zip(cal_pers, merge_pers)]
         
         # 绘制堆叠条形图
-        bars1 = ax.barh(index, cal_pers, bar_width, color='#56B4D3', label='Compute', edgecolor='black', linewidth=0.8)
-        bars2 = ax.barh(index, merge_pers, bar_width, left=cal_pers, color='#A3BE8C', label='Merge', edgecolor='black', linewidth=0.8)
+        bars1 = ax.barh(index, cal_pers, bar_width, color=color_palette[0], label='Compute', edgecolor='black', linewidth=0.8)
+        bars2 = ax.barh(index, merge_pers, bar_width, left=cal_pers, color=color_palette[1], label='Merge', edgecolor='black', linewidth=0.8)
         bars3 = ax.barh(index, lat_pers, bar_width, 
                        left=[c + m for c, m in zip(cal_pers, merge_pers)], 
-                       color='#E69F00', label='Latency', edgecolor='black', linewidth=0.8)
+                       color=color_palette[2], label='Latency', edgecolor='black', linewidth=0.8)
         
-        # 添加占比百分比标签
+        # 优化百分比标签
+        label_params = {
+            'ha': 'center', 
+            'va': 'center',
+            'fontsize': 8,  # 缩小标签字号
+            'color': 'black',
+            'fontweight': 'bold'
+        }
         for j, (cal_per, merge_per, lat_per) in enumerate(zip(cal_pers, merge_pers, lat_pers)):
             if cal_per > threshold:
-                ax.text(cal_per / 2, j, f'{cal_per*100:.1f}%', ha='center', va='center', fontsize=16, color='black')
+                ax.text(cal_per/2, j, f'{cal_per*100:.0f}%', **label_params)
             if merge_per > threshold:
-                ax.text(cal_per + merge_per / 2, j, f'{merge_per*100:.1f}%', ha='center', va='center', fontsize=16, color='black')
+                ax.text(cal_per + merge_per/2, j, f'{merge_per*100:.0f}%', **label_params)
             if lat_per > threshold:
-                ax.text(cal_per + merge_per + lat_per / 2, j, f'{lat_per*100:.1f}%', ha='center', va='center', fontsize=16, color='black')
-
-        # 设置子图属性
-        ax.set_title(get_opt_str(opt), fontsize=20)
-        ax.set_yticks(index)
+                ax.text(cal_per + merge_per + lat_per/2-0.02, j,  # 微调位置
+                       f'{lat_per*100:.0f}%', **label_params)
+        # 优化坐标轴设置
+        ax.set_title(get_opt_str(opt), pad=10, fontsize=12)
+        ax.set_xlim(0, 1.05)  # 统一x轴范围
         models_name = [model.split('.')[0] for model in models]
-        if i == 0:  # 只在左边子图显示模型标签
-            ax.set_yticklabels(models_name, fontsize=20)
-        else:
-            ax.set_yticklabels([])
-        ax.tick_params(axis='x', labelsize=20)
-        ax.grid(True, axis='x', linestyle='--', alpha=0.6)
+        ax.set_yticks(index)
+        ax.set_yticklabels(models_name if i==0 else [], 
+                          fontsize=10, 
+                          fontstyle='italic')  # 斜体突出模型名称
+        
+        # 优化网格线
+        ax.grid(True, axis='x', linestyle=':', alpha=0.4)
+        ax.spines[['top', 'right']].set_visible(False)
 
-        # 设置x轴为百分比格式
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x*100:.0f}%'))
-        sublabel = chr(97+i)  # 97是ASCII码的'a'
-        ax.text(0.5, -0.1, f'({sublabel})',  # 调整y坐标控制标签位置
-                transform=ax.transAxes,
-                ha='center', va='center',
-                fontsize=20, fontname='Times New Roman')
+        # 子图标签
+        sublabel = chr(97+i)
+        ax.text(-0.15, 1.05, f'({sublabel})',  # 调整标签位置
+               transform=ax.transAxes,
+               ha='left', va='bottom',
+               fontsize=12, fontweight='bold')
 
-    # 统一图例
+    # 优化图例
     handles = [bars1, bars2, bars3]
     labels = ['Compute', 'Merge', 'Trans']
-    fig.legend(handles, labels, loc='upper center', 
-              ncol=3, bbox_to_anchor=(0.5, 1.1),
-              prop={'size': 16})
+    fig.legend(handles, labels,
+              loc='upper center',
+              bbox_to_anchor=(0.5, 1.02),  # 提升图例位置
+              ncol=3,
+              frameon=False,
+              fontsize=10,
+              handletextpad=0.5,
+              columnspacing=1.5)
 
-    plt.tight_layout()
+    # 最终布局调整
+    plt.tight_layout(rect=[0, 0, 1, 0.95])  # 保留顶部空间
     fig.savefig('results/lat_breakdown.pdf', bbox_inches='tight')
 
 def plot_bw(comm_segs, latency_dict, bw=1):
-    fig, ax = plt.subplots(figsize=(10, 6))
+    plt.style.use('seaborn-v0_8-paper')
     plt.rcParams["font.family"] = "Times New Roman"
-
+    plt.rcParams.update({
+        'font.size': 10,          # 缩小基础字号
+        'axes.titlesize': 11,     # 子图标题字号
+        'axes.labelsize': 10,     # 坐标轴标签字号
+        'xtick.labelsize': 9,     # x轴刻度字号
+        'ytick.labelsize': 9      # y轴刻度字号
+    })
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 5))
     # 获取所有模型名称和优化选项组合
     models = list(comm_segs.keys())
     opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
-    for i, model in enumerate(models):
+    x_ticks = range(len(opt_combinations))
+    colors = plt.cm.tab10.colors  # 使用tab10调色板
+    line_styles = ['-', '--', '-.', ':']
+    markers = ['o', 's', '^', 'D', 'v', '<', '>', 'p']
+    highlight_opt = (1, 1)  # 需要标注的优化组合
+    try:
+        highlight_idx = opt_combinations.index(highlight_opt)
+    except ValueError:
+        highlight_idx = -1
+    max_util = 0
+    max_ideal = 0
+    for idx, model in enumerate(models):
+        model_name = model.split('.')[0]
+        opt_name = [get_opt_str(opt) for opt in opt_combinations]
         values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)]) for opt in opt_combinations]
         ideal_values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)], ideal=1) for opt in opt_combinations]
-        comm_lat = [value[0] - value[2] for value in values]
-        ideal_lat = [value[0] - value[2] for value in values]
-        ax.plot(opt_combinations, comm_lat, label=f"{model.split('.')[0]}")
-    # for i, opt in enumerate(opt_combinations):
-    #     values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)]) for model in models]
-    #     ideal_values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)], ideal=1) for model in models]
-    #     comm_lat = [value[0] - value[2] for value in values]
-    #     ideal_lat = [value[0] - value[2] for value in ideal_values]
-    #     util_per = [100 * ideal / lat for lat, ideal in zip(comm_lat, ideal_lat)]
-        # print(f"opt={opt}, util_per={util_per}")
+        comm_lats = [value[0] - value[2] for value in values]
+        ideal_lats = [value[0] - value[2] for value in ideal_values]
+        # print(f"model={model}, comm_lats={comm_lats}, ideal_lats={ideal_lats}")
+        util_per = [ideal_lat / comm_lat for ideal_lat, comm_lat in zip(ideal_lats, comm_lats)]
+        # print(f"model={model}, util_per={util_per}")
+        # get per in (0,0) for basevalue
+        base_value = util_per[0]
+        util_per = [value / base_value for value in util_per]
+        # print(f"model={model.split('.')[0]}, util_per={util_per}")
+        base_ideal_value = ideal_lats[0]
+        ideal_per = [value / base_ideal_value for value in ideal_lats]
 
+        # 更新最大值
+        current_max_util = max(util_per)
+        current_max_ideal = max(ideal_per)
+        max_util = max(max_util, current_max_util)
+        max_ideal = max(max_ideal, current_max_ideal)
+
+        line1, = ax1.plot(x_ticks, util_per,
+                 color=colors[idx%10],
+                 linestyle=line_styles[idx//10],
+                 marker=markers[idx%8],
+                 markersize=8,
+                 linewidth=2,
+                 alpha=0.8,
+                 label=model_name)
+        line2, = ax2.plot(x_ticks, ideal_per,
+                 color=colors[idx%10],
+                 linestyle=line_styles[idx//10],
+                 marker=markers[idx%8],
+                 markersize=8,
+                 linewidth=2,
+                 alpha=0.8)
+        # 标注特殊点
+        if highlight_idx != -1 and highlight_idx < len(util_per):
+            # 左图标注
+            y_val = util_per[highlight_idx]
+            ax1.text(highlight_idx+0.2, y_val, 
+                     f'{y_val:.2f}x',
+                    #  color=line1.get_color(),
+                     color = 'black',
+                     fontsize=10,
+                     ha='center',
+                     va='bottom')
+            
+            # 右图标注
+            y_val = ideal_per[highlight_idx]
+            ax2.text(highlight_idx+0.2, y_val,
+                     f'{y_val:.2f}x',
+                    #  color=line2.get_color(),
+                     color = 'black',
+                     fontsize=10,
+                     ha='center',
+                     va='bottom')
+    for ax, title, y_max in zip([ax1, ax2], ['Normalized Bandwidth Utilization', 'Ideal Comm Latency Improvement'],[max_util*1.2, max_ideal*1.2]):
+        ax.set_xticks(x_ticks)
+        ax.set_xticklabels(opt_name, rotation=0, ha='center')
+        # ax.set_xlabel('Optimization Combinations', fontsize=12)
+        ax.set_ylabel('Percentage', labelpad=5)
+        ax.set_ylim(top=y_max)
+        ax.yaxis.set_major_formatter(PercentFormatter(1.0))  # 转换为百分比格式
+        ax.grid(True, linestyle='--', alpha=0.6)
+        ax.set_title(title, pad=10)
+        ax.spines[['top', 'right']].set_visible(False)
+    # 统一图例
+    ax1.set_xlabel('(a)', fontsize=12)
+    ax2.set_xlabel('(b)', fontsize=12)
+    handles, labels = ax1.get_legend_handles_labels()
+    fig.legend(handles, labels,
+              loc='upper center',
+              bbox_to_anchor=(0.5, 1.15),
+              ncol=len(models),
+              frameon=True,
+              shadow=True,
+              title="Models",
+              title_fontsize=10,
+              fontsize=9,
+              columnspacing=1)
+    plt.tight_layout()
+    plt.subplots_adjust(right=0.88, wspace=0.35)
+    fig.savefig('results/lat_bw.pdf', bbox_inches='tight')
 # use for save inter layer comm result
 def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
     # 获取所有模型名称和优化选项组合
@@ -547,13 +662,13 @@ if __name__ == "__main__":
     if latency_dict is None:
         print("latency dict not found. generate by mapping result...")
         latency_dict = save_comm_result(mapping_result, bw, xbar_size)
-    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     plot_all_comm(key_list, comm_result)
     for key in key_list:
         get_data_percentage(comm_result, dict_key=key)
-    brkdown_stat(mapping_result, latency_dict, bw)
-    plot_brkdown(mapping_result, latency_dict, bw)
-    brkdown_analysis()
-    # plot_bw(mapping_result, latency_dict, bw)
+    # brkdown_stat(mapping_result, latency_dict, bw)
+    plot_brkdown(mapping_result, latency_dict, bw, ideal=0)
+    # brkdown_analysis()
+    plot_bw(mapping_result, latency_dict, bw)

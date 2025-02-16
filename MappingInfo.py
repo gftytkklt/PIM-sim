@@ -119,11 +119,8 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
         # get ifm size to compute cal latency
         ifm_size = sum(cn.ifmap_size for cn in tile_info.cnode)
         # exec_info[tile_id]['cal_lat'] = 0
-        if ideal == 1:
-            exec_info[tile_id]['cal_lat'] = 0
-        else:
-            exec_info[tile_id]['cal_lat'] = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit)
-            exec_info[tile_id]['cal_lat'] /= 100000000 # ns to s, freq = 100MHz
+        exec_info[tile_id]['cal_lat'] = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit)
+        exec_info[tile_id]['cal_lat'] /= 100000000 # ns to s, freq = 100MHz
         # tile-layer map regestration
         cur_layer = tile_info.layer
         max_path_delay = 0.0
