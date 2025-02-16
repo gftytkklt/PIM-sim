@@ -30,7 +30,7 @@
 // Topology
 
 topology = mesh;
-k=17;
+k=15;
 n=2;
 
 // Routing

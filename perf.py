@@ -587,7 +587,251 @@ def plot_bw(comm_segs, latency_dict, bw=1):
     plt.tight_layout()
     plt.subplots_adjust(right=0.88, wspace=0.35)
     fig.savefig('results/lat_bw.pdf', bbox_inches='tight')
-# use for save inter layer comm result
+
+def plot_grouped_bars(data1, data2, 
+                     group_labels=('256x256', '128x128'),
+                     bar_labels=['A', 'B', 'C', 'D'],
+                     ylabel='Performance Metric',
+                     save_path='grouped_bars.pdf'):
+    """
+    学术论文分组柱状图模板
+    
+    参数：
+    data1 : list[4] - 第一子图的两组数据 [list1, list2]
+    data2 : list[4] - 第二子图的两组数据 [list1, list2]
+    group_labels : tuple - 每组数据的标签（长度2）
+    bar_labels : list - 单个柱状图标签（A-D）
+    ylabel : str - Y轴标签
+    save_path : str - 保存路径
+    """
+    # 样式设置
+    plt.style.use('seaborn-v0_8-paper')
+    plt.rcParams.update({
+        'font.family': 'Times New Roman',
+        'font.size': 9,
+        'axes.titlesize': 10,
+        'axes.labelsize': 9,
+        'xtick.labelsize': 8,
+        'ytick.labelsize': 8
+    })
+
+    # 创建画布
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7, 3.5))  # 单栏适配尺寸
+    plt.subplots_adjust(wspace=0.35)
+
+    # 通用参数
+    x = np.arange(len(bar_labels))  # 柱状图位置
+    width = 0.35  # 柱宽
+    colors = ['#4C72B0', '#DD8452']  # 学术蓝橙配色
+
+    # 绘制子图1
+    for idx, (d, label) in enumerate(zip(data1, group_labels)):
+        bars = ax1.bar(x - width/2 + idx*width, d, width, 
+               color=colors[idx], 
+               edgecolor='white',
+               linewidth=0.5,
+               label=label)
+        for bar in bars:
+            height = bar.get_height()
+            ax1.text(bar.get_x() + bar.get_width()/2., height,
+                     f'{height:.2f}',
+                     ha='center', va='bottom',
+                     fontsize=8)
+
+    # 绘制子图2
+    for idx, (d, label) in enumerate(zip(data2, group_labels)):
+        bars = ax2.bar(x - width/2 + idx*width, d, width, 
+               color=colors[idx], 
+               edgecolor='white',
+               linewidth=0.5,
+               label=label)
+        for bar in bars:
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height,
+                     f'{height:.2f}',
+                     ha='center', va='bottom',
+                     fontsize=8)
+
+    # 统一设置子图格式
+    for ax, title in zip([ax1, ax2], ['Normalized latency', 'Normalized throughput']):
+        ax.set_xticks(x)
+        ax.set_xticklabels(bar_labels)
+        # ax.set_ylabel(ylabel)
+        ax.grid(axis='y', linestyle=':', alpha=0.4)
+        ax.spines[['top', 'right']].set_visible(False)
+        ax.set_title(title, pad=10, fontweight='semibold')
+        
+        # 添加子图标签
+        ax.text(0.5, -0.1, f'({"a" if ax==ax1 else "b"})', 
+               transform=ax.transAxes,
+               va='top', ha='center',
+               fontsize=10, fontweight='bold')
+        
+    # ax1.set_ylabel('Normalized latency')
+
+    # 统一图例
+    handles = [plt.Rectangle((0,0),1,1, fc=colors[i], ec='white') 
+              for i in range(2)]
+    fig.legend(handles, group_labels,
+              loc='upper center', 
+              bbox_to_anchor=(0.5, 1.05),
+              ncol=2,
+              frameon=False,
+              fontsize=9)
+
+    # 优化布局并保存
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+def plot_xbarsize():
+    mapping_result_256, _ = perf_analysis(models_dir='demo', hwinfo = make_hw_info((256, 256), 4, (0,0), 1))
+    mapping_result_128, _ = perf_analysis(models_dir='demo', hwinfo = make_hw_info((128, 128), 4, (0,0), 1))
+    lat_dict_256 = pickle.load(open("results/latency_dict_bw=1_xbar=256_256.pkl", "rb"))
+    lat_dict_128 = pickle.load(open("results/latency_dict_bw=1_xbar=128_128.pkl", "rb"))
+    model = 'vgg16.onnx'
+    opt_combinations = sorted(set(opt for opts in mapping_result_256.values() for opt in opts))
+    res_256 = [latency_est(mapping_res=mapping_result_256[model].get(opt, 0), bus_width=1, comm_lat=lat_dict_256[(model, opt)]) for opt in opt_combinations]
+    res_128 = [latency_est(mapping_res=mapping_result_128[model].get(opt, 0), bus_width=1, comm_lat=lat_dict_128[(model, opt)]) for opt in opt_combinations]
+    lat_256 = [res[0] for res in res_256]
+    throughput_256 = [res[1] for res in res_256]
+    lat_128 = [res[0] for res in res_128]
+    throughput_128 = [res[1] for res in res_128]
+    lat_base = lat_256[0]
+    lat_256 = [lat / lat_base for lat in lat_256]
+    lat_128 = [lat / lat_base for lat in lat_128]
+    throughput_base = throughput_256[0]
+    throughput_256 = [throughput / throughput_base for throughput in throughput_256]
+    throughput_128 = [throughput / throughput_base for throughput in throughput_128]
+    bar_labels = [get_opt_str(opt) for opt in opt_combinations]
+    plot_grouped_bars([lat_256, lat_128], [throughput_256, throughput_128], bar_labels=bar_labels, save_path='results/xbarsize.pdf')
+    # print(f"lat_256={lat_256}, throughput_256={throughput_256}")
+    # print(f"lat_128={lat_128}, throughput_128={throughput_128}")
+
+
+def plot_pipeline():
+    mapping_result_LS, _ = perf_analysis(models_dir='models', hwinfo = make_hw_info((256, 256), 4, (0,0), 1))
+    mapping_result_LP, _ = perf_analysis(models_dir='models', hwinfo = make_hw_info((256, 256), 4, (0,0), 10000))
+    lat_dict_LS = pickle.load(open("results/latency_dict_bw=1_xbar=256_256.pkl", "rb"))
+    lat_dict_LP = pickle.load(open("results/latency_dict_bw=1_xbar=256_256_LP.pkl", "rb"))
+    models = list(mapping_result_LS.keys())
+    index = np.arange(len(models))
+    opts = [(0, 0), (1, 1)]
+    base_LS = [latency_est(mapping_res=mapping_result_LS[model].get(opts[0], 0), bus_width=1, comm_lat=lat_dict_LS[(model, opts[0])]) for model in models]
+    base_LP = [latency_est(mapping_res=mapping_result_LP[model].get(opts[0], 0), bus_width=1, comm_lat=lat_dict_LP[(model, opts[0])], syn=0) for model in models]
+    opt_LS = [latency_est(mapping_res=mapping_result_LS[model].get(opts[1], 0), bus_width=1, comm_lat=lat_dict_LS[(model, opts[1])]) for model in models]
+    opt_LP = [latency_est(mapping_res=mapping_result_LP[model].get(opts[1], 0), bus_width=1, comm_lat=lat_dict_LP[(model, opts[1])], syn=0) for model in models]
+    lat_base_LS = [res[0] for res in base_LS]
+    lat_base_LP = [res[0] for res in base_LP]
+    lat_opt_LS = [res[0] for res in opt_LS]
+    lat_opt_LP = [res[0] for res in opt_LP]
+    lat_base = lat_base_LS
+    lat_base_LS = [lat / base for lat, base in zip(lat_base_LS, lat_base)]
+    lat_base_LP = [lat / base for lat, base in zip(lat_base_LP, lat_base)]
+    lat_opt_LS = [lat / base for lat, base in zip(lat_opt_LS, lat_base)]
+    lat_opt_LP = [lat / base for lat, base in zip(lat_opt_LP, lat_base)]
+    throughput_base_LS = [res[1] for res in base_LS]
+    throughput_base_LP = [res[1] for res in base_LP]
+    throughput_opt_LS = [res[1] for res in opt_LS]
+    throughput_opt_LP = [res[1] for res in opt_LP]
+    throughput_base = throughput_base_LS
+    throughput_base_LS = [throughput / base for throughput, base in zip(throughput_base_LS, throughput_base)]
+    throughput_base_LP = [throughput / base for throughput, base in zip(throughput_base_LP, throughput_base)]
+    throughput_opt_LS = [throughput / base for throughput, base in zip(throughput_opt_LS, throughput_base)]
+    throughput_opt_LP = [throughput / base for throughput, base in zip(throughput_opt_LP, throughput_base)]
+    lat_data = [lat_base_LS, lat_base_LP, lat_opt_LS, lat_opt_LP]
+    throughput_data = [throughput_base_LS, throughput_base_LP, throughput_opt_LS, throughput_opt_LP]
+    # print(f"lat_base_LS={lat_base_LS}, throughput_base_LS={throughput_base_LS}")
+    # print(f"lat_base_LP={lat_base_LP}, throughput_base_LP={throughput_base_LP}")
+    # print(f"lat_opt_LS={lat_opt_LS}, throughput_opt_LS={throughput_opt_LS}")
+    # print(f"lat_opt_LP={lat_opt_LP}, throughput_opt_LP={throughput_opt_LP}")
+    plt.style.use('seaborn-v0_8-paper')
+    plt.rcParams.update({
+        'font.family': 'Times New Roman',
+        'font.size': 10,
+        'axes.titlesize': 14,
+        'axes.labelsize': 12,
+        'xtick.labelsize': 10,
+        'ytick.labelsize': 10
+    })
+
+    # 创建画布
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))  # 单栏适配尺寸
+    plt.subplots_adjust(wspace=0.35)
+
+    # 绘图参数
+    bar_width = 0.18  # 柱宽
+    x = np.arange(len(models))  # 模型位置
+    colors = ['#4C72B0', '#55A868', '#C44E52', '#8172B2']  # 学术配色方案
+    patterns = ['//', 'xx', '..', '**']  # 纹理样式
+    labels = ['Base-LS', 'Base-LP', 'Opt-LS', 'Opt-LP']
+
+    # 设置对数刻度
+    for ax in [ax1, ax2]:
+        ax.set_yscale('log')
+        ax.minorticks_off()  # 关闭次要刻度
+        ax.yaxis.set_major_formatter(plt.ScalarFormatter())  # 禁用科学计数法
+
+    # 绘制延迟子图
+    for i in range(4):
+        bars = ax1.bar(x + i*bar_width, lat_data[i], bar_width,
+               color=colors[i],
+               edgecolor='k',
+               hatch=patterns[i],
+               label=labels[i])
+        for bar in bars:
+            height = bar.get_height()
+            ax1.text(bar.get_x() + bar.get_width()/2., height,
+                     f'{height:.2f}',
+                     ha='center', va='bottom',
+                     fontsize=8)
+
+    # 绘制吞吐率子图
+    for i in range(4):
+        bars = ax2.bar(x + i*bar_width, throughput_data[i], bar_width,
+               color=colors[i],
+               edgecolor='k',
+               hatch=patterns[i],
+               label=labels[i])
+        for bar in bars:
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height,
+                     f'{height:.2f}',
+                     ha='center', va='bottom',
+                     fontsize=8)
+
+    # 统一设置子图格式
+    model_name = [model.split('.')[0] for model in models]
+    for ax, title, ylabel in zip([ax1, ax2], 
+                                ['Latency Comparison', 'Throughput Comparison'],
+                                ['Normalized Latency', 'Normalized Throughput']):
+        ax.set_xticks(x + 1.5*bar_width)
+        ax.set_xticklabels(model_name)
+        ax.set_ylabel(ylabel)
+        ax.grid(axis='y', linestyle=':', alpha=0.4)
+        ax.spines[['top', 'right']].set_visible(False)
+        ax.set_title(title, pad=12, fontweight='semibold')
+        
+        # 添加子图标签（下方居中）
+        ax.text(0.5, -0.2, f'({"a" if ax==ax1 else "b"})', 
+               transform=ax.transAxes,
+               va='top', ha='center',
+               fontsize=10, fontweight='bold')
+
+    # 统一图例
+    handles = [plt.Rectangle((0,0),1,1, fc=colors[i], ec='k', hatch=patterns[i]) 
+             for i in range(4)]
+    fig.legend(handles, labels,
+              loc='center', 
+              bbox_to_anchor=(0.5, 1),
+              ncol=4,
+              frameon=False,
+              fontsize=9)
+
+    # 优化布局并保存
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
+    fig.savefig("results/pipeline.pdf", dpi=300, bbox_inches='tight')
+    plt.close()
 def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
     # 获取所有模型名称和优化选项组合
     models = list(comm_segs.keys())
@@ -603,7 +847,7 @@ def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
             latency_dict[(model, opt)] = latency  # 将latency值按模型和优化方法存储到字典
             print(f"model={model}, opt={opt}, time={time.time()-start_time}")
 
-    filename = f"results/latency_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
+    filename = f"results/latency_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}_LP.pkl"
     with open(filename, 'wb') as f:
         pickle.dump(latency_dict, f)
         print("Data saved.")
@@ -652,23 +896,41 @@ def load_lat_result(bw, xbar_size):
         return None
 
 if __name__ == "__main__":
-    bw = 1
-    xbar_size = (256, 256)
-    hw_info = make_hw_info(xbar_size, 4)
-    begin_time = time.time()
-    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
-    print(f"Total Time: {time.time()-begin_time}")
-    latency_dict = load_lat_result(bw, xbar_size)
-    if latency_dict is None:
-        print("latency dict not found. generate by mapping result...")
-        latency_dict = save_comm_result(mapping_result, bw, xbar_size)
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
-    key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
-    plot_all_comm(key_list, comm_result)
-    for key in key_list:
-        get_data_percentage(comm_result, dict_key=key)
-    # brkdown_stat(mapping_result, latency_dict, bw)
-    plot_brkdown(mapping_result, latency_dict, bw, ideal=0)
-    # brkdown_analysis()
-    plot_bw(mapping_result, latency_dict, bw)
+    # bw = 1
+    # xbar_size = (256, 256)
+    # hw_info = make_hw_info(xbar_size, 4, (0,0), 1)
+    # begin_time = time.time()
+    # mapping_result, comm_result = perf_analysis(models_dir='demo', hwinfo = hw_info)
+    # print(f"Total Time: {time.time()-begin_time}")
+    # # save_comm_result(mapping_result, bw, xbar_size)
+    # latency_dict = load_lat_result(bw, xbar_size)
+    # # print(latency_dict.keys())
+    # if latency_dict is None:
+    #     print("latency dict not found. generate by mapping result...")
+    #     latency_dict = save_comm_result(mapping_result, bw, xbar_size)
+    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
+    # plot_all_comm(key_list, comm_result)
+    # for key in key_list:
+    #     get_data_percentage(comm_result, dict_key=key)
+    # # brkdown_stat(mapping_result, latency_dict, bw)
+    # plot_brkdown(mapping_result, latency_dict, bw, ideal=0)
+    # # brkdown_analysis()
+    # plot_bw(mapping_result, latency_dict, bw)
+    # plot_xbarsize()
+        # 示例数据（两组数据，每组4个值）
+    # data_scenario1 = [
+    #     [12, 15, 9, 18],  # Group 1
+    #     [8, 14, 11, 13]    # Group 2
+    # ]
+    # data_scenario2 = [
+    #     [22, 19, 14, 16],
+    #     [18, 15, 12, 9]
+    # ]
+    
+    # plot_grouped_bars(data_scenario1, data_scenario2,
+    #                 ylabel='Execution Time (ms)',
+    #                 save_path='academic_grouped_bars.pdf')
+    # plot_xbarsize()
+    plot_pipeline()
