@@ -82,7 +82,15 @@ def perf_analysis(models_dir='demo', hwinfo=None):
     return comm_segs, comm_results
 
 def get_opt_str(opt_info):
-    return f"{'DP' if opt_info[0] else 'ZZ'}-{'CA' if opt_info[1] else 'XY'}"
+    # return f"{'DP' if opt_info[0] else 'ZZ'}-{'CA' if opt_info[1] else 'XY'}"
+    if opt_info == (1, 1):
+        return "This Paper"
+    elif opt_info == (1, 0):
+        return "Map only"
+    elif opt_info == (0, 1):
+        return "Sched only"
+    else:
+        return "MNSIM"
 
 # 主调用函数
 def plot_all_comm(dict_list, comm_result):
@@ -101,7 +109,8 @@ def plot_all_comm(dict_list, comm_result):
         "xtick.labelsize": 12,
         "ytick.labelsize": 12,
         "legend.fontsize": 12,
-        "hatch.linewidth": 0.5
+        "hatch.linewidth": 0.5,
+        'font.weight': 'bold'
     })
     
     # 创建子图布局
@@ -129,7 +138,8 @@ def plot_all_comm(dict_list, comm_result):
               ncol=4,
               bbox_to_anchor=(0.5, 0.02),
               frameon=True,
-              fancybox=False)
+              fancybox=False,
+              prop={'weight': 'bold'})
     
     # 布局优化
     plt.tight_layout(pad=2.0, w_pad=2.5, h_pad=3.0)
@@ -190,7 +200,7 @@ def plot_comm(comm_result, ax=None, dict_key=None, norm=1,
                 ax.text(bar.get_x() + bar.get_width()/2, height, 
                         f'{height:.2f}', 
                         ha='center', va='bottom',
-                        fontsize=8, rotation=0,
+                        fontsize=8, rotation=0, fontweight='bold',
                         bbox=dict(facecolor='white', alpha=0.8, 
                                 edgecolor='none', pad=0.2))
     
@@ -203,8 +213,9 @@ def plot_comm(comm_result, ax=None, dict_key=None, norm=1,
     # 核心修正：正确定位x轴刻度
     ax.set_xticks(index + total_offset/2)  # 居中定位
     ax.set_xticklabels([m.split('.')[0] for m in models], 
-                      rotation=0, ha='center', rotation_mode='anchor')
-    ax.set_title(f'Normalized {dict_key}', fontsize=14)
+                      rotation=0, ha='center', rotation_mode='anchor', fontweight='bold')
+    # ax.set_yticklabels(fontweight='bold')
+    ax.set_title(f'Normalized {dict_key}', fontsize=14, fontweight='bold')
     # ax.set_ylabel('Value' if norm else 'Absolute Value', 
     #              labelpad=8)
     
@@ -239,7 +250,8 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
         "legend.fontsize": 12,
         "grid.linewidth": 0.5,
         "lines.linewidth": 1,
-        "hatch.linewidth": 0.5
+        "hatch.linewidth": 0.5,
+        'font.weight': 'bold'
     })
     fig, ax = plt.subplots(figsize=(8, 4.5))  # 更适合论文栏宽的尺寸
 
@@ -287,13 +299,13 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
                 ax.text(bar.get_x() + bar.get_width()/2, height, 
                         f'{height:.2f}', 
                         ha='center', va='bottom',
-                        fontsize=8, rotation=0,
+                        fontsize=8, rotation=0, fontweight='bold',
                         bbox=dict(facecolor='white', alpha=0.8, 
                                 edgecolor='none', pad=0.2))
     
     # 坐标轴和标签优化
     ylabel = f"Normalized {plot_type}" if norm else plot_type
-    ax.set_ylabel(ylabel, labelpad=5)
+    ax.set_ylabel(ylabel, labelpad=5, fontweight='bold')
     # ax.set_xlabel('Model Architectures', fontsize=10, labelpad=5)
     # ax.set_xticks(index + bar_width*(len(opt_combinations)/2))
     # ax.set_xticks(index + (len(opt_combinations)-1) * bar_width * (1 + 0.1) / 2)
@@ -303,7 +315,8 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     # 核心修正：正确定位x轴刻度
     ax.set_xticks(index + total_offset/2)  # 居中定位
     ax.set_xticklabels([m.split('.')[0] for m in models], 
-                     rotation=0, ha='center', rotation_mode='anchor')
+                     rotation=0, ha='center', rotation_mode='anchor', fontweight='bold')
+    # ax.set_yticklabels(fontweight='bold')
     
     # 网格和边框优化
     ax.yaxis.grid(True, linestyle='--', alpha=0.6)
@@ -317,7 +330,8 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
                      frameon=True,
                      fancybox=False,
                      shadow=False,
-                     edgecolor='black')
+                     edgecolor='black',
+                     prop={'weight': 'bold'})
     legend.get_frame().set_linewidth(0.5)
     
     # 紧凑布局并保存
@@ -394,7 +408,8 @@ def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1, ideal = 0):
         'axes.titlesize': 12,     # 子图标题
         'axes.labelsize': 10,    # 坐标轴标签
         'xtick.labelsize': 9,     # x轴刻度
-        'ytick.labelsize': 10     # y轴刻度
+        'ytick.labelsize': 10,     # y轴刻度
+        'font.weight': 'bold'
     })
     fig, axes = plt.subplots(1, 2, figsize=(8, 3.5))  # 1x2 子图布局
     models = list(comm_segs.keys())
@@ -441,13 +456,14 @@ def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1, ideal = 0):
                 ax.text(cal_per + merge_per + lat_per/2-0.02, j,  # 微调位置
                        f'{lat_per*100:.0f}%', **label_params)
         # 优化坐标轴设置
-        ax.set_title(get_opt_str(opt), pad=10, fontsize=12)
+        ax.set_title(get_opt_str(opt), pad=10, fontsize=12, fontweight='bold')
         ax.set_xlim(0, 1.05)  # 统一x轴范围
         models_name = [model.split('.')[0] for model in models]
         ax.set_yticks(index)
+        # ax.set_xticklabels(fontweight='bold')
         ax.set_yticklabels(models_name if i==0 else [], 
                           fontsize=10, 
-                          fontstyle='italic')  # 斜体突出模型名称
+                          fontstyle='italic', fontweight='bold')  # 斜体突出模型名称
         
         # 优化网格线
         ax.grid(True, axis='x', linestyle=':', alpha=0.4)
@@ -470,7 +486,8 @@ def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1, ideal = 0):
               frameon=False,
               fontsize=10,
               handletextpad=0.5,
-              columnspacing=1.5)
+              columnspacing=1.5,
+              prop={'weight': 'bold'})
 
     # 最终布局调整
     plt.tight_layout(rect=[0, 0, 1, 0.95])  # 保留顶部空间
@@ -484,7 +501,8 @@ def plot_bw(comm_segs, latency_dict, bw=1):
         'axes.titlesize': 11,     # 子图标题字号
         'axes.labelsize': 10,     # 坐标轴标签字号
         'xtick.labelsize': 9,     # x轴刻度字号
-        'ytick.labelsize': 9      # y轴刻度字号
+        'ytick.labelsize': 9,      # y轴刻度字号
+        'font.weight': 'bold'
     })
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 5))
     # 获取所有模型名称和优化选项组合
@@ -547,7 +565,8 @@ def plot_bw(comm_segs, latency_dict, bw=1):
                      f'{y_val:.2f}x',
                     #  color=line1.get_color(),
                      color = 'black',
-                     fontsize=10,
+                     fontsize=8,
+                     fontweight='bold',
                      ha='center',
                      va='bottom')
             
@@ -557,18 +576,20 @@ def plot_bw(comm_segs, latency_dict, bw=1):
                      f'{y_val:.2f}x',
                     #  color=line2.get_color(),
                      color = 'black',
-                     fontsize=10,
+                     fontsize=8,
+                    fontweight='bold',
                      ha='center',
                      va='bottom')
     for ax, title, y_max in zip([ax1, ax2], ['Normalized Bandwidth Utilization', 'Ideal Comm Latency Improvement'],[max_util*1.2, max_ideal*1.2]):
         ax.set_xticks(x_ticks)
-        ax.set_xticklabels(opt_name, rotation=0, ha='center')
+        ax.set_xticklabels(opt_name, rotation=0, ha='center', fontweight='bold')
+        # ax.set_yticklabels(fontweight='bold')
         # ax.set_xlabel('Optimization Combinations', fontsize=12)
-        ax.set_ylabel('Percentage', labelpad=5)
+        ax.set_ylabel('Percentage', labelpad=5, fontweight='bold')
         ax.set_ylim(top=y_max)
         ax.yaxis.set_major_formatter(PercentFormatter(1.0))  # 转换为百分比格式
         ax.grid(True, linestyle='--', alpha=0.6)
-        ax.set_title(title, pad=10)
+        ax.set_title(title, pad=10, fontweight='bold')
         ax.spines[['top', 'right']].set_visible(False)
     # 统一图例
     ax1.set_xlabel('(a)', fontsize=12)
@@ -583,6 +604,7 @@ def plot_bw(comm_segs, latency_dict, bw=1):
               title="Models",
               title_fontsize=10,
               fontsize=9,
+              prop = {'weight': 'bold'},
               columnspacing=1)
     plt.tight_layout()
     plt.subplots_adjust(right=0.88, wspace=0.35)
@@ -612,7 +634,8 @@ def plot_grouped_bars(data1, data2,
         'axes.titlesize': 10,
         'axes.labelsize': 9,
         'xtick.labelsize': 8,
-        'ytick.labelsize': 8
+        'ytick.labelsize': 8,
+        'font.weight': 'bold'
     })
 
     # 创建画布
@@ -635,7 +658,7 @@ def plot_grouped_bars(data1, data2,
             height = bar.get_height()
             ax1.text(bar.get_x() + bar.get_width()/2., height,
                      f'{height:.2f}',
-                     ha='center', va='bottom',
+                     ha='center', va='bottom',fontweight='bold',
                      fontsize=8)
 
     # 绘制子图2
@@ -649,13 +672,14 @@ def plot_grouped_bars(data1, data2,
             height = bar.get_height()
             ax2.text(bar.get_x() + bar.get_width()/2., height,
                      f'{height:.2f}',
-                     ha='center', va='bottom',
+                     ha='center', va='bottom',fontweight='bold',
                      fontsize=8)
 
     # 统一设置子图格式
     for ax, title in zip([ax1, ax2], ['Normalized latency', 'Normalized throughput']):
         ax.set_xticks(x)
-        ax.set_xticklabels(bar_labels)
+        ax.set_xticklabels(bar_labels, fontweight='bold')
+        # ax.set_yticklabels(fontweight='bold')
         # ax.set_ylabel(ylabel)
         ax.grid(axis='y', linestyle=':', alpha=0.4)
         ax.spines[['top', 'right']].set_visible(False)
@@ -677,7 +701,8 @@ def plot_grouped_bars(data1, data2,
               bbox_to_anchor=(0.5, 1.05),
               ncol=2,
               frameon=False,
-              fontsize=9)
+              fontsize=9,
+              prop={'weight': 'bold'})
 
     # 优化布局并保存
     plt.tight_layout(rect=[0, 0, 1, 0.95])
@@ -752,7 +777,8 @@ def plot_pipeline():
         'axes.titlesize': 14,
         'axes.labelsize': 12,
         'xtick.labelsize': 10,
-        'ytick.labelsize': 10
+        'ytick.labelsize': 10,
+        'font.weight': 'bold'
     })
 
     # 创建画布
@@ -783,7 +809,7 @@ def plot_pipeline():
             height = bar.get_height()
             ax1.text(bar.get_x() + bar.get_width()/2., height,
                      f'{height:.2f}',
-                     ha='center', va='bottom',
+                     ha='center', va='bottom',fontweight='bold',
                      fontsize=8)
 
     # 绘制吞吐率子图
@@ -797,7 +823,7 @@ def plot_pipeline():
             height = bar.get_height()
             ax2.text(bar.get_x() + bar.get_width()/2., height,
                      f'{height:.2f}',
-                     ha='center', va='bottom',
+                     ha='center', va='bottom',fontweight='bold',
                      fontsize=8)
 
     # 统一设置子图格式
@@ -806,8 +832,9 @@ def plot_pipeline():
                                 ['Latency Comparison', 'Throughput Comparison'],
                                 ['Normalized Latency', 'Normalized Throughput']):
         ax.set_xticks(x + 1.5*bar_width)
-        ax.set_xticklabels(model_name)
-        ax.set_ylabel(ylabel)
+        ax.set_xticklabels(model_name, fontweight='semibold')
+        # ax.set_yticklabels(fontweight='bold')
+        ax.set_ylabel(ylabel,fontweight='bold')
         ax.grid(axis='y', linestyle=':', alpha=0.4)
         ax.spines[['top', 'right']].set_visible(False)
         ax.set_title(title, pad=12, fontweight='semibold')
@@ -822,11 +849,12 @@ def plot_pipeline():
     handles = [plt.Rectangle((0,0),1,1, fc=colors[i], ec='k', hatch=patterns[i]) 
              for i in range(4)]
     fig.legend(handles, labels,
-              loc='center', 
+              loc='center',
               bbox_to_anchor=(0.5, 1),
               ncol=4,
               frameon=False,
-              fontsize=9)
+              fontsize=9,
+              prop={'weight': 'bold'})
 
     # 优化布局并保存
     plt.tight_layout(rect=[0, 0, 1, 0.92])
@@ -896,41 +924,27 @@ def load_lat_result(bw, xbar_size):
         return None
 
 if __name__ == "__main__":
-    # bw = 1
-    # xbar_size = (256, 256)
-    # hw_info = make_hw_info(xbar_size, 4, (0,0), 1)
-    # begin_time = time.time()
-    # mapping_result, comm_result = perf_analysis(models_dir='demo', hwinfo = hw_info)
-    # print(f"Total Time: {time.time()-begin_time}")
-    # # save_comm_result(mapping_result, bw, xbar_size)
-    # latency_dict = load_lat_result(bw, xbar_size)
-    # # print(latency_dict.keys())
-    # if latency_dict is None:
-    #     print("latency dict not found. generate by mapping result...")
-    #     latency_dict = save_comm_result(mapping_result, bw, xbar_size)
-    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
-    # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
-    # plot_all_comm(key_list, comm_result)
-    # for key in key_list:
-    #     get_data_percentage(comm_result, dict_key=key)
-    # # brkdown_stat(mapping_result, latency_dict, bw)
-    # plot_brkdown(mapping_result, latency_dict, bw, ideal=0)
-    # # brkdown_analysis()
-    # plot_bw(mapping_result, latency_dict, bw)
-    # plot_xbarsize()
-        # 示例数据（两组数据，每组4个值）
-    # data_scenario1 = [
-    #     [12, 15, 9, 18],  # Group 1
-    #     [8, 14, 11, 13]    # Group 2
-    # ]
-    # data_scenario2 = [
-    #     [22, 19, 14, 16],
-    #     [18, 15, 12, 9]
-    # ]
-    
-    # plot_grouped_bars(data_scenario1, data_scenario2,
-    #                 ylabel='Execution Time (ms)',
-    #                 save_path='academic_grouped_bars.pdf')
-    # plot_xbarsize()
+    bw = 1
+    xbar_size = (256, 256)
+    hw_info = make_hw_info(xbar_size, 4, (0,0), 1)
+    begin_time = time.time()
+    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
+    print(f"Total Time: {time.time()-begin_time}")
+    # save_comm_result(mapping_result, bw, xbar_size)
+    latency_dict = load_lat_result(bw, xbar_size)
+    # print(latency_dict.keys())
+    if latency_dict is None:
+        print("latency dict not found. generate by mapping result...")
+        latency_dict = save_comm_result(mapping_result, bw, xbar_size)
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
+    plot_all_comm(key_list, comm_result)
+    for key in key_list:
+        get_data_percentage(comm_result, dict_key=key)
+    # brkdown_stat(mapping_result, latency_dict, bw)
+    plot_brkdown(mapping_result, latency_dict, bw, ideal=0)
+    # brkdown_analysis()
+    plot_bw(mapping_result, latency_dict, bw)
+    plot_xbarsize()
     plot_pipeline()
