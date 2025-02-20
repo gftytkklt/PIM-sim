@@ -279,6 +279,14 @@ def make_default_hw_info():
     hw_info.pipeline_depth = 1
     return hw_info
 
+def make_hw_info(xbar_size=(256, 256), xbar_num=16, tile_size=(0, 0), pipeline_depth=1):
+    hw_info = libmain.HWInfo()
+    hw_info.xbar_size = xbar_size
+    hw_info.xbar_num = xbar_num
+    hw_info.tile_size = tile_size
+    hw_info.pipeline_depth = pipeline_depth
+    return hw_info
+
 def make_default_opt_info():
     opt_info = libmain.OptInfo()
     opt_info.mapping_opt = 1

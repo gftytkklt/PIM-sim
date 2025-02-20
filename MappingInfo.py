@@ -1,22 +1,18 @@
+import pickle
 import os, re, glob, sys, math
 import numpy as np
 import pandas as pd
-from onnx_analysis import analysis_model
+from collections import defaultdict
 import configparser as cp
 from MNSIM.Interface.interface import *
 from MNSIM.Latency_Model.Tile_latency import tile_latency_analysis
 from MNSIM.Latency_Model.Pooling_latency import pooling_latency_analysis
 from MNSIM.Hardware_Model.Buffer import buffer
 
-# mapping_res: deploy_info, comm_segs
-def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
-    home_path = os.getcwd()
-    # get mapping results
-    all_tiles_mapping_infos = mapping_res.deploy_info
-    print("tile num is", len(all_tiles_mapping_infos))
-    all_comm_segs = mapping_res.comm_segs # comm_seg: layer and data matrix
+def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
     # inter-tile latency estimation by booksim2
     # init sim comfig
+    home_path = os.getcwd()
     mesh_size = int(math.sqrt(len(all_comm_segs[0].datas)))
     cfg_file = 'booksim_cfg'
     with open(cfg_file, 'r') as f:
@@ -31,9 +27,6 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
     with open(cfg_file, 'w') as f:
         f.writelines(lines)
 
-    bus_width = 8 #byte  booksim
-    freq = 1000000000 #Hz
-    bandwidth = bus_width * freq / 1e9 #GB/s
     fps = 100
     latency_map = {}
     for idx, comm_seg in enumerate(all_comm_segs):
@@ -48,8 +41,8 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
         # additional latency estimation
         packet_latency = os.popen('grep "Packet latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
         network_latency = os.popen('grep "Network latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
-        print("packet latency is", packet_latency)
-        print("network latency is", network_latency)
+        # print("packet latency is", packet_latency)
+        # print("network latency is", network_latency)
         if math.isnan(float(packet_latency)) or math.isnan(float(network_latency)):
             latency = 0 # default latency
         else:
@@ -59,79 +52,139 @@ def latency_est(SimConfig_path,inputbit=8,outputbit=8, mapping_res=None):
             # print("layer", layer, "latency is", latency)
             latency_map[layer] = latency
     return latency_map
-    # set tile latency layer by layer
+
+# mapping_res: deploy_info, comm_segs
+def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_res=None, bus_width=8, freq = 1000000000, comm_lat=None, ideal = 0, syn = 1):
+    # get mapping results
+    all_tiles_mapping_infos = mapping_res.deploy_info
+    all_comm_segs = mapping_res.comm_segs # comm_seg: layer and data matrix
+    # print("tile num is", len(all_tiles_mapping_infos))
+    # get inter-tile lat first if not provided
+    if comm_lat is None and ideal == 0:
+        latency_map = booksim_eval(all_comm_segs, bus_width, freq)
+        # modify filename manually after saving
+        # pickle.dump(latency_map, open(f"results/latency_dict_bw=1_xbar=256_256.pkl", "wb"))
+    elif ideal == 1:
+        latency_map = {}
+    else:
+        latency_map = comm_lat # lat_layer = latency_map[layer]
+    bandwidth = bus_width * freq #B/s
     # update tile exec info
-    exec_info = {}
+    tile_by_layer = defaultdict(list)
+    exec_info = defaultdict(dict)
+    effbw = {}
+    path_delaydict = {}
+    layer_latdict = {}
+    layer_caldict = {}
+    layer_mergedict = {}
+    layer_transdict = {}
+    ovarall_latency = 0.0
+    overall_throughput = 0.0
+    # set tile by layer info
     for idx, tile_info in enumerate(all_tiles_mapping_infos):
-        break
-    # tile latency estimation
-    cur_tile_info = {}
-    cur_tile_path = {}
-    avg_delay_pack=[]
-    beginTime_by_layer=[]
-    finishTime_by_layer = []
-    PathDelay_cur_layer = []
-
-    
-
-
-    for i in range(0,layer_num-1):
-        print('########################')
-        print('#########layer',i,'######')
-        print('########################')
-
-        j=0
-        avgdelay_perpack = latency_map[i] / freq
-        print('avgdelay_perpack is', avgdelay_perpack)
-
-        if (i == 0):
-            begin_time = 0
+        tile_by_layer[tile_info.layer].append(idx)
+    # update path latency of each segment
+    for idx, comm_seg in enumerate(all_comm_segs):
+        # cur layer seg
+        layers = comm_seg.layers
+        # get all (layer, tile_idx) from tile_by_layer[layers]
+        tile_ids = [idx for layer in layers for idx in tile_by_layer[layer]]
+        # equivalent bandwidth computation (B/s)
+        effbw.update({layer: bandwidth / (1 + latency_map.get(layer, 0)) for layer in layers})
+        # get all paths
+        merged_paths = []
+        for tile_id in tile_ids:
+            layer = all_tiles_mapping_infos[tile_id].layer
+            merged_paths.extend((layer, path) for path in all_tiles_mapping_infos[tile_id].paths)
+        # update via delay
+        via_delay = {}
+        for layer, path in merged_paths:
+            cur_effbw = effbw[layer]
+            path_delay = path.datavolume / cur_effbw
+            for s, d in zip(path.via[:-1], path.via[1:]):
+                # via_delay[(s, d)] = path_delay
+                via_delay.update({(s, d): via_delay.get((s, d), 0) + path_delay})
+        # update path delay
+        for _, path in merged_paths:
+            path_delay = 0
+            for s, d in zip(path.via[:-1], path.via[1:]):
+                path_delay += via_delay[(s, d)]
+            path_delaydict[(path.src, path.dst)] = path_delay
+            # path_delaydict[(path.src, path.dst)] = path_delay
+            # print("path delay from", tile_id, "to", child_id, "is", path_delay)
+        
+    for idx, tile_info in enumerate(all_tiles_mapping_infos):
+        # local info
+        tile_id = tile_info.tile_id
+        # get ifm size to compute cal latency
+        ifm_size = sum(cn.ifmap_size for cn in tile_info.cnode)
+        # exec_info[tile_id]['cal_lat'] = 0
+        exec_info[tile_id]['cal_lat'] = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit)
+        exec_info[tile_id]['cal_lat'] /= 100000000 # ns to s, freq = 100MHz
+        # tile-layer map regestration
+        cur_layer = tile_info.layer
+        max_path_delay = 0.0
+        # update child info by path info
+        for path in tile_info.paths:
+            child_id = path.dst
+            # path_delay = (len(path.via)-1) * path.datavolume / cur_effbw
+            path_delay = path_delaydict[(tile_id,child_id)]
+            # update trans time info(cur tile as parent)
+            max_path_delay = max(max_path_delay, path_delay)
+            # parent info dict: src layer, path delay, tile id
+            if 'parent' not in exec_info[child_id]:
+                exec_info[child_id]['parent'] = []
+            exec_info[child_id]['parent'].append((cur_layer, path_delay, tile_id))
+        # update time dep info(cur tile as child)
+        if 'parent' not in exec_info[tile_id]:
+            exec_info[tile_id]['begin_time'] = 0.0
+            exec_info[tile_id]['merge_time'] = 0.0
         else:
-            begin_time = max(PathDelay_cur_layer) # actually ,this  is pathdelay of last layer
-        beginTime_by_layer.append(begin_time)
-        print('layer',i,'begin time is ',begin_time)
-
-        #reset the path delay list for each layer
-        PathDelay_cur_layer = []
-
-        for tile in  tiles_by_layer[i]:
-
-            tile_indata = 0
-
-            print('************')
-            print('tile',j,tile.tile_id)
-            print('************')
-            cur_tile_info['tile_id']=  tile.tile_id
-            cur_tile_info['child_tile'] = tile.child_tile
-            cur_tile_info['paths'] = tile.paths
-            cur_tile_info['cnode'] = tile.cnode
-            j=j+1
-
-            pth = 0
-            for cnode in cur_tile_info['cnode']:#specifc tile specifc path
-                tile_indata += cnode.ifmap_size
-
-            for path in cur_tile_info['paths']:#specifc tile specifc path
-                print('-----------')
-                print('path', pth)
-                print('-----------')
-                cur_tile_path['src'] = path.src
-                cur_tile_path['dst'] = path.dst
-                cur_tile_path['via'] = path.via # jumps
-                cur_tile_path['data_vol'] = path.datavolume #num of packs
-                print('src is',path.src)
-                print('dst is',path.dst)
-                print('datavolume is', path.datavolume)
-                print('vias are', path.via) # in this version , via is the whole path
-                print('-----------')
-                pth=pth+1
-                tile_delay = tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit)
-                transdelay = int(begin_time) + int(len(path.via)-1) * int(avgdelay_perpack) * int(path.datavolume)
-                Stile_Spath_delay = tile_delay+transdelay+int(begin_time)
-                print('Stile_Spath_delay is',Stile_Spath_delay)
-                PathDelay_cur_layer.append(int(Stile_Spath_delay))
-        print(PathDelay_cur_layer)
-
+            # merge time: intra-layer data driven
+            # # get merge and trans list
+            merge_list = [
+                element
+                for element in exec_info[tile_id]['parent']
+                if isinstance(element, (list, tuple)) and len(element) > 0
+                and element[0] == cur_layer
+            ]
+            trans_list = [
+                element
+                for element in exec_info[tile_id]['parent']
+                if isinstance(element, (list, tuple)) and len(element) > 0
+                and element[0] != cur_layer
+            ]
+            # update merge time
+            if not merge_list:
+                exec_info[tile_id]['merge_time'] = 0 
+            else:
+                exec_info[tile_id]['merge_time'] = max(merge_lat for _, merge_lat, _ in merge_list)
+            # update begin time(consider inter-layer parent only)
+            exec_info[tile_id]['begin_time'] = max(
+                path_delay + exec_info[parent_id]['begin_time'] + exec_info[parent_id]['cal_lat'] + exec_info[parent_id]['merge_time']
+                for _, path_delay, parent_id in trans_list)
+        # begin->compute->merge->trans
+        exec_info[tile_id]['end_time'] = exec_info[tile_id]['begin_time'] + exec_info[tile_id]['cal_lat'] + exec_info[tile_id]['merge_time'] + max_path_delay
+        layer_latdict[cur_layer] = max(layer_latdict.get(cur_layer, 0), exec_info[tile_id]['end_time'] - exec_info[tile_id]['begin_time'])
+        layer_caldict[cur_layer] = max(layer_caldict.get(cur_layer, 0), exec_info[tile_id]['cal_lat'])
+        layer_mergedict[cur_layer] = max(layer_mergedict.get(cur_layer, 0), exec_info[tile_id]['merge_time'])
+        layer_transdict[cur_layer] = max(layer_transdict.get(cur_layer, 0), max_path_delay)
+        if not syn:
+            ovarall_latency = max(ovarall_latency, exec_info[tile_id]['end_time'])
+    # throughput get from layer_latdict
+    overall_throughput = 1 / max(layer_latdict.values())
+    # if sychronous, update latency by layer
+    if syn:
+        for layer in layer_latdict.keys():
+            layer_latdict[layer] = layer_caldict[layer] + layer_mergedict[layer] + layer_transdict[layer]
+        ovarall_latency = sum(layer_latdict.values())
+        overall_throughput = 1 / max(layer_latdict.values())
+    # get overall cal latency
+    overall_cal_latency = sum(layer_caldict.values())
+    cal_per = overall_cal_latency / ovarall_latency
+    overall_merge_latency = sum(layer_mergedict.values())
+    merge_per = sum(layer_mergedict.values()) / ovarall_latency
+    return ovarall_latency, overall_throughput, overall_cal_latency, cal_per, overall_merge_latency, merge_per, effbw
 
 def tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit):
     modelL_config = cp.ConfigParser()
@@ -152,7 +205,7 @@ def tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit):
 
     temp_tile_latency.update_tile_latency(indata=tile_indata, rdata=tile_indata)
 
-    tile_latency = temp_tile_latency.tile_latency;
+    tile_latency = temp_tile_latency.tile_latency
     return tile_latency
 
 

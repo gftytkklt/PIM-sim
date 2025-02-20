@@ -618,6 +618,7 @@ void DGraph::set_harbor() {
         tdep_map[last_node].push_back(i);
         harbor_map[i] = last_node;
     }
+    if (!sched_opt) {return;}
     // print old harbor map
     // for (const auto& [key, val] : harbor_map) {
     //     std::cout << "TDep: " << key << " Harbor: " << val << std::endl;
