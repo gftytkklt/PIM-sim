@@ -99,22 +99,17 @@ def plot_all_comm(dict_list, comm_result):
     plt.rcParams.update({
         "font.family": "serif",
         "font.serif": ["Times New Roman"],
-        # "axes.labelsize": 12,
-        # "axes.titlesize": 14,
-        # "xtick.labelsize": 10,
-        # "ytick.labelsize": 10,
-        # "legend.fontsize": 10,
-        "axes.titlesize": 14,
-        "axes.labelsize": 16,
-        "xtick.labelsize": 12,
-        "ytick.labelsize": 12,
-        "legend.fontsize": 12,
-        "hatch.linewidth": 0.5,
+        "axes.titlesize": 12,    # 原14
+        "axes.labelsize": 10,    # 原16
+        "xtick.labelsize": 8,    # 原12
+        "ytick.labelsize": 8,    # 原12
+        "legend.fontsize": 9,    # 原12
+        "hatch.linewidth": 0.3,  # 原0.5
         'font.weight': 'bold'
     })
     
     # 创建子图布局
-    fig, axs = plt.subplots(2, 2, figsize=(16, 9))  # 适合双栏布局的尺寸
+    fig, axs = plt.subplots(2, 2, figsize=(7.2, 4.8))  # 适合双栏布局的尺寸
     axs = axs.flatten()
     
     # 统一配色方案和阴影模式
@@ -142,7 +137,7 @@ def plot_all_comm(dict_list, comm_result):
               prop={'weight': 'bold'})
     
     # 布局优化
-    plt.tight_layout(pad=2.0, w_pad=2.5, h_pad=3.0)
+    plt.tight_layout(pad=2.0, w_pad=2.5, h_pad=2.0)
     fig.subplots_adjust(bottom=0.15, top=0.92)
     
     # 高质量保存
@@ -227,9 +222,9 @@ def plot_comm(comm_result, ax=None, dict_key=None, norm=1,
     
     # 子图标签
     if subplot_label:
-        ax.text(0.5, -0.15, subplot_label,
+        ax.text(0.5, -0.2, subplot_label,
                 transform=ax.transAxes,
-                fontsize=14,
+                fontsize=10,
                 # fontweight='bold',
                 ha='center',
                 va='center')
@@ -936,15 +931,15 @@ if __name__ == "__main__":
     if latency_dict is None:
         print("latency dict not found. generate by mapping result...")
         latency_dict = save_comm_result(mapping_result, bw, xbar_size)
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     plot_all_comm(key_list, comm_result)
-    for key in key_list:
-        get_data_percentage(comm_result, dict_key=key)
-    # brkdown_stat(mapping_result, latency_dict, bw)
-    plot_brkdown(mapping_result, latency_dict, bw, ideal=0)
-    # brkdown_analysis()
-    plot_bw(mapping_result, latency_dict, bw)
-    plot_xbarsize()
-    plot_pipeline()
+    # for key in key_list:
+    #     get_data_percentage(comm_result, dict_key=key)
+    # # brkdown_stat(mapping_result, latency_dict, bw)
+    # plot_brkdown(mapping_result, latency_dict, bw, ideal=0)
+    # # brkdown_analysis()
+    # plot_bw(mapping_result, latency_dict, bw)
+    # plot_xbarsize()
+    # plot_pipeline()
