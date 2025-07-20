@@ -9,6 +9,24 @@ from MNSIM.Latency_Model.Tile_latency import tile_latency_analysis
 from MNSIM.Latency_Model.Pooling_latency import pooling_latency_analysis
 from MNSIM.Hardware_Model.Buffer import buffer
 
+def squeeze_matrix(matrix):
+    elem_num = len(matrix)
+    # print(matrix)
+    row = int(math.sqrt(elem_num))
+    col = int(math.sqrt(elem_num))
+    if row * col != elem_num:
+        raise ValueError("Matrix is not square or has invalid dimensions.")
+    non_zero_srcid = [i for i, val in enumerate(matrix) if any(val)]
+    print("Non-zero source IDs:", non_zero_srcid)
+    # assert sublists have the same length
+    # non zero dest ids
+    non_zero_destid = set()
+    for id in non_zero_srcid:
+        non_zero_id = [i for i, val in enumerate(matrix[id]) if val > 0]
+        non_zero_destid.update(non_zero_id)
+    print("Non-zero destination IDs:", non_zero_destid)
+    # coordinate transformation
+
 def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
     # inter-tile latency estimation by booksim2
     # init sim comfig
@@ -33,16 +51,20 @@ def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
         layers = comm_seg.layers
         # set injection matrix
         data_matrix = comm_seg.datas
+        squeeze_matrix(data_matrix)
+        continue
+        # print(len(data_matrix))
         inj_matrix = divide_list_elements_3(data_matrix, bus_width * freq / fps)
         np.savetxt("inj_rate.txt", inj_matrix, fmt='%.12f')
         log_file = home_path + '/logs/' + str(idx) + '.log'
         booksim_command = home_path + '/booksim ' + cfg_file + ' > ' + log_file
+        # print(booksim_command)
         os.system(booksim_command)
         # additional latency estimation
         packet_latency = os.popen('grep "Packet latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
         network_latency = os.popen('grep "Network latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
-        # print("packet latency is", packet_latency)
-        # print("network latency is", network_latency)
+        print("packet latency is", packet_latency)
+        print("network latency is", network_latency)
         if math.isnan(float(packet_latency)) or math.isnan(float(network_latency)):
             latency = 0 # default latency
         else:

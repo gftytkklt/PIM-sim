@@ -30,7 +30,7 @@
 // Topology
 
 topology = mesh;
-k=15;
+k=5;
 n=2;
 
 // Routing
@@ -53,12 +53,12 @@ packet_size = 1;
 
 
 // Simulation
-sim_type = throughput;
+sim_type = latency;
 sample_period = 10000;
-warmup_periods = 2;
+warmup_periods = 1000;
 max_samples = 1;
 
-injection_rate = 0.0001;
+injection_rate = 0.01;
 
 num_vcs = 1;
 
