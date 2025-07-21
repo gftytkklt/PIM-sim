@@ -17,15 +17,36 @@ def squeeze_matrix(matrix):
     if row * col != elem_num:
         raise ValueError("Matrix is not square or has invalid dimensions.")
     non_zero_srcid = [i for i, val in enumerate(matrix) if any(val)]
-    print("Non-zero source IDs:", non_zero_srcid)
+    # print("Non-zero source IDs:", non_zero_srcid)
     # assert sublists have the same length
     # non zero dest ids
     non_zero_destid = set()
     for id in non_zero_srcid:
         non_zero_id = [i for i, val in enumerate(matrix[id]) if val > 0]
         non_zero_destid.update(non_zero_id)
-    print("Non-zero destination IDs:", non_zero_destid)
+    # print("Non-zero destination IDs:", non_zero_destid)
     # coordinate transformation
+    non_zero_srcid = np.array(non_zero_srcid)
+    non_zero_destid = np.array(list(non_zero_destid))
+    print("non_zero_srcid", non_zero_srcid)
+    print("non_zero_destid", non_zero_destid)
+    src_row = non_zero_srcid // col
+    src_col = non_zero_srcid % col
+    dest_row = non_zero_destid // col
+    dest_col = non_zero_destid % col
+    print("src_row", src_row)
+    print("src_col", src_col)
+    print("dest_row", dest_row)
+    print("dest_col", dest_col)
+    row_min = min(src_row.min(), dest_row.min())
+    row_max = max(src_row.max(), dest_row.max())
+    col_min = min(src_col.min(), dest_col.min())
+    col_max = max(src_col.max(), dest_col.max())
+    print("row_min", row_min)
+    print("row_max", row_max)
+    print("col_min", col_min)
+    print("col_max", col_max)
+    # reshape to smaller square matrix
 
 def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
     # inter-tile latency estimation by booksim2
