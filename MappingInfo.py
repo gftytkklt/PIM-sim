@@ -10,13 +10,17 @@ from MNSIM.Latency_Model.Pooling_latency import pooling_latency_analysis
 from MNSIM.Hardware_Model.Buffer import buffer
 
 def squeeze_matrix(matrix):
+    matrix = np.array(matrix)
     elem_num = len(matrix)
     # print(matrix)
-    row = int(math.sqrt(elem_num))
-    col = int(math.sqrt(elem_num))
-    if row * col != elem_num:
+    orig_row = int(math.sqrt(elem_num))
+    orig_col = int(math.sqrt(elem_num))
+    if orig_row * orig_col != elem_num:
         raise ValueError("Matrix is not square or has invalid dimensions.")
     non_zero_srcid = [i for i, val in enumerate(matrix) if any(val)]
+    if not non_zero_srcid:
+        print("No non-zero elements found in the matrix.")
+        return 0
     # print("Non-zero source IDs:", non_zero_srcid)
     # assert sublists have the same length
     # non zero dest ids
@@ -28,25 +32,62 @@ def squeeze_matrix(matrix):
     # coordinate transformation
     non_zero_srcid = np.array(non_zero_srcid)
     non_zero_destid = np.array(list(non_zero_destid))
-    print("non_zero_srcid", non_zero_srcid)
-    print("non_zero_destid", non_zero_destid)
-    src_row = non_zero_srcid // col
-    src_col = non_zero_srcid % col
-    dest_row = non_zero_destid // col
-    dest_col = non_zero_destid % col
-    print("src_row", src_row)
-    print("src_col", src_col)
-    print("dest_row", dest_row)
-    print("dest_col", dest_col)
+    # print("non_zero_srcid", non_zero_srcid)
+    # print("non_zero_destid", non_zero_destid)
+    src_row = non_zero_srcid // orig_col
+    src_col = non_zero_srcid % orig_col
+    dest_row = non_zero_destid // orig_col
+    dest_col = non_zero_destid % orig_col
+    # print("src_row", src_row)
+    # print("src_col", src_col)
+    # print("dest_row", dest_row)
+    # print("dest_col", dest_col)
     row_min = min(src_row.min(), dest_row.min())
     row_max = max(src_row.max(), dest_row.max())
     col_min = min(src_col.min(), dest_col.min())
     col_max = max(src_col.max(), dest_col.max())
-    print("row_min", row_min)
-    print("row_max", row_max)
-    print("col_min", col_min)
-    print("col_max", col_max)
-    # reshape to smaller square matrix
+    # print("row_min", row_min, "row_max", row_max)
+    # print("col_min", col_min, "col_max", col_max)
+    row_size = row_max - row_min + 1
+    col_size = col_max - col_min + 1
+    # print("row_size", row_size, "col_size", col_size)
+    square_size = max(row_size, col_size)
+    new_matrix = np.zeros((square_size * square_size, square_size * square_size))
+    #extract submatrix data
+    # matrix layout: (row, row) blks, (col, col) elems each blk
+    for i in range(row_size):
+        i_start = i + row_min
+        for j in range(row_size):
+            j_start = j + row_min
+            sub_blk = matrix[i_start*orig_col:(i_start+1)*orig_col, j_start*orig_col:(j_start+1)*orig_col]
+            sub_data = sub_blk[col_min:col_max+1, col_min:col_max+1]
+            # assertion check: sub_data must contain all non-zero elements from sub_blk
+            if sub_blk.any():
+                # print(sub_blk)
+                # print(sub_data)
+                if not np.array_equal(sub_blk[sub_blk != 0], sub_data[sub_data != 0]):
+                    print(i, j, "submatrix data does not match original non-zero elements.")
+                    raise ValueError("Submatrix data does not match original non-zero elements.")
+            new_matrix[i*square_size:i*square_size+col_size, j*square_size:j*square_size+col_size] = sub_data
+            # if sub_blk.any():
+            #     test_mat = new_matrix[i*square_size:i*square_size+col_size, j*square_size:j*square_size+col_size]
+            #     print(test_mat)
+            #     print(sub_data)
+            #     if not np.array_equal(sub_data[sub_data != 0], test_mat[test_mat != 0]):    
+            #         print(i, j,"Submatrix data does not match original non-zero elements.")
+            #         raise ValueError("Submatrix data does not match original non-zero elements.")
+    # print(matrix.shape, "squeezed to", new_matrix.shape)
+    # print(matrix)
+    # print(new_matrix)
+    # assertion check, non-zero elements should be the same
+    # print("Original non-zero elements:")
+    # print(matrix[matrix != 0])
+    # print(new_matrix[new_matrix != 0])
+    # assertion check: squeezed matrix should match original non-zero elements
+    if not np.array_equal(matrix[matrix != 0], new_matrix[new_matrix != 0]):
+        print("Squeezed matrix does not match original non-zero elements.")
+        raise ValueError("Squeezed matrix does not match original non-zero elements.")
+    return new_matrix
 
 def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
     # inter-tile latency estimation by booksim2
