@@ -1,4 +1,5 @@
 import pickle
+import subprocess
 import os, re, glob, sys, math
 import numpy as np
 import pandas as pd
@@ -20,7 +21,7 @@ def squeeze_matrix(matrix):
     non_zero_srcid = [i for i, val in enumerate(matrix) if any(val)]
     if not non_zero_srcid:
         print("No non-zero elements found in the matrix.")
-        return 0
+        return np.zeros((1, 1))  # Return a zero matrix if no non-zero elements found
     # print("Non-zero source IDs:", non_zero_srcid)
     # assert sublists have the same length
     # non zero dest ids
@@ -89,11 +90,7 @@ def squeeze_matrix(matrix):
         raise ValueError("Squeezed matrix does not match original non-zero elements.")
     return new_matrix
 
-def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
-    # inter-tile latency estimation by booksim2
-    # init sim comfig
-    home_path = os.getcwd()
-    mesh_size = int(math.sqrt(len(all_comm_segs[0].datas)))
+def create_cfg_file(home_path, mesh_size):
     cfg_file = 'booksim_cfg'
     with open(cfg_file, 'r') as f:
         lines = f.readlines()
@@ -106,6 +103,25 @@ def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
             break
     with open(cfg_file, 'w') as f:
         f.writelines(lines)
+    return cfg_file
+
+def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
+    # inter-tile latency estimation by booksim2
+    # init sim comfig
+    home_path = os.getcwd()
+    # mesh_size = int(math.sqrt(len(all_comm_segs[0].datas)))
+    # cfg_file = 'booksim_cfg'
+    # with open(cfg_file, 'r') as f:
+    #     lines = f.readlines()
+    # # modify mesh size
+    # for i, line in enumerate(lines):
+    #     line = line.strip()
+    #     matchobj = re.match(r'^k=', line)
+    #     if matchobj:
+    #         lines[i] = 'k=' + str(mesh_size) + ';' + '\n'
+    #         break
+    # with open(cfg_file, 'w') as f:
+    #     f.writelines(lines)
 
     fps = 100
     latency_map = {}
@@ -113,27 +129,47 @@ def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
         layers = comm_seg.layers
         # set injection matrix
         data_matrix = comm_seg.datas
-        squeeze_matrix(data_matrix)
-        continue
-        # print(len(data_matrix))
+        # print("original data_matrix shape is", np.array(data_matrix).shape)
+        data_matrix = squeeze_matrix(data_matrix)
+        mesh_size = int(data_matrix.shape[0] ** 0.5)
+        # print("squeezed mesh size is", mesh_size)
+        # print("squeezed data_matrix shape is", data_matrix.shape)
         inj_matrix = divide_list_elements_3(data_matrix, bus_width * freq / fps)
         np.savetxt("inj_rate.txt", inj_matrix, fmt='%.12f')
-        log_file = home_path + '/logs/' + str(idx) + '.log'
-        booksim_command = home_path + '/booksim ' + cfg_file + ' > ' + log_file
-        # print(booksim_command)
-        os.system(booksim_command)
-        # additional latency estimation
-        packet_latency = os.popen('grep "Packet latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
-        network_latency = os.popen('grep "Network latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
-        print("packet latency is", packet_latency)
-        print("network latency is", network_latency)
-        if math.isnan(float(packet_latency)) or math.isnan(float(network_latency)):
-            latency = 0 # default latency
+        # create cfg file
+        cfg_file = create_cfg_file(home_path, mesh_size)
+        # log_file = home_path + '/logs/' + str(idx) + '.log'
+        # orig file IO implementation
+        # booksim_command = home_path + '/booksim ' + cfg_file + ' > ' + log_file
+        # # print(booksim_command)
+        # os.system(booksim_command)
+        # # additional latency estimation
+        # packet_latency = os.popen('grep "Packet latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
+        # network_latency = os.popen('grep "Network latency average" ' + log_file + ' | tail -1 | awk \'{print $5}\'').read().strip()
+        # print("packet latency is", packet_latency)
+        # print("network latency is", network_latency)
+        # if math.isnan(float(packet_latency)) or math.isnan(float(network_latency)):
+        #     latency = 0 # default latency
+        # else:
+        #     latency = max(float(packet_latency) - float(network_latency), 0)
+        # for layer in layers:
+        #     latency_map[layer] = latency
+        # pipe based implementation
+        booksim_command = [home_path + '/booksim', cfg_file]
+        result = subprocess.run(booksim_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        output_lines = result.stdout.strip()
+        # print("output_line", output_lines)
+        packet_line = re.search(r'Packet latency average = ([\d.]+)', output_lines)
+        network_line = re.search(r'Network latency average = ([\d.]+)', output_lines)
+        if packet_line and network_line:
+            packet_latency = float(packet_line.group(1))
+            network_latency = float(network_line.group(1))
+            print("packet latency is", packet_latency)
+            print("network latency is", network_latency)
+            latency = max(packet_latency - network_latency, 0)
         else:
-            latency = max(float(packet_latency) - float(network_latency), 0)
-        # cur_avglat = trans_time_est(cfg_file)
+            latency = 0  # default latency if not found
         for layer in layers:
-            # print("layer", layer, "latency is", latency)
             latency_map[layer] = latency
     return latency_map
 
