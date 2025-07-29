@@ -162,7 +162,7 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     if comm_lat is None and ideal == 0:
         latency_map = booksim_eval(all_comm_segs, bus_width, freq)
         # modify filename manually after saving
-        # pickle.dump(latency_map, open(f"results/latency_dict_bw=1_xbar=256_256.pkl", "wb"))
+        # pickle.dump(latency_map, open(f"results/noc_perf_dict_bw=1_xbar=256_256.pkl", "wb"))
     elif ideal == 1:
         latency_map = {}
     else:

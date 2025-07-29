@@ -12,7 +12,7 @@ from MappingInfo import latency_est, booksim_eval
 from onnx_analysis import analysis_model, make_opt_info, load_kernel, make_hw_info
 
 # demo for debug, models for run
-def perf_analysis(models_dir='demo', hwinfo=None):
+def perf_analysis(models_dir='demo', hwinfo=None, debug=False):
     models_path = Path(models_dir)
 
     if not models_path.exists() or not models_path.is_dir():
@@ -28,9 +28,11 @@ def perf_analysis(models_dir='demo', hwinfo=None):
 
     opt_configs = [
         (1, 1),
-        # (1, 0),
-        # (0, 1),
-        # (0, 0)
+        (1, 0),
+        (0, 1),
+        (0, 0)
+    ] if not debug else [
+        (1, 1),
     ]
 
     success = 0
@@ -707,8 +709,8 @@ def plot_grouped_bars(data1, data2,
 def plot_xbarsize():
     mapping_result_256, _ = perf_analysis(models_dir='demo', hwinfo = make_hw_info((256, 256), 4, (0,0), 1))
     mapping_result_128, _ = perf_analysis(models_dir='demo', hwinfo = make_hw_info((128, 128), 4, (0,0), 1))
-    lat_dict_256 = pickle.load(open("results/latency_dict_bw=1_xbar=256_256.pkl", "rb"))
-    lat_dict_128 = pickle.load(open("results/latency_dict_bw=1_xbar=128_128.pkl", "rb"))
+    lat_dict_256 = pickle.load(open("results/noc_perf_dict_bw=1_xbar=256_256.pkl", "rb"))
+    lat_dict_128 = pickle.load(open("results/noc_perf_dict_bw=1_xbar=128_128.pkl", "rb"))
     model = 'vgg16.onnx'
     opt_combinations = sorted(set(opt for opts in mapping_result_256.values() for opt in opts))
     res_256 = [latency_est(mapping_res=mapping_result_256[model].get(opt, 0), bus_width=1, comm_lat=lat_dict_256[(model, opt)]) for opt in opt_combinations]
@@ -732,8 +734,8 @@ def plot_xbarsize():
 def plot_pipeline():
     mapping_result_LS, _ = perf_analysis(models_dir='models', hwinfo = make_hw_info((256, 256), 4, (0,0), 1))
     mapping_result_LP, _ = perf_analysis(models_dir='models', hwinfo = make_hw_info((256, 256), 4, (0,0), 10000))
-    lat_dict_LS = pickle.load(open("results/latency_dict_bw=1_xbar=256_256.pkl", "rb"))
-    lat_dict_LP = pickle.load(open("results/latency_dict_bw=1_xbar=256_256_LP.pkl", "rb"))
+    lat_dict_LS = pickle.load(open("results/noc_perf_dict_bw=1_xbar=256_256.pkl", "rb"))
+    lat_dict_LP = pickle.load(open("results/noc_perf_dict_bw=1_xbar=256_256_LP.pkl", "rb"))
     models = list(mapping_result_LS.keys())
     index = np.arange(len(models))
     opts = [(0, 0), (1, 1)]
@@ -855,7 +857,7 @@ def plot_pipeline():
     plt.tight_layout(rect=[0, 0, 1, 0.92])
     fig.savefig("results/pipeline.pdf", dpi=300, bbox_inches='tight')
     plt.close()
-def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
+def save_noc_perf(comm_segs, bus_width = None, xbar_size = None):
     # 获取所有模型名称和优化选项组合
     models = list(comm_segs.keys())
     opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
@@ -872,14 +874,11 @@ def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
             power_dict[(model, opt)] = power  # 将power值按模型和优化方法存储到字典
             print(f"model={model}, opt={opt}, time={time.time()-start_time}")
 
-    filename = f"results/latency_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
+    filename = f"results/noc_perf_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
     with open(filename, 'wb') as f:
-        pickle.dump(latency_dict, f)
+        # pickle.dump(latency_dict, f)
+        pickle.dump((latency_dict, power_dict), f)
         print("Data saved.")
-    power_filename = f"results/power_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
-    with open(power_filename, 'wb') as f:
-        pickle.dump(power_dict, f)
-        print("Power data saved.")
     return latency_dict, power_dict
 
 def load_and_plot(dict_key=None, norm=0):
@@ -912,14 +911,14 @@ def get_data_percentage(comm_result=None, dict_key=None):
             # f.write(f"opt_info={opt}, values={values}, range={value_range}\n")
             # print(f"opt_info={opt}, values={values}, range={value_range}")  # 打印到控制台（可选）
         
-def load_lat_result(bw, xbar_size):
-    filename = f"results/latency_dict_bw={bw}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
+def load_noc_perf(bw, xbar_size):
+    filename = f"results/noc_perf_dict_bw={bw}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
     if not os.path.exists(filename):  # 检查文件是否存在
         return None
     try:
         with open(filename, 'rb') as f:
-            latency_dict = pickle.load(f)
-        return latency_dict
+            perf_dict = pickle.load(f)
+        return perf_dict
     except Exception as e:  # 捕获其他异常
         print(f"Error loading file {filename}: {e}")
         return None
@@ -929,14 +928,18 @@ if __name__ == "__main__":
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 4, (0,0), 1)
     begin_time = time.time()
-    mapping_result, comm_result = perf_analysis(models_dir='demo', hwinfo = hw_info)
+    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
     print(f"Total Time: {time.time()-begin_time}")
-    # save_comm_result(mapping_result, bw, xbar_size)
-    latency_dict = load_lat_result(bw, xbar_size)
+    # save_noc_perf(mapping_result, bw, xbar_size)
+    perf_dict = load_noc_perf(bw, xbar_size)
     # print(latency_dict.keys())
-    if latency_dict is None:
+    if perf_dict is None:
         print("latency dict not found. generate by mapping result...")
-        latency_dict, power_dict = save_comm_result(mapping_result, bw, xbar_size)
+        latency_dict, power_dict = save_noc_perf(mapping_result, bw, xbar_size)
+    else:
+        latency_dict, power_dict = perf_dict
+    print(latency_dict)
+    print(power_dict)
     # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
     # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
