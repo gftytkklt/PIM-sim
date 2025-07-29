@@ -860,21 +860,27 @@ def save_comm_result(comm_segs, bus_width = None, xbar_size = None):
     models = list(comm_segs.keys())
     opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
     latency_dict = {}
+    power_dict = {}
     # save latency dict
     for i, opt in enumerate(opt_combinations):
         for model in models:
             start_time = time.time()
             # latency = latency_est(SimConfig_path, inputbit, outputbit, comm_segs[model].get(opt, 0), bus_width)  # 获取每个模型对应的值
             segs = comm_segs[model].get(opt, 0).comm_segs
-            latency = booksim_eval(segs, bus_width)
+            latency, power = booksim_eval(segs, bus_width)
             latency_dict[(model, opt)] = latency  # 将latency值按模型和优化方法存储到字典
+            power_dict[(model, opt)] = power  # 将power值按模型和优化方法存储到字典
             print(f"model={model}, opt={opt}, time={time.time()-start_time}")
 
-    filename = f"results/latency_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}_LP.pkl"
+    filename = f"results/latency_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
     with open(filename, 'wb') as f:
         pickle.dump(latency_dict, f)
         print("Data saved.")
-    return latency_dict
+    power_filename = f"results/power_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
+    with open(power_filename, 'wb') as f:
+        pickle.dump(power_dict, f)
+        print("Power data saved.")
+    return latency_dict, power_dict
 
 def load_and_plot(dict_key=None, norm=0):
     with open('results/comm_result.pkl', 'rb') as f:
@@ -930,11 +936,11 @@ if __name__ == "__main__":
     # print(latency_dict.keys())
     if latency_dict is None:
         print("latency dict not found. generate by mapping result...")
-        latency_dict = save_comm_result(mapping_result, bw, xbar_size)
+        latency_dict, power_dict = save_comm_result(mapping_result, bw, xbar_size)
     # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
     # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
-    key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
-    plot_all_comm(key_list, comm_result)
+    # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
+    # plot_all_comm(key_list, comm_result)
     # for key in key_list:
     #     get_data_percentage(comm_result, dict_key=key)
     # # brkdown_stat(mapping_result, latency_dict, bw)
