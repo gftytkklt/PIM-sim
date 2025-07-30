@@ -234,7 +234,7 @@ def plot_comm(comm_result, ax=None, dict_key=None, norm=1,
     return ax
 
 # parse seg elems in this function and plot
-def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
+def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None):
     # 设置学术风格参数
     plt.style.use('seaborn-v0_8-paper')
     plt.rcParams.update({
@@ -257,8 +257,8 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     hatch_patterns = ['//', '\\\\', '||', '--', '++', 'xx', 'oo']
     
     # 获取绘图数据
-    models = list(comm_segs.keys())
-    opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
+    models = list(mapping_results.keys())
+    opt_combinations = sorted(set(opt for opts in mapping_results.values() for opt in opts))
     bar_width = 0.18  # 调整宽度适应更多分组
     inner_space = 0.2
     index = np.arange(len(models))
@@ -271,7 +271,7 @@ def plot_perf(comm_segs, latency_dict=None, bw=4, norm=0, plot_type=None):
     # 绘制柱状图
     for i, opt in enumerate(opt_combinations):
         ideal = 1 if i == 4 else 0
-        values = [latency_est(mapping_res=comm_segs[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[list_id] for model in models]  # 保持原有计算逻辑
+        values = [latency_est(mapping_res=mapping_results[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[list_id] for model in models]  # 保持原有计算逻辑
         
         # 标准化处理
         if norm and i == 0:
@@ -857,6 +857,24 @@ def plot_pipeline():
     plt.tight_layout(rect=[0, 0, 1, 0.92])
     fig.savefig("results/pipeline.pdf", dpi=300, bbox_inches='tight')
     plt.close()
+
+def power_analysis(mapping_results, latency_dict, power_dict, bw):
+    models = list(mapping_results.keys())
+    opt_combinations = sorted(set(opt for opts in mapping_results.values() for opt in opts))
+    for i, opt in enumerate(opt_combinations):
+        print(f"Optimization: {get_opt_str(opt)}")
+        ideal = 1 if i == 4 else 0
+        datas = [latency_est(mapping_res=mapping_results[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[-2:] for model in models]  # 保持原有计算逻辑
+        merge_dict, trans_dict = zip(*datas)  # 解包数据
+        cur_pwr_dict = [value for (model, i), value in power_dict.items() if model in models and i == opt]  # 获取当前功耗数据
+        power = [0] * len(models)
+        for i in range(len(models)):
+            for key in cur_pwr_dict[i].keys():
+                avg_pwr = cur_pwr_dict[i][key]
+                total_time = merge_dict[i][key] + trans_dict[i][key]
+                power[i] += avg_pwr * total_time
+        print(f"Power Consumption for {get_opt_str(opt)}: {power}")
+
 def save_noc_perf(comm_segs, bus_width = None, xbar_size = None):
     # 获取所有模型名称和优化选项组合
     models = list(comm_segs.keys())
@@ -928,7 +946,7 @@ if __name__ == "__main__":
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 4, (0,0), 1)
     begin_time = time.time()
-    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
+    mapping_result, comm_result = perf_analysis(models_dir='demo', hwinfo = hw_info)
     print(f"Total Time: {time.time()-begin_time}")
     # save_noc_perf(mapping_result, bw, xbar_size)
     perf_dict = load_noc_perf(bw, xbar_size)
@@ -938,8 +956,9 @@ if __name__ == "__main__":
         latency_dict, power_dict = save_noc_perf(mapping_result, bw, xbar_size)
     else:
         latency_dict, power_dict = perf_dict
-    print(latency_dict)
-    print(power_dict)
+    # print(latency_dict)
+    # print(power_dict)
+    power_analysis(mapping_result, latency_dict, power_dict, bw)
     # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
     # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
