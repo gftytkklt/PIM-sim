@@ -36,7 +36,8 @@ void CGraph::create_cnodes() {
     for (const auto& i: kernels) {
         // determine in/out chan num of a cnode
         int window_size = i.wsize.first * i.wsize.second;
-        int in_chan = (CNode_size.first + window_size - 1) / window_size;
+        // int in_chan = (CNode_size.first + window_size - 1) / window_size;
+        int in_chan = CNode_size.first / window_size;
         int out_chan = CNode_size.second;
         // cur layer info
         auto [ker_in, ker_out] = i.channel;
