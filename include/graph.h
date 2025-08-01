@@ -67,6 +67,7 @@ struct TEdge {
     DepType t_type; 
     int accvolume;  
     int propvolume; 
+    std::map<int, int> layer_map;// key: layer, value: datavolume
 };
 
 std::ostream& operator<<(std::ostream& os, const TEdge& tedge);
@@ -212,6 +213,17 @@ protected:
     void set_edge_property(const EdgeType& e, const EdgeProperty& edge_prop, GraphType& g) {
         g[e] = edge_prop;
     }
+
+    template <typename GraphType>
+    EdgeProperty& get_edge_property(Node v1, Node v2, GraphType& g) {
+        static EdgeProperty default_edge_property{};
+        auto [e, found] = boost::edge(v1, v2, g);
+        if (found) {
+            return g[e];
+        } else {
+            return default_edge_property;
+        }
+    }
 public:
     // get adjacent vertices
     template <typename GraphType>
@@ -331,7 +343,7 @@ private:
     void create_tnodes();
     void create_TDep();
     void inter_tile_conn();
-    void update_tedges(Node src_t, Node dst_t, CEdge cedge);
+    void update_tedges(Node src_t, Node dst_t, CEdge cedge, int src_layer);
 };
 
 class HGraph : public BaseGraph<HNode, HEdge> {

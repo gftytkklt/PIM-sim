@@ -1,29 +1,10 @@
 #include "graph.h"
-// #include "util.h"
-// #include <boost/graph/dijkstra_shortest_paths.hpp>
-// #include <boost/graph/betweenness_centrality.hpp>
 
 CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size) 
     : cg{}, kernels{kernels}, CNode_size{CNode_size}, cdeps{} {
     analysis();
     std::cout << "CGraph created" << std::endl;
 }
-
-// CGraph::CGraph(CGraph&& other) noexcept
-//     : cg(std::move(other.cg)),
-//       kernels(std::move(other.kernels)),
-//       CNode_size(std::move(other.CNode_size)),
-//       cdeps(std::move(other.cdeps)) {}
-
-// CGraph& CGraph::operator=(CGraph&& other) noexcept {
-//     if (this != &other) {
-//         cg = std::move(other.cg);
-//         kernels = std::move(other.kernels);
-//         CNode_size = std::move(other.CNode_size);
-//         cdeps = std::move(other.cdeps);
-//     }
-//     return *this;
-// }
 
 void CGraph::analysis() {
     create_cnodes();
@@ -182,6 +163,7 @@ void TGraph::analysis() {
     // create_tnodes();
     create_TDep();
     inter_tile_conn();
+    // print_graph_info();
 }
 
 void TGraph::analysis_zigzag() {
@@ -268,6 +250,8 @@ void TGraph::inter_tile_conn() {
     // traverse nodes
     for (const auto& v : boost::make_iterator_range(vertices(cg))) {
         Node src_t = node_map[v];
+        // auto src_layer = get_node_property(v, cg).layer;
+        auto src_layer = cg_ref->get_node_property(v, cg).layer;
         const auto& v_dst = get_adjacent_nodes(v, cg);
         // traverse dst nodes
         std::map<Node, std::vector<CEdge>> inter_tile_edges;
@@ -292,7 +276,7 @@ void TGraph::inter_tile_conn() {
                 // update end channel range
                 merged_edge.channel_id.second = std::max(merged_edge.channel_id.second, cedge_vec[i].channel_id.second);
             }
-            update_tedges(src_t, tnode_key, merged_edge);
+            update_tedges(src_t, tnode_key, merged_edge, src_layer);
             // update tnode parent info
             if(get_edge_property(src_t, tnode_key, tg).t_type != DepType::Accum) {
                 auto& tnode = get_node_property(tnode_key, tg);
@@ -302,92 +286,43 @@ void TGraph::inter_tile_conn() {
     }
 }
 
-// merge inter-tile edges
-// void TGraph::inter_tile_conn() {
-//     // find inter-tile c-edges
-//     const auto& cg = cg_ref->get_graph();
-//     using EdgeElem = std::unordered_map<Node,std::vector<CEdge>>;
-//     using EdgeMap = std::unordered_map<std::pair<Node, Node>, EdgeElem, pair_hash>;
-//     EdgeMap edge_map{};
-//     // traverse edges
-//     for (const auto& e : boost::make_iterator_range(edges(cg))) {
-//         // CEdge info
-//         auto src = boost::source(e, cg);
-//         auto dst = boost::target(e, cg);
-//         // TNode info
-//         Node src_t = node_map[src];
-//         Node dst_t = node_map[dst];
-//         // find inter-tile edges and update tedges
-//         if(src_t != dst_t) {
-//             // get inter-tile cedge property
-//             auto cedge = cg_ref->get_edge_property(e, cg);
-//             // update edgemap
-//             edge_map[std::make_pair(src_t, dst_t)][src].emplace_back(cedge);
-//         }
-//     }
-//     // traverse tnode edge_map
-//     for (auto& [key, val] : edge_map) {
-//         // traverse edges with same src cnode
-//         for (auto& [src, cedges] : val) {
-//             // sort cedges by channel start id
-//             std::sort(cedges.begin(), cedges.end(), [](CEdge& a, CEdge& b) {
-//                 return a.channel_id.first < b.channel_id.first;
-//             });
-//             // merge cedges
-//             std::vector<CEdge> merged_edges{};
-//             // add first edge
-//             merged_edges.emplace_back(cedges[0]);
-//             // merge edge info
-//             for (int i = 1; i < cedges.size(); i++) {
-//                 auto& cur_edge = merged_edges.back();
-//                 // only update non-overlapping edgeinfo
-//                 // case1: has overlap
-//                 if (cedges[i].channel_id.first <= cur_edge.channel_id.second) {
-//                     auto unique_num = UniqueElements(cur_edge.channel_id, cedges[i].channel_id);
-//                     // unique channel must extend the end index
-//                     cur_edge.channel_id.second += unique_num;
-//                     // update datavolume
-//                     cur_edge.datavolume += cedges[i].datavolume * unique_num / (cedges[i].channel_id.second - cedges[i].channel_id.first + 1);
-//                 }
-//                 // case2: no overlap
-//                 else {
-//                     merged_edges.emplace_back(cedges[i]);
-//                 }
-//             }
-//             // update tedges
-//             for (auto& edge : merged_edges) {
-//                 update_tedges(key.first, key.second, edge);
-//             }
-//         }
-//         // update tnode parent info
-//         auto& tnode = get_node_property(key.second, tg);
-//         if(get_edge_property(key.first, key.second, tg).t_type == DepType::Prop) {
-//             // tnode.parent_id.emplace_back(key.first);
-//             tnode.parent_id.insert(key.first);
-//         }
-//     }
-// }
+void TGraph::update_tedges(Node src_t, Node dst_t, CEdge cedge, int src_layer) {
+    // auto& cur_tedge = get_edge_property(src_t, dst_t, tg);
+    // auto acc_num = cedge.datavolume * (cedge.c_type == DepType::Accum);
+    // auto prop_num = cedge.datavolume * (cedge.c_type == DepType::Prop);
+    // // if empty, create new edge
+    // // std::cout << cedge << std::endl;
+    // if (cur_tedge.t_type == DepType::ErrorType) {
+    //     // std::cout << "Create new edge" << std::endl;
+    //     add_edge(src_t, dst_t, TEdge{cedge.c_type, acc_num, prop_num}, tg);
+    // }
+    // else {
+    //     // update edge
+    //     if(cur_tedge.t_type != cedge.c_type) {
+    //         cur_tedge.t_type = DepType::Mixed;
+    //     }
+    //     cur_tedge.accvolume += acc_num;
+    //     cur_tedge.propvolume += prop_num;
+    //     set_edge_property(src_t, dst_t, cur_tedge, tg);
+    // }
 
-void TGraph::update_tedges(Node src_t, Node dst_t, CEdge cedge) {
-    auto cur_tedge = get_edge_property(src_t, dst_t, tg);
+    // std::cout << cur_tedge << std::endl;
     auto acc_num = cedge.datavolume * (cedge.c_type == DepType::Accum);
     auto prop_num = cedge.datavolume * (cedge.c_type == DepType::Prop);
-    // if empty, create new edge
-    // std::cout << cedge << std::endl;
-    if (cur_tedge.t_type == DepType::ErrorType) {
-        // std::cout << "Create new edge" << std::endl;
-        add_edge(src_t, dst_t, TEdge{cedge.c_type, acc_num, prop_num}, tg);
-    }
-    else {
+    auto [e, found] = boost::edge(src_t, dst_t, tg);
+    if (!found) {
+        // create new edge
+        add_edge(src_t, dst_t, TEdge{cedge.c_type, acc_num, prop_num, {{src_layer, cedge.datavolume}}}, tg);
+    } else {
         // update edge
+        auto& cur_tedge = get_edge_property(src_t, dst_t, tg);
         if(cur_tedge.t_type != cedge.c_type) {
             cur_tedge.t_type = DepType::Mixed;
         }
         cur_tedge.accvolume += acc_num;
         cur_tedge.propvolume += prop_num;
-        set_edge_property(src_t, dst_t, cur_tedge, tg);
+        cur_tedge.layer_map[src_layer] += cedge.datavolume;
     }
-    // std::cout << cur_tedge << std::endl;
 }
 
 void TGraph::print_graph_info() const { 
@@ -617,7 +552,7 @@ void DGraph::analysis() {
     // segment DHCG
     set_harbor();
     set_sdg();
-    create_DSeg();
+    // create_DSeg();
     // std::cout << "before" << std::endl;
     // print_path_info();
     if (sched_opt) {
@@ -695,126 +630,49 @@ void DGraph::set_sdg() {
             }
         }
     }
-    // init scheduler, impl at init now
-    // scheduler = Scheduler{sdg, tile_size};
-    // init pathset based on hg and harbor node
-    const auto& tdeps = tg_ref->get_tdep();
+    // build path
     const auto& tg = tg_ref->get_graph();
-    // inter-layer tedge
+    // traverse TEdges
     size_t path_id = 0;
-    for (const auto& [harbor_id, tdep_ids] : tdep_map) {
-        std::vector<std::size_t> child_id;
-        // use tdep.rbegin to get parent node of inter-layer edge
-        size_t tdep_id;
-        if(tdep_ids.size() == 1) {
-            // get child layer node
-            auto tdep = tdeps[tdep_ids[0]];
-            tdep_id = *tdep.rbegin();
-        }
-        else {
-            tdep_id = harbor_id;
-        }
-        // get inter-layer child by tdep_id
-        // even if tdep_id has intra-layer child, it will work correctly
-        child_id = tg_ref->get_adjacent_nodes(tdep_id, tg);
-        // append path
-        for (const auto& child : child_id) {
-            // get data volume
-            const auto& edge = tg_ref->get_edge_property(tdep_id, child, tg);
-            auto datavolume = edge.accvolume + edge.propvolume;
-            // get src and dst node
-            auto src_tile = get_core(harbor_id);
-            auto dst_tile = get_core(child);
-            auto path = XYinit(src_tile, dst_tile);
+    int min_layer = std::numeric_limits<int>::max();
+    int max_layer = 0;
+    std::vector<std::pair<int, size_t>> pathid_layer_map{};
+    for (const auto& e : boost::make_iterator_range(edges(tg))) {
+        auto src = boost::source(e, tg);
+        auto dst = boost::target(e, tg);
+        auto tedge = tg_ref->get_edge_property(e, tg);
+        auto tedge_layermap = tedge.layer_map;
+        auto src_d = get_core(src);
+        auto dst_d = get_core(dst);
+        // get path
+        auto path = XYinit(src_d, dst_d);
+        // traverse edges in tedge_layermap
+        for (const auto& [layer, datavolume] : tedge_layermap) {
             // add path to paths
-            path_map[harbor_id].push_back(path_id);
-            paths.emplace_back(std::make_shared<Path>(path_id++, src_tile, dst_tile, path, datavolume));
-            // paths.push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
-        }
-        // intra-layer tedge
-        for (const auto& tdep_elem : tdep_ids) {
-            const auto& cur_tdep = tdeps[tdep_elem];
-            // get acc edge info if exist
-            if(cur_tdep.size() > 1) {
-                auto first_node = *cur_tdep.begin();
-                auto second_node = *std::next(cur_tdep.begin());
-                // get data volume
-                const auto& edge = tg_ref->get_edge_property(first_node, second_node, tg);
-                auto datavolume = edge.accvolume + edge.propvolume;
-                for (auto it = cur_tdep.begin(); it != cur_tdep.end(); it++) {
-                    auto src = *it;
-                    // acc edge if not harbor node
-                    if (src != harbor_id) {
-                        auto src_tile = get_core(src);
-                        auto dst_tile = get_core(harbor_id);
-                        auto path = XYinit(src_tile, dst_tile);
-                        // add path to paths
-                        // paths.push_back(Path{path, datavolume});
-                        // paths[src].push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
-                        path_map[src].push_back(path_id);
-                        paths.emplace_back(std::make_shared<Path>(path_id++, src_tile, dst_tile, path, datavolume));
-                        // paths.push_back(Path{path_id++, src_tile, dst_tile, path, datavolume});
-                    }
-                }
-            }
+            path_map[src].push_back(path_id);
+            pathid_layer_map.emplace_back(layer, path_id);
+            paths.emplace_back(std::make_shared<Path>(path_id++, src_d, dst_d, path, datavolume));
+            min_layer = std::min(min_layer, layer);
+            max_layer = std::max(max_layer, layer);
         }
     }
-}
-
-void DGraph::create_DSeg() {
-    // get TNode layer
-    const auto& tg = tg_ref->get_graph();
-    std::vector<int> layer(num_nodes(tg), 1);
-    // std::cout << "Layer info:" << layer.size() << std::endl;
-    // std::map<int, std::vector<size_t>> layer_map;
-    // update layer info
-    std::vector<size_t> topo_order;
-    try {
-        boost::topological_sort(tg, std::back_inserter(topo_order));
+    std::sort(pathid_layer_map.begin(), pathid_layer_map.end(), [](const auto& a, const auto& b) {
+        return a.first < b.first; // Sort by layer ascending
+    });
+    std::map<int, std::vector<int>> path_seg_map;
+    std::map<int, std::set<int>> layer_seg_map;
+    for (const auto& [layer, path_id] : pathid_layer_map) {
+        auto key = (layer - min_layer) / pipeline_depth;
+        path_seg_map[key].push_back(path_id);
+        layer_seg_map[key].insert(layer);
     }
-    catch(boost::not_a_dag& e) {
-        std::cerr << "Not a DAG!" << std::endl;
-        return;
+    // convert path_seg_map to path_seg
+    for (const auto& [key, path_ids] : path_seg_map) {
+        path_segs.emplace_back(path_ids);
     }
-    std::reverse(topo_order.begin(), topo_order.end());
-
-    // only prop edge update layer info
-    for(auto v : topo_order) {
-        // root is already 1
-        if(!tg[v].parent_id.empty()) {
-            int max_layer = 0;
-            for (const auto& parent : tg[v].parent_id) {
-                max_layer = std::max(max_layer, layer[parent]);
-            }
-            layer[v] = max_layer + 1;
-        }
-    }
-
-    // create segment
-    auto layer_num = *std::max_element(layer.begin(), layer.end());
-    const auto& hg = hg_ref->get_graph();
-    // if depth = 0, add standalone if branch to impl
-    // i begins from 1
-    for (int i = 1; i < layer_num; i += pipeline_depth) {
-        auto dst_layer = std::min(i + pipeline_depth, layer_num);
-        // std::vector<Path> path_seg{};
-        std::vector<int> path_seg{};
-        std::set<int> layer_seg{};
-        for (size_t id = 0; id < layer.size(); id++) {
-            if (layer[id] >= i && layer[id] < dst_layer) {
-                // layer_seg.insert(layer[id]);
-                layer_seg.insert(tg_ref->get_layer(id));
-                // append edge to path_seg
-                auto tnode_id = topo_order[id];
-                // auto pathset = paths[tnode_id];
-                auto pathset = path_map[tnode_id];
-                path_seg.insert(path_seg.end(), 
-                std::make_move_iterator(pathset.begin()),
-                std::make_move_iterator(pathset.end()));
-            }
-        }
-        path_segs.push_back(path_seg);
-        layer_segs.push_back(layer_seg);
+    // convert layer_seg_map to layer_segs
+    for (const auto& [key, layers] : layer_seg_map) {
+        layer_segs.emplace_back(layers);
     }
 }
 
@@ -886,18 +744,18 @@ void DGraph::print_graph_info() const {
     // print seg num
     std::cout << "Segment num: " << path_segs.size() << std::endl;
     // print path info
-    for (const auto& [key, val] : path_map) {
-        std::cout << "Path of tile " << key << std::endl;
-        auto paths = get_pathset(val);
-        for (const auto& path_ptr : paths) {
-            auto path = *path_ptr;
-            std::cout << "Path: ";
-            for (const auto& node : path.via) {
-                std::cout << node.first << "," << node.second << " ";
-            }
-            std::cout << "Volume: " << path.datavolume << std::endl;
-        }
-    }
+    // for (const auto& [key, val] : path_map) {
+    //     std::cout << "Path of tile " << key << std::endl;
+    //     auto paths = get_pathset(val);
+    //     for (const auto& path_ptr : paths) {
+    //         auto path = *path_ptr;
+    //         std::cout << "Path: ";
+    //         for (const auto& node : path.via) {
+    //             std::cout << node.first << "," << node.second << " ";
+    //         }
+    //         std::cout << "Volume: " << path.datavolume << std::endl;
+    //     }
+    // }
 }
 
 void DGraph::print_path_info() const {
@@ -982,6 +840,9 @@ std::ostream& operator<<(std::ostream& os, const TEdge& tedge) {
     os << "Total Data volume: " << tedge.accvolume + tedge.propvolume << std::endl;
     os << "Accumulation Data volume: " << tedge.accvolume << std::endl;
     os << "Propagation Data volume: " << tedge.propvolume << std::endl;
+    for (const auto& [layer, volume] : tedge.layer_map) {
+        os << "Layer " << layer << ": " << volume << std::endl;
+    }
     return os;
 }
 
