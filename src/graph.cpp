@@ -230,23 +230,6 @@ void TGraph::create_tnodes() {
         for(const auto& cgroup : split) {
             // get cnode id of cur tnode
             std::vector<size_t> cnode_id{};
-            // supernode info can be generated here
-            // do not generate ofm info here
-            // CNode supernode{};
-            // bool empty = true;
-            // auto mergenode = [&](Node node_id) {
-            //     auto cnode = cg_ref-> get_node_property(node_id, cg);
-            //     if(empty) {
-            //         supernode = cnode;
-            //         empty = false;
-            //     } else {
-            //         auto cout_num = supernode.id_cout.second - supernode.id_cout.first + 1;
-            //         supernode.id_cin.first = std::min(supernode.id_cin.first, cnode.id_cin.first);
-            //         supernode.id_cin.second = std::max(supernode.id_cin.second, cnode.id_cin.second);
-            //         supernode.id_cout.first = std::min(supernode.id_cout.first, cnode.id_cout.first);
-            //         supernode.id_cout.second = std::max(supernode.id_cout.second, cnode.id_cout.second);
-            //     }
-            // };
             for(const auto& i : cgroup) {
                 cnode_id.emplace_back(cdep.acc_blks[i.second].vertex_id[i.first]);
                 // mergenode(cnode_id.back());
@@ -279,71 +262,111 @@ void TGraph::create_TDep() {
     }
 }
 
-// merge inter-tile edges
 void TGraph::inter_tile_conn() {
     // find inter-tile c-edges
     const auto& cg = cg_ref->get_graph();
-    using EdgeElem = std::unordered_map<Node,std::vector<CEdge>>;
-    using EdgeMap = std::unordered_map<std::pair<Node, Node>, EdgeElem, pair_hash>;
-    EdgeMap edge_map{};
-    // traverse edges
-    for (const auto& e : boost::make_iterator_range(edges(cg))) {
-        // CEdge info
-        auto src = boost::source(e, cg);
-        auto dst = boost::target(e, cg);
-        // TNode info
-        Node src_t = node_map[src];
-        Node dst_t = node_map[dst];
-        // find inter-tile edges and update tedges
-        if(src_t != dst_t) {
-            // get inter-tile cedge property
-            auto cedge = cg_ref->get_edge_property(e, cg);
-            // update edgemap
-            edge_map[std::make_pair(src_t, dst_t)][src].emplace_back(cedge);
+    // traverse nodes
+    for (const auto& v : boost::make_iterator_range(vertices(cg))) {
+        Node src_t = node_map[v];
+        const auto& v_dst = get_adjacent_nodes(v, cg);
+        // traverse dst nodes
+        std::map<Node, std::vector<CEdge>> inter_tile_edges;
+        for (const auto& dst : v_dst) {
+            Node dst_t = node_map[dst];
+            // skip self-loop
+            if(src_t == dst_t) {continue;}
+            // get cedge property
+            auto cedge = cg_ref->get_edge_property(v, dst, cg);
+            // update tedges
+            inter_tile_edges[dst_t].emplace_back(cedge);
         }
-    }
-    // traverse tnode edge_map
-    for (auto& [key, val] : edge_map) {
-        // traverse edges with same src cnode
-        for (auto& [src, cedges] : val) {
-            // sort cedges by channel start id
-            std::sort(cedges.begin(), cedges.end(), [](CEdge& a, CEdge& b) {
+        // merge inter-tile edges
+        for (auto& [tnode_key, cedge_vec] : inter_tile_edges) {
+            std::sort(cedge_vec.begin(), cedge_vec.end(), [](const CEdge& a, const CEdge& b) {
                 return a.channel_id.first < b.channel_id.first;
             });
-            // merge cedges
-            std::vector<CEdge> merged_edges{};
-            // add first edge
-            merged_edges.emplace_back(cedges[0]);
-            // merge edge info
-            for (int i = 1; i < cedges.size(); i++) {
-                auto& cur_edge = merged_edges.back();
-                // only update non-overlapping edgeinfo
-                // case1: has overlap
-                if (cedges[i].channel_id.first <= cur_edge.channel_id.second) {
-                    auto unique_num = UniqueElements(cur_edge.channel_id, cedges[i].channel_id);
-                    // unique channel must extend the end index
-                    cur_edge.channel_id.second += unique_num;
-                    // update datavolume
-                    cur_edge.datavolume += cedges[i].datavolume * unique_num / (cedges[i].channel_id.second - cedges[i].channel_id.first + 1);
-                }
-                // case2: no overlap
-                else {
-                    merged_edges.emplace_back(cedges[i]);
-                }
+            CEdge merged_edge{cedge_vec[0]};
+            for (int i = 1;i < cedge_vec.size(); i++) {
+                auto unique_chan = UniqueElements(merged_edge.channel_id, cedge_vec[i].channel_id);
+                merged_edge.datavolume += cedge_vec[i].datavolume * unique_chan / (cedge_vec[i].channel_id.second - cedge_vec[i].channel_id.first + 1);
+                // update end channel range
+                merged_edge.channel_id.second = std::max(merged_edge.channel_id.second, cedge_vec[i].channel_id.second);
             }
-            // update tedges
-            for (auto& edge : merged_edges) {
-                update_tedges(key.first, key.second, edge);
+            update_tedges(src_t, tnode_key, merged_edge);
+            // update tnode parent info
+            if(get_edge_property(src_t, tnode_key, tg).t_type != DepType::Accum) {
+                auto& tnode = get_node_property(tnode_key, tg);
+                tnode.parent_id.insert(src_t);
             }
         }
-        // update tnode parent info
-        auto& tnode = get_node_property(key.second, tg);
-        if(get_edge_property(key.first, key.second, tg).t_type == DepType::Prop) {
-            tnode.parent_id.emplace_back(key.first);
-        }
-        
     }
 }
+
+// merge inter-tile edges
+// void TGraph::inter_tile_conn() {
+//     // find inter-tile c-edges
+//     const auto& cg = cg_ref->get_graph();
+//     using EdgeElem = std::unordered_map<Node,std::vector<CEdge>>;
+//     using EdgeMap = std::unordered_map<std::pair<Node, Node>, EdgeElem, pair_hash>;
+//     EdgeMap edge_map{};
+//     // traverse edges
+//     for (const auto& e : boost::make_iterator_range(edges(cg))) {
+//         // CEdge info
+//         auto src = boost::source(e, cg);
+//         auto dst = boost::target(e, cg);
+//         // TNode info
+//         Node src_t = node_map[src];
+//         Node dst_t = node_map[dst];
+//         // find inter-tile edges and update tedges
+//         if(src_t != dst_t) {
+//             // get inter-tile cedge property
+//             auto cedge = cg_ref->get_edge_property(e, cg);
+//             // update edgemap
+//             edge_map[std::make_pair(src_t, dst_t)][src].emplace_back(cedge);
+//         }
+//     }
+//     // traverse tnode edge_map
+//     for (auto& [key, val] : edge_map) {
+//         // traverse edges with same src cnode
+//         for (auto& [src, cedges] : val) {
+//             // sort cedges by channel start id
+//             std::sort(cedges.begin(), cedges.end(), [](CEdge& a, CEdge& b) {
+//                 return a.channel_id.first < b.channel_id.first;
+//             });
+//             // merge cedges
+//             std::vector<CEdge> merged_edges{};
+//             // add first edge
+//             merged_edges.emplace_back(cedges[0]);
+//             // merge edge info
+//             for (int i = 1; i < cedges.size(); i++) {
+//                 auto& cur_edge = merged_edges.back();
+//                 // only update non-overlapping edgeinfo
+//                 // case1: has overlap
+//                 if (cedges[i].channel_id.first <= cur_edge.channel_id.second) {
+//                     auto unique_num = UniqueElements(cur_edge.channel_id, cedges[i].channel_id);
+//                     // unique channel must extend the end index
+//                     cur_edge.channel_id.second += unique_num;
+//                     // update datavolume
+//                     cur_edge.datavolume += cedges[i].datavolume * unique_num / (cedges[i].channel_id.second - cedges[i].channel_id.first + 1);
+//                 }
+//                 // case2: no overlap
+//                 else {
+//                     merged_edges.emplace_back(cedges[i]);
+//                 }
+//             }
+//             // update tedges
+//             for (auto& edge : merged_edges) {
+//                 update_tedges(key.first, key.second, edge);
+//             }
+//         }
+//         // update tnode parent info
+//         auto& tnode = get_node_property(key.second, tg);
+//         if(get_edge_property(key.first, key.second, tg).t_type == DepType::Prop) {
+//             // tnode.parent_id.emplace_back(key.first);
+//             tnode.parent_id.insert(key.first);
+//         }
+//     }
+// }
 
 void TGraph::update_tedges(Node src_t, Node dst_t, CEdge cedge) {
     auto cur_tedge = get_edge_property(src_t, dst_t, tg);

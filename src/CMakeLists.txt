@@ -8,10 +8,10 @@ file(GLOB_RECURSE HEADERS "${CMAKE_SOURCE_DIR}/include/*.h")
 find_package(Boost REQUIRED COMPONENTS graph)
 
 # create a library named PIMapping
-add_library(PIMapping SHARED ${SOURCES})
+add_library(PIMapping STATIC ${SOURCES})
 
-# use add_executable to create an executable
-# add_executable(PIMapping ${SOURCES})
+# Add -fPIC for position-independent code
+target_compile_options(PIMapping PRIVATE -fPIC)
 
 # link the Boost::graph library to my_program
 target_link_libraries(PIMapping PRIVATE Boost::graph)

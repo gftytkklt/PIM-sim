@@ -116,7 +116,7 @@ int main() {
 }
 
 namespace py = pybind11;
-PYBIND11_MODULE(libmain, m) {
+PYBIND11_MODULE(pimapping, m) {
     py::class_<Depinfo>(m, "Depinfo")
        .def(py::init<>())
        .def_readwrite("dep_layer", &Depinfo::dep_layer)

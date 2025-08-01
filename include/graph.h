@@ -54,7 +54,7 @@ std::ostream& operator<<(std::ostream& os, const CEdge& cedge);
 struct TNode {
     std::vector<size_t> cnode_id; // original cnode id
     // std::vector<CNode> super_nodes; // merged cnodes info
-    std::vector<size_t> parent_id; // inter-layer parent tnode id
+    std::set<size_t> parent_id; // inter-layer parent tnode id
     TNode() = default;
     TNode(std::vector<size_t> cnode_id)
     : cnode_id(cnode_id), parent_id{} {}
@@ -185,12 +185,6 @@ public:
         auto [e, found] = boost::edge(v1, v2, g);
         return found ? g[e] : default_edge_property;
     }
-
-    // template <typename GraphType>
-    // EdgeProperty& get_edge_property(Node v1, Node v2, GraphType& g) {
-    //     auto [e, found] = boost::edge(v1, v2, g);
-    //     return g[e];
-    // }
 
     template <typename GraphType, typename EdgeType>
     const EdgeProperty& get_edge_property(const EdgeType& e, const GraphType& g) const {

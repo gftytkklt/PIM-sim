@@ -1,4 +1,4 @@
-import libmain
+import pimapping
 import onnx
 import numpy as np
 import sys
@@ -254,7 +254,7 @@ def convert_to_cpp(conv_info_list):
     # 将conv_info_list转换为C++可以接受的格式
     nnkernel_list = []
     for conv_info in conv_info_list:
-        nnkernel = libmain.NNkernel()
+        nnkernel = pimapping.NNkernel()
         nnkernel.layer = conv_info.layer
         nnkernel.wsize = (conv_info.wsize[0], conv_info.wsize[1])
         nnkernel.channel = (conv_info.channel[0], conv_info.channel[1])
@@ -263,7 +263,7 @@ def convert_to_cpp(conv_info_list):
         
         depinfo_list = []
         for dep in conv_info.depinfo:
-            depinfo = libmain.Depinfo()
+            depinfo = pimapping.Depinfo()
             depinfo.dep_layer = dep.dep_layer
             depinfo.dep_chan = dep.dep_chan
             depinfo_list.append(depinfo)
@@ -272,7 +272,7 @@ def convert_to_cpp(conv_info_list):
     return nnkernel_list
 
 def make_default_hw_info():
-    hw_info = libmain.HWInfo()
+    hw_info = pimapping.HWInfo()
     hw_info.xbar_size = (256, 256) # 256 / (8 / 2)
     hw_info.xbar_num = 16
     hw_info.tile_size = (0, 0)
@@ -280,7 +280,7 @@ def make_default_hw_info():
     return hw_info
 
 def make_hw_info(xbar_size=(256, 256), xbar_num=16, tile_size=(0, 0), pipeline_depth=1):
-    hw_info = libmain.HWInfo()
+    hw_info = pimapping.HWInfo()
     hw_info.xbar_size = xbar_size
     hw_info.xbar_num = xbar_num
     hw_info.tile_size = tile_size
@@ -288,13 +288,13 @@ def make_hw_info(xbar_size=(256, 256), xbar_num=16, tile_size=(0, 0), pipeline_d
     return hw_info
 
 def make_default_opt_info():
-    opt_info = libmain.OptInfo()
+    opt_info = pimapping.OptInfo()
     opt_info.mapping_opt = 1
     opt_info.sched_opt = 1
     return opt_info
 
 def make_opt_info(map=1, sched=1):
-    opt_info = libmain.OptInfo()
+    opt_info = pimapping.OptInfo()
     opt_info.mapping_opt = map
     opt_info.sched_opt = sched
     return opt_info
@@ -316,7 +316,7 @@ def analysis_model(kernel_list=None, hw_info=None, opt_info=None):
     # nnkernel_list = convert_to_cpp(conv_info_list)
     hw_info = hw_info or make_default_hw_info()
     opt_info = opt_info or make_default_opt_info()
-    return libmain.analyze(kernel_list, hw_info, opt_info)
+    return pimapping.analyze(kernel_list, hw_info, opt_info)
 
 def main():
     """主函数"""
@@ -347,14 +347,14 @@ def main():
     # nnkernel_list = convert_to_cpp(conv_info_list)
 
     # Call the C++ function
-    # if libmain.test(nnkernel_list) == 114514: # 114514 is a placeholder for success
+    # if pimapping.test(nnkernel_list) == 114514: # 114514 is a placeholder for success
     #     print("HOMO!")
     #     print("Program finished.")
     # else:
     #     print("Program failed.")
 
     # test analysis result getter
-    # res = libmain.analyze(nnkernel_list)
+    # res = pimapping.analyze(nnkernel_list)
     # print(res.deploy_info[-1].tile_id)
 
 # run main
