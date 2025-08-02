@@ -65,7 +65,20 @@ void CGraph::create_cnodes() {
         }
         // add accblks gropu to cdeps
         cdeps.emplace_back(CDep{accblks, cur_l, cur_dep});
+        // update depth map
+        depth_map.try_emplace(cur_l, 0);
+        int child_depth = depth_map[cur_l] + 1;
+        std::for_each(cur_dep.begin(), cur_dep.end(), [&](const Depinfo& dep) {
+            if (dep.dep_layer != -1) { // skip output dep
+                depth_map[dep.dep_layer] = std::max(depth_map[dep.dep_layer], child_depth);
+            }
+        });
     }
+    // print depth_map
+    // std::cout << "Depth map:" << std::endl;
+    // for (const auto& [layer, depth] : depth_map) {
+    //     std::cout << "Layer " << layer << ": " << depth << std::endl;
+    // }
 }
 
 void CGraph::conn_accblk() {
@@ -634,8 +647,8 @@ void DGraph::set_sdg() {
     const auto& tg = tg_ref->get_graph();
     // traverse TEdges
     size_t path_id = 0;
-    int min_layer = std::numeric_limits<int>::max();
-    int max_layer = 0;
+    // int min_layer = std::numeric_limits<int>::max();
+    // int max_layer = 0;
     std::vector<std::pair<int, size_t>> pathid_layer_map{};
     for (const auto& e : boost::make_iterator_range(edges(tg))) {
         auto src = boost::source(e, tg);
@@ -652,28 +665,53 @@ void DGraph::set_sdg() {
             path_map[src].push_back(path_id);
             pathid_layer_map.emplace_back(layer, path_id);
             paths.emplace_back(std::make_shared<Path>(path_id++, src_d, dst_d, path, datavolume));
-            min_layer = std::min(min_layer, layer);
-            max_layer = std::max(max_layer, layer);
+            // min_layer = std::min(min_layer, layer);
+            // max_layer = std::max(max_layer, layer);
         }
     }
     std::sort(pathid_layer_map.begin(), pathid_layer_map.end(), [](const auto& a, const auto& b) {
         return a.first < b.first; // Sort by layer ascending
     });
+    // allocate path and layer seg by pipeline depth
+    const auto& depth_map = cg_ref->get_depth_map();
     std::map<int, std::vector<int>> path_seg_map;
     std::map<int, std::set<int>> layer_seg_map;
     for (const auto& [layer, path_id] : pathid_layer_map) {
-        auto key = (layer - min_layer) / pipeline_depth;
+        // calculate key based on layer and pipeline depth
+        auto key = depth_map.at(layer) / pipeline_depth;
+        // add path_id to path_seg_map
         path_seg_map[key].push_back(path_id);
+        // add layer to layer_seg_map
         layer_seg_map[key].insert(layer);
     }
-    // convert path_seg_map to path_seg
+    // build path_segs and layer_segs
     for (const auto& [key, path_ids] : path_seg_map) {
         path_segs.emplace_back(path_ids);
     }
-    // convert layer_seg_map to layer_segs
     for (const auto& [key, layers] : layer_seg_map) {
         layer_segs.emplace_back(layers);
     }
+    // print layer_segs
+    // for (const auto& seg : layer_segs) {
+    //     std::cout << "Layer seg: ";
+    //     for (const auto& layer : seg) {
+    //         std::cout << layer << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+    // for (const auto& [layer, path_id] : pathid_layer_map) {
+    //     auto key = (layer - min_layer) / pipeline_depth;
+    //     path_seg_map[key].push_back(path_id);
+    //     layer_seg_map[key].insert(layer);
+    // }
+    // // convert path_seg_map to path_seg
+    // for (const auto& [key, path_ids] : path_seg_map) {
+    //     path_segs.emplace_back(path_ids);
+    // }
+    // // convert layer_seg_map to layer_segs
+    // for (const auto& [key, layers] : layer_seg_map) {
+    //     layer_segs.emplace_back(layers);
+    // }
 }
 
 std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<int> path_ids) const {

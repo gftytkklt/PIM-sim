@@ -300,12 +300,14 @@ public:
     Graph& get_graph() { return cg; }
     const auto& get_cdep() const { return cdeps; }
     auto& get_cdep() { return cdeps; }
+    const auto& get_depth_map() const { return depth_map; }
     void print_graph_info() const;
 private:
     const std::vector<NNkernel> kernels;
     Graph cg;
     std::pair<int, int> CNode_size; // (W, H) of node
     std::vector<CDep> cdeps; // kernel-wise dep list
+    std::map<int, int> depth_map; // (layer, depth) for each layer
     // create and connect accblk kernel-wise
     void analysis() override final;
     void create_cnodes();
