@@ -12,46 +12,67 @@ void Analyzer::generate_analysis_result(){
     // get deploy_info
     auto cgraph = cg.get_graph();
     auto tgraph = tg.get_graph();
+    // traverse tnodes to generate deploy info
+    for (const auto& v : boost::make_iterator_range(boost::vertices(tgraph))) {
+        // get tile id
+        auto tile_id = hg.get_hnode(v);
+        // get paths
+        auto path_map = dg.get_path_map(v);
+        std::map<int, std::vector<Path>> cur_layer_paths_map;
+        for (const auto& [layer, path_id] : path_map) {
+            // get paths with this tile as source, only one path per iter actually
+            auto paths = dg.get_pathset({path_id});
+            cur_layer_paths_map[layer].push_back(*paths[0]); // get the only path
+        }
+        // get cnode
+        auto cnode_id = tg.get_node_property(v, tgraph).cnode_id;
+        std::vector<CNode> cnode;
+        std::transform(cnode_id.begin(), cnode_id.end(), std::back_inserter(cnode), [&](auto& node){
+            return cg.get_node_property(node, cgraph);
+        });
+        // store the result
+        result.deploy_info.push_back(DeployInfo{tile_id, cur_layer_paths_map, cnode});
+    }
     // auto hgraph = hg.get_graph();
     // auto dgraph = dg.get_graph();
     // traverse tnodes in topo order
-    std::vector<size_t> topo_order;
-    try {
-        boost::topological_sort(tgraph, std::back_inserter(topo_order));
-    }
-    catch(boost::not_a_dag& e) {
-        std::cerr << "Not a DAG!" << std::endl;
-        return;
-    }
-    std::reverse(topo_order.begin(), topo_order.end());
-    // for (const auto& v : boost::make_iterator_range(boost::vertices(tgraph))) {
-    for (const auto& v : topo_order) {
-        auto tile_id = hg.get_hnode(v);
-        auto child_tnodes = tg.get_adjacent_nodes(v, tgraph);
-        std::vector<std::pair<int, int>> child_tile;
-        child_tile.reserve(child_tnodes.size());
-        std::transform(child_tnodes.begin(), child_tnodes.end(), std::back_inserter(child_tile), [&](auto& node){
-            return hg.get_hnode(node);
-        });
-        // get paths
-        // std::vector<Path> paths = dg.get_tpath(v);
-        auto paths = dg.get_tpath(v);
-        // get cnode
-        auto cnode_id = tg.get_node_property(v, tgraph).cnode_id;
-        // get layer
-        auto layer = cg.get_node_property(cnode_id[0], cgraph).layer;
-        std::vector<CNode> cnode;
-        std::transform(cnode_id.begin(), cnode_id.end(), std::back_inserter(cnode), [&](auto& node){
-            const auto& cnode = cg.get_node_property(node, cgraph);
-            return cnode;
-            // return cg.get_node_property(node, cgraph);
-        });
-        std::vector<Path> path_vec;
-        for (const auto& path : paths) {
-            path_vec.push_back(*path);
-        }
-        result.deploy_info.push_back(DeployInfo{layer, tile_id, child_tile, path_vec, cnode});
-    }
+    // std::vector<size_t> topo_order;
+    // try {
+    //     boost::topological_sort(tgraph, std::back_inserter(topo_order));
+    // }
+    // catch(boost::not_a_dag& e) {
+    //     std::cerr << "Not a DAG!" << std::endl;
+    //     return;
+    // }
+    // std::reverse(topo_order.begin(), topo_order.end());
+    // // for (const auto& v : boost::make_iterator_range(boost::vertices(tgraph))) {
+    // for (const auto& v : topo_order) {
+    //     auto tile_id = hg.get_hnode(v);
+    //     auto child_tnodes = tg.get_adjacent_nodes(v, tgraph);
+    //     std::vector<std::pair<int, int>> child_tile;
+    //     child_tile.reserve(child_tnodes.size());
+    //     std::transform(child_tnodes.begin(), child_tnodes.end(), std::back_inserter(child_tile), [&](auto& node){
+    //         return hg.get_hnode(node);
+    //     });
+    //     // get paths
+    //     // std::vector<Path> paths = dg.get_tpath(v);
+    //     auto paths = dg.get_tpath(v);
+    //     // get cnode
+    //     auto cnode_id = tg.get_node_property(v, tgraph).cnode_id;
+    //     // get layer
+    //     auto layer = cg.get_node_property(cnode_id[0], cgraph).layer;
+    //     std::vector<CNode> cnode;
+    //     std::transform(cnode_id.begin(), cnode_id.end(), std::back_inserter(cnode), [&](auto& node){
+    //         const auto& cnode = cg.get_node_property(node, cgraph);
+    //         return cnode;
+    //         // return cg.get_node_property(node, cgraph);
+    //     });
+    //     std::vector<Path> path_vec;
+    //     for (const auto& path : paths) {
+    //         path_vec.push_back(*path);
+    //     }
+    //     result.deploy_info.push_back(DeployInfo{layer, tile_id, child_tile, path_vec, cnode});
+    // }
     // create data matrix
     auto [rows, cols] = hg.get_shape();
     auto path_segs = dg.get_path_segs();

@@ -157,10 +157,11 @@ PYBIND11_MODULE(pimapping, m) {
 
     py::class_<DeployInfo>(m, "DeployInfo")
         .def(py::init<>())
-        .def_readwrite("layer", &DeployInfo::layer)
+        // .def_readwrite("layer", &DeployInfo::layer)
         .def_readwrite("tile_id", &DeployInfo::tile_id)
-        .def_readwrite("child_tile", &DeployInfo::child_tile)
-        .def_readwrite("paths", &DeployInfo::paths)
+        // .def_readwrite("child_tile", &DeployInfo::child_tile)
+        // .def_readwrite("paths", &DeployInfo::paths)
+        .def_readwrite("layer_paths_map", &DeployInfo::layer_paths_map)
         .def_readwrite("cnode", &DeployInfo::cnode);
     
     py::class_<Path>(m, "Path")

@@ -236,17 +236,6 @@ public:
         return adj_nodes;
     }
 
-    // deprecated because only out-edges are stored and can be determined by adjacent vertices
-    // std::vector<int> get_adjacent_edges(int v, const GraphType& g) const {
-    //     std::vector<int> adj_edges;
-    //     typename boost::graph_traits<GraphType>::out_edge_iterator ei, ei_end;
-    //     for (boost::tie(ei, ei_end) = boost::out_edges(v, g); ei != ei_end; ++ei) {
-    //         // adj_edges.push_back(*ei);
-    //         adj_edges.push_back(boost::target(*ei, g));
-    //     }
-    //     return adj_edges;
-    // }
-
     // analysis func interface
     virtual void analysis() = 0;
 
@@ -394,16 +383,20 @@ public:
     std::pair<int, int> id_to_xy(size_t id) const {return hg_ref->id_to_xy(id);}
     size_t xy_to_id(std::pair<int, int> xy) const {return hg_ref->xy_to_id(xy);}
     // get path ptr with src tnode id
-    std::vector<std::shared_ptr<Path>> get_tpath(size_t src) {
-        // auto it = paths.find(src);
-        auto it = path_map.find(src);
-        return it == path_map.end() ? std::vector<std::shared_ptr<Path>>{} : get_pathset(it->second);
-    }
+    // std::vector<std::shared_ptr<Path>> get_tpath(size_t src) {
+    //     // auto it = paths.find(src);
+    //     auto it = path_map.find(src);
+    //     return it == path_map.end() ? std::vector<std::shared_ptr<Path>>{} : get_pathset(it->second);
+    // }
     // std::vector<std::vector<Path>> get_path_segs() const {return path_segs;}
-    std::vector<std::vector<int>> get_path_segs() const {return path_segs;}
+    std::vector<std::vector<size_t>> get_path_segs() const {return path_segs;}
     std::vector<std::set<int>> get_layer_segs() const {return layer_segs;}
-    std::vector<std::shared_ptr<Path>> get_pathset(std::vector<int> path_ids);
-    std::vector<std::shared_ptr<Path>> get_pathset(std::vector<int> path_ids) const;
+    std::vector<std::shared_ptr<Path>> get_pathset(std::vector<size_t> path_ids);
+    std::vector<std::shared_ptr<Path>> get_pathset(std::vector<size_t> path_ids) const;
+    const std::vector<std::pair<int, size_t>> get_path_map(size_t src) const {
+        auto it = path_map.find(src);
+        return it == path_map.end() ? std::vector<std::pair<int, size_t>>{} : it->second;
+    }
     auto get_congestion_segs() const {return congestion_segs;}
     void print_graph_info() const;
     void print_path_info() const;
@@ -413,20 +406,16 @@ private:
     bool sched_opt = true; // scheduling optimization flag, default true
     UGraph sdg; // HCG node and path set
     // std::vector<std::vector<Path>> path_segs; // path subset of each DSeg
-    std::vector<std::vector<int>> path_segs; // path subset of each DSeg
+    std::vector<std::vector<size_t>> path_segs; // path subset of each DSeg
     std::vector<std::set<int>> layer_segs; // layer subset of each DSeg
     std::shared_ptr<const HGraph> hg_ref; // HCG for DHCG inference
     std::shared_ptr<const TGraph> tg_ref; // T-VDFG for DHCG inference
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for DHCG inference
     std::map<size_t, std::vector<int>> tdep_map; // (prop_node, tdeps)
     std::map<int, size_t> harbor_map;
-    // std::map<size_t, std::vector<Path>> paths; // path info with src tnode id
-    std::map<size_t, std::vector<int>> path_map; // path info with src tnode id
-    // std::vector<Path> paths; // path info
+    std::map<size_t, std::vector<std::pair<int, size_t>>> path_map; // path info with src tnode id
     std::vector<std::shared_ptr<Path>> paths; // path info
     std::vector<long long> congestion_segs; // congestion of each seg
-    // std::map<size_t, double> congestion_map; // (path_id, congestion)
-    // std::vector<Path> final_path; // final path set (poor design)
     Scheduler scheduler;
     auto get_core(size_t node) const {return hg_ref->mapper.get_core(node);}
     auto get_node(int x, int y) const {return hg_ref->mapper.get_node(x, y);}
@@ -434,7 +423,7 @@ private:
     void analysis() override final;
     void set_harbor();
     void set_sdg();
-    void create_DSeg();
+    // void create_DSeg();
     void bce_routing();
     void xy_routing();
     void add_path(const std::shared_ptr<Path> path_ptr);

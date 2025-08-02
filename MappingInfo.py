@@ -169,7 +169,7 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
         latency_map = comm_lat # lat_layer = latency_map[layer]
     bandwidth = bus_width * freq #B/s
     # update tile exec info
-    tile_by_layer = defaultdict(list)
+    # tile_by_layer = defaultdict(list)
     exec_info = defaultdict(dict)
     effbw = {}
     path_delaydict = {}
@@ -180,21 +180,27 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     ovarall_latency = 0.0
     overall_throughput = 0.0
     # set tile by layer info
-    for idx, tile_info in enumerate(all_tiles_mapping_infos):
-        tile_by_layer[tile_info.layer].append(idx)
+    # for idx, tile_info in enumerate(all_tiles_mapping_infos):
+    #     tile_by_layer[tile_info.layer].append(idx)
     # update path latency of each segment
     for idx, comm_seg in enumerate(all_comm_segs):
         # cur layer seg
         layers = comm_seg.layers
         # get all (layer, tile_idx) from tile_by_layer[layers]
-        tile_ids = [idx for layer in layers for idx in tile_by_layer[layer]]
+        # tile_ids = [idx for layer in layers for idx in tile_by_layer[layer]]
         # equivalent bandwidth computation (B/s)
         effbw.update({layer: bandwidth / (1 + latency_map.get(layer, 0)) for layer in layers})
         # get all paths
         merged_paths = []
-        for tile_id in tile_ids:
-            layer = all_tiles_mapping_infos[tile_id].layer
-            merged_paths.extend((layer, path) for path in all_tiles_mapping_infos[tile_id].paths)
+        merged_paths.extend((layer, path) 
+                            for layer in layers 
+                            for tile_info in all_tiles_mapping_infos 
+                            if layer in tile_info.layer_paths_map
+                            for path in tile_info.layer_paths_map[layer])
+        # print(merged_paths)
+        # for tile_id in tile_ids:
+        #     layer = all_tiles_mapping_infos[tile_id].layer
+        #     merged_paths.extend((layer, path) for path in all_tiles_mapping_infos[tile_id].paths)
         # update via delay
         via_delay = {}
         for layer, path in merged_paths:

@@ -662,7 +662,8 @@ void DGraph::set_sdg() {
         // traverse edges in tedge_layermap
         for (const auto& [layer, datavolume] : tedge_layermap) {
             // add path to paths
-            path_map[src].push_back(path_id);
+            // path_map[src].push_back(path_id);
+            path_map[src].emplace_back(layer, path_id);
             pathid_layer_map.emplace_back(layer, path_id);
             paths.emplace_back(std::make_shared<Path>(path_id++, src_d, dst_d, path, datavolume));
             // min_layer = std::min(min_layer, layer);
@@ -674,7 +675,7 @@ void DGraph::set_sdg() {
     });
     // allocate path and layer seg by pipeline depth
     const auto& depth_map = cg_ref->get_depth_map();
-    std::map<int, std::vector<int>> path_seg_map;
+    std::map<int, std::vector<size_t>> path_seg_map;
     std::map<int, std::set<int>> layer_seg_map;
     for (const auto& [layer, path_id] : pathid_layer_map) {
         // calculate key based on layer and pipeline depth
@@ -699,22 +700,9 @@ void DGraph::set_sdg() {
     //     }
     //     std::cout << std::endl;
     // }
-    // for (const auto& [layer, path_id] : pathid_layer_map) {
-    //     auto key = (layer - min_layer) / pipeline_depth;
-    //     path_seg_map[key].push_back(path_id);
-    //     layer_seg_map[key].insert(layer);
-    // }
-    // // convert path_seg_map to path_seg
-    // for (const auto& [key, path_ids] : path_seg_map) {
-    //     path_segs.emplace_back(path_ids);
-    // }
-    // // convert layer_seg_map to layer_segs
-    // for (const auto& [key, layers] : layer_seg_map) {
-    //     layer_segs.emplace_back(layers);
-    // }
 }
 
-std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<int> path_ids) const {
+std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<size_t> path_ids) const {
     std::vector<std::shared_ptr<Path>> pathset{};
     std::transform(path_ids.begin(), path_ids.end(), std::back_inserter(pathset), [this](int idx) {
             return paths[idx];  // 根据id提取对应的shared_ptr
@@ -722,7 +710,7 @@ std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<int> path_ids
     return pathset;
 }
 
-std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<int> path_ids) {
+std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<size_t> path_ids) {
     std::vector<std::shared_ptr<Path>> pathset{};
     std::transform(path_ids.begin(), path_ids.end(), std::back_inserter(pathset), [this](int idx) {
             return paths[idx];  // 根据id提取对应的shared_ptr

@@ -5,10 +5,10 @@
 using DataMatrix = std::vector<std::vector<int>>;
 
 struct DeployInfo {
-    int layer;
+    // int layer;
     std::pair<int, int> tile_id; // location
-    std::vector<std::pair<int, int>> child_tile; // child location
-    std::vector<Path> paths; // all paths with this tile as source
+    // std::vector<std::pair<int, int>> child_tile; // child location
+    std::map<int, std::vector<Path>> layer_paths_map; // all paths with this tile as source
     std::vector<CNode> cnode; // cnode info
 };
 
