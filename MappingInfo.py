@@ -172,13 +172,11 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     # tile_by_layer = defaultdict(list)
     exec_info = defaultdict(dict)
     effbw = {}
-    path_delaydict = {}
-    layer_latdict = {}
-    layer_caldict = {}
-    layer_mergedict = {}
-    layer_transdict = {}
-    ovarall_latency = 0.0
+    seg_cal_lat = []
+    seg_trans_lat = []
+    overall_latency = 0.0
     overall_throughput = 0.0
+    max_layerseg_lat = 0.0
     # set tile by layer info
     # for idx, tile_info in enumerate(all_tiles_mapping_infos):
     #     tile_by_layer[tile_info.layer].append(idx)
@@ -210,86 +208,103 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
                 # via_delay[(s, d)] = path_delay
                 via_delay.update({(s, d): via_delay.get((s, d), 0) + path_delay})
         # update path delay
+        cur_max_path_delay = 0.0
         for _, path in merged_paths:
             path_delay = 0
             for s, d in zip(path.via[:-1], path.via[1:]):
                 path_delay += via_delay[(s, d)]
-            path_delaydict[(path.src, path.dst)] = path_delay
-            # path_delaydict[(path.src, path.dst)] = path_delay
-            # print("path delay from", tile_id, "to", child_id, "is", path_delay)
-        
-    for idx, tile_info in enumerate(all_tiles_mapping_infos):
-        # local info
-        tile_id = tile_info.tile_id
-        # get ifm size to compute cal latency
-        ifm_size = sum(cn.ifmap_size for cn in tile_info.cnode)
-        # exec_info[tile_id]['cal_lat'] = 0
-        exec_info[tile_id]['cal_lat'] = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit)
-        exec_info[tile_id]['cal_lat'] /= 100000000 # ns to s, freq = 100MHz
-        # tile-layer map regestration
-        cur_layer = tile_info.layer
-        max_path_delay = 0.0
-        # update child info by path info
-        for path in tile_info.paths:
-            child_id = path.dst
-            # path_delay = (len(path.via)-1) * path.datavolume / cur_effbw
-            path_delay = path_delaydict[(tile_id,child_id)]
-            # update trans time info(cur tile as parent)
-            max_path_delay = max(max_path_delay, path_delay)
-            # parent info dict: src layer, path delay, tile id
-            if 'parent' not in exec_info[child_id]:
-                exec_info[child_id]['parent'] = []
-            exec_info[child_id]['parent'].append((cur_layer, path_delay, tile_id))
-        # update time dep info(cur tile as child)
-        if 'parent' not in exec_info[tile_id]:
-            exec_info[tile_id]['begin_time'] = 0.0
-            exec_info[tile_id]['merge_time'] = 0.0
-        else:
-            # merge time: intra-layer data driven
-            # # get merge and trans list
-            merge_list = [
-                element
-                for element in exec_info[tile_id]['parent']
-                if isinstance(element, (list, tuple)) and len(element) > 0
-                and element[0] == cur_layer
-            ]
-            trans_list = [
-                element
-                for element in exec_info[tile_id]['parent']
-                if isinstance(element, (list, tuple)) and len(element) > 0
-                and element[0] != cur_layer
-            ]
-            # update merge time
-            if not merge_list:
-                exec_info[tile_id]['merge_time'] = 0 
-            else:
-                exec_info[tile_id]['merge_time'] = max(merge_lat for _, merge_lat, _ in merge_list)
-            # update begin time(consider inter-layer parent only)
-            exec_info[tile_id]['begin_time'] = max(
-                path_delay + exec_info[parent_id]['begin_time'] + exec_info[parent_id]['cal_lat'] + exec_info[parent_id]['merge_time']
-                for _, path_delay, parent_id in trans_list)
-        # begin->compute->merge->trans
-        exec_info[tile_id]['end_time'] = exec_info[tile_id]['begin_time'] + exec_info[tile_id]['cal_lat'] + exec_info[tile_id]['merge_time'] + max_path_delay
-        layer_latdict[cur_layer] = max(layer_latdict.get(cur_layer, 0), exec_info[tile_id]['end_time'] - exec_info[tile_id]['begin_time'])
-        layer_caldict[cur_layer] = max(layer_caldict.get(cur_layer, 0), exec_info[tile_id]['cal_lat'])
-        layer_mergedict[cur_layer] = max(layer_mergedict.get(cur_layer, 0), exec_info[tile_id]['merge_time'])
-        layer_transdict[cur_layer] = max(layer_transdict.get(cur_layer, 0), max_path_delay)
-        if not syn:
-            ovarall_latency = max(ovarall_latency, exec_info[tile_id]['end_time'])
-    # throughput get from layer_latdict
-    overall_throughput = 1 / max(layer_latdict.values())
-    # if sychronous, update latency by layer
-    if syn:
-        for layer in layer_latdict.keys():
-            layer_latdict[layer] = layer_caldict[layer] + layer_mergedict[layer] + layer_transdict[layer]
-        ovarall_latency = sum(layer_latdict.values())
-        overall_throughput = 1 / max(layer_latdict.values())
-    # get overall cal latency
-    overall_cal_latency = sum(layer_caldict.values())
-    cal_per = overall_cal_latency / ovarall_latency
-    overall_merge_latency = sum(layer_mergedict.values())
-    merge_per = sum(layer_mergedict.values()) / ovarall_latency
-    return ovarall_latency, overall_throughput, overall_cal_latency, cal_per, overall_merge_latency, merge_per, effbw, layer_mergedict, layer_transdict
+            cur_max_path_delay = max(cur_max_path_delay, path_delay)
+        # generate computation pipeline layer-wise
+        cur_max_compute_latency = 0.0
+        for idx, tile_info in enumerate(all_tiles_mapping_infos):
+            cur_cnode = [node for node in tile_info.cnode if node.layer in layers]
+            if not cur_cnode:
+                continue
+            # local info
+            ifm_size = sum(cn.ifmap_size for cn in cur_cnode)
+            tile_compute_latency = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit) / 100000000
+            cur_max_compute_latency = max(cur_max_compute_latency, tile_compute_latency)
+        max_layerseg_lat = max(max_layerseg_lat, cur_max_compute_latency + cur_max_path_delay)
+        seg_cal_lat.append(cur_max_compute_latency)
+        seg_trans_lat.append(cur_max_path_delay)
+
+    overall_latency = sum(seg_cal_lat) + sum(seg_trans_lat)
+    overall_throughput = 1 / max_layerseg_lat if overall_latency > 0 else float('inf')
+    return overall_latency, overall_throughput, seg_trans_lat
+
+
+    # for idx, tile_info in enumerate(all_tiles_mapping_infos):
+    #     # local info
+    #     tile_id = tile_info.tile_id
+    #     # get ifm size to compute cal latency
+    #     ifm_size = sum(cn.ifmap_size for cn in tile_info.cnode)
+    #     # exec_info[tile_id]['cal_lat'] = 0
+    #     exec_info[tile_id]['cal_lat'] = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit)
+    #     exec_info[tile_id]['cal_lat'] /= 100000000 # ns to s, freq = 100MHz
+    #     # tile-layer map regestration
+    #     cur_layer = tile_info.layer
+    #     max_path_delay = 0.0
+    #     # update child info by path info
+    #     for path in tile_info.paths:
+    #         child_id = path.dst
+    #         # path_delay = (len(path.via)-1) * path.datavolume / cur_effbw
+    #         path_delay = path_delaydict[(tile_id,child_id)]
+    #         # update trans time info(cur tile as parent)
+    #         max_path_delay = max(max_path_delay, path_delay)
+    #         # parent info dict: src layer, path delay, tile id
+    #         if 'parent' not in exec_info[child_id]:
+    #             exec_info[child_id]['parent'] = []
+    #         exec_info[child_id]['parent'].append((cur_layer, path_delay, tile_id))
+    #     # update time dep info(cur tile as child)
+    #     if 'parent' not in exec_info[tile_id]:
+    #         exec_info[tile_id]['begin_time'] = 0.0
+    #         exec_info[tile_id]['merge_time'] = 0.0
+    #     else:
+    #         # merge time: intra-layer data driven
+    #         # # get merge and trans list
+    #         merge_list = [
+    #             element
+    #             for element in exec_info[tile_id]['parent']
+    #             if isinstance(element, (list, tuple)) and len(element) > 0
+    #             and element[0] == cur_layer
+    #         ]
+    #         trans_list = [
+    #             element
+    #             for element in exec_info[tile_id]['parent']
+    #             if isinstance(element, (list, tuple)) and len(element) > 0
+    #             and element[0] != cur_layer
+    #         ]
+    #         # update merge time
+    #         if not merge_list:
+    #             exec_info[tile_id]['merge_time'] = 0 
+    #         else:
+    #             exec_info[tile_id]['merge_time'] = max(merge_lat for _, merge_lat, _ in merge_list)
+    #         # update begin time(consider inter-layer parent only)
+    #         exec_info[tile_id]['begin_time'] = max(
+    #             path_delay + exec_info[parent_id]['begin_time'] + exec_info[parent_id]['cal_lat'] + exec_info[parent_id]['merge_time']
+    #             for _, path_delay, parent_id in trans_list)
+    #     # begin->compute->merge->trans
+    #     exec_info[tile_id]['end_time'] = exec_info[tile_id]['begin_time'] + exec_info[tile_id]['cal_lat'] + exec_info[tile_id]['merge_time'] + max_path_delay
+    #     layer_latdict[cur_layer] = max(layer_latdict.get(cur_layer, 0), exec_info[tile_id]['end_time'] - exec_info[tile_id]['begin_time'])
+    #     layer_caldict[cur_layer] = max(layer_caldict.get(cur_layer, 0), exec_info[tile_id]['cal_lat'])
+    #     layer_mergedict[cur_layer] = max(layer_mergedict.get(cur_layer, 0), exec_info[tile_id]['merge_time'])
+    #     layer_transdict[cur_layer] = max(layer_transdict.get(cur_layer, 0), max_path_delay)
+    #     if not syn:
+    #         ovarall_latency = max(ovarall_latency, exec_info[tile_id]['end_time'])
+    # # throughput get from layer_latdict
+    # overall_throughput = 1 / max(layer_latdict.values())
+    # # if sychronous, update latency by layer
+    # if syn:
+    #     for layer in layer_latdict.keys():
+    #         layer_latdict[layer] = layer_caldict[layer] + layer_mergedict[layer] + layer_transdict[layer]
+    #     ovarall_latency = sum(layer_latdict.values())
+    #     overall_throughput = 1 / max(layer_latdict.values())
+    # # get overall cal latency
+    # overall_cal_latency = sum(layer_caldict.values())
+    # cal_per = overall_cal_latency / ovarall_latency
+    # overall_merge_latency = sum(layer_mergedict.values())
+    # merge_per = sum(layer_mergedict.values()) / ovarall_latency
+    # return ovarall_latency, overall_throughput, overall_cal_latency, cal_per, overall_merge_latency, merge_per, effbw, layer_mergedict, layer_transdict
 
 def tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit):
     modelL_config = cp.ConfigParser()
