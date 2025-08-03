@@ -174,6 +174,7 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     effbw = {}
     seg_cal_lat = []
     seg_trans_lat = []
+    seg_trans_dict = {}
     overall_latency = 0.0
     overall_throughput = 0.0
     max_layerseg_lat = 0.0
@@ -227,10 +228,12 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
         max_layerseg_lat = max(max_layerseg_lat, cur_max_compute_latency + cur_max_path_delay)
         seg_cal_lat.append(cur_max_compute_latency)
         seg_trans_lat.append(cur_max_path_delay)
+        for layer in layers:
+            seg_trans_dict[layer] = cur_max_path_delay
 
     overall_latency = sum(seg_cal_lat) + sum(seg_trans_lat)
     overall_throughput = 1 / max_layerseg_lat if overall_latency > 0 else float('inf')
-    return overall_latency, overall_throughput, seg_trans_lat
+    return overall_latency, overall_throughput, seg_trans_lat, seg_trans_dict
 
 
     # for idx, tile_info in enumerate(all_tiles_mapping_infos):

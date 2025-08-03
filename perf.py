@@ -864,14 +864,16 @@ def power_analysis(mapping_results, latency_dict, power_dict, bw):
     for i, opt in enumerate(opt_combinations):
         print(f"Optimization: {get_opt_str(opt)}")
         ideal = 1 if i == 4 else 0
-        datas = [latency_est(mapping_res=mapping_results[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[-2:] for model in models]  # 保持原有计算逻辑
-        merge_dict, trans_dict = zip(*datas)  # 解包数据
+        time_data = [latency_est(mapping_res=mapping_results[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[-1] for model in models]  # 保持原有计算逻辑
+        # merge_dict, trans_dict = zip(*datas)  # 解包数据
+        # print(time_data)
         cur_pwr_dict = [value for (model, i), value in power_dict.items() if model in models and i == opt]  # 获取当前功耗数据
         power = [0] * len(models)
         for i in range(len(models)):
             for key in cur_pwr_dict[i].keys():
                 avg_pwr = cur_pwr_dict[i][key]
-                total_time = merge_dict[i][key] + trans_dict[i][key]
+                # total_time = merge_dict[i][key] + trans_dict[i][key]
+                total_time = time_data[i][key]  # 使用计算得到的时间
                 power[i] += avg_pwr * total_time
         print(f"Power Consumption for {get_opt_str(opt)}: {power}")
 
@@ -958,9 +960,9 @@ if __name__ == "__main__":
         latency_dict, power_dict = perf_dict
     # print(latency_dict)
     # print(power_dict)
-    # power_analysis(mapping_result, latency_dict, power_dict, bw)
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    power_analysis(mapping_result, latency_dict, power_dict, bw)
+    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     # plot_all_comm(key_list, comm_result)
     # for key in key_list:
