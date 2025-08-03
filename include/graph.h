@@ -275,7 +275,8 @@ public:
 
     // Dep struct for a NN kernel
     struct CDep{
-        std::vector<AccBlk> acc_blks;
+        // std::vector<AccBlk> acc_blks;
+        std::vector<std::vector<AccBlk>> acc_blks; // accblk group
         int layer;
         std::vector<Depinfo> dep_info;
     };
@@ -293,6 +294,7 @@ public:
     void print_graph_info() const;
 private:
     const std::vector<NNkernel> kernels;
+    std::vector<int> dup_num;
     Graph cg;
     std::pair<int, int> CNode_size; // (W, H) of node
     std::vector<CDep> cdeps; // kernel-wise dep list

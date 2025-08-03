@@ -1,7 +1,7 @@
 #include "graph.h"
 
 CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size) 
-    : cg{}, kernels{kernels}, CNode_size{CNode_size}, cdeps{} {
+    : cg{}, kernels{kernels}, CNode_size{CNode_size}, cdeps{}, dup_num(kernels.size(), 1) {
     analysis();
     std::cout << "CGraph created" << std::endl;
 }
@@ -27,44 +27,52 @@ void CGraph::create_cnodes() {
         auto cur_ifm = i.ifmap_size;
         auto cur_ofm = i.ofmap_size;
         // construct nodes under the size constraints of (in_chan, out_chan)
-        int co_begin = 0;
-        std::vector<AccBlk> accblks{};
-        while (co_begin < ker_out) {
-            // create the segmentation along the output channel dimension
-            int co_end = std::min(co_begin + out_chan, ker_out);
-            auto co_id = std::make_pair(co_begin+1, co_end);
-            int ci_begin = 0;
-            std::vector<Node> accblk{};
-            while(ci_begin < ker_in) {
-                // create the segmentation along the input channel dimension
-                int ci_end = std::min(ci_begin + in_chan, ker_in);
-                auto ci_id = std::make_pair(ci_begin+1, ci_end);
-                // instantiate a cnode
-                // TODO: impl ofm calculation
-                int node_ifm = -1;
-                int node_ofm = -1;
-                // last accblk: generate ofm
-                node_ifm = cur_ifm.first * cur_ifm.second * (ci_end - ci_begin);
-                if(ci_end == ker_in) {
-                    node_ofm = cur_ofm.first * cur_ofm.second * (co_end - co_begin);
+        auto cur_dup = dup_num[cur_l];
+        // for dup accblk group
+        std::vector<std::vector<AccBlk>> accblks_group{};
+        // create duplicated dep
+        for (int d = 0; d < cur_dup; d++) {
+            int co_begin = 0;
+            std::vector<AccBlk> accblks{};
+            while (co_begin < ker_out) {
+                // create the segmentation along the output channel dimension
+                int co_end = std::min(co_begin + out_chan, ker_out);
+                auto co_id = std::make_pair(co_begin+1, co_end);
+                int ci_begin = 0;
+                std::vector<Node> accblk{};
+                while(ci_begin < ker_in) {
+                    // create the segmentation along the input channel dimension
+                    int ci_end = std::min(ci_begin + in_chan, ker_in);
+                    auto ci_id = std::make_pair(ci_begin+1, ci_end);
+                    // instantiate a cnode
+                    // TODO: impl ofm calculation
+                    int node_ifm = -1;
+                    int node_ofm = -1;
+                    // last accblk: generate ofm
+                    node_ifm = cur_ifm.first * cur_ifm.second / cur_dup * (ci_end - ci_begin);
+                    if(ci_end == ker_in) {
+                        node_ofm = cur_ofm.first * cur_ofm.second / cur_dup * (co_end - co_begin);
+                    }
+                    // other accblk: generate ifm
+                    else {
+                        node_ofm = cur_ifm.first * cur_ifm.second / cur_dup * (co_end - co_begin);
+                    }
+                    auto cnode = CNode{cur_l, node_ifm, node_ofm, ci_id, co_id};
+                    // add node to accblk
+                    accblk.emplace_back(add_node(cnode, cg));
+                    // update ci_begin
+                    ci_begin = ci_end;
                 }
-                // other accblk: generate ifm
-                else {
-                    node_ofm = cur_ifm.first * cur_ifm.second * (co_end - co_begin);
-                }
-                auto cnode = CNode{cur_l, node_ifm, node_ofm, ci_id, co_id};
-                // add node to accblk
-                accblk.emplace_back(add_node(cnode, cg));
-                // update ci_begin
-                ci_begin = ci_end;
+                // add accblk to accblks group
+                accblks.emplace_back(AccBlk{accblk, co_id});
+                // update co_begin
+                co_begin = co_end;
             }
-            // add accblk to accblks group
-            accblks.emplace_back(AccBlk{accblk, co_id});
-            // update co_begin
-            co_begin = co_end;
+            // add accblks group to cdeps
+            // cdeps.emplace_back(CDep{accblks, cur_l, cur_dep});
+            accblks_group.emplace_back(accblks);
         }
-        // add accblks gropu to cdeps
-        cdeps.emplace_back(CDep{accblks, cur_l, cur_dep});
+        cdeps.emplace_back(CDep{accblks_group, cur_l, cur_dep});
         // update depth map
         depth_map.try_emplace(cur_l, 0);
         int child_depth = depth_map[cur_l] + 1;
@@ -84,18 +92,20 @@ void CGraph::create_cnodes() {
 void CGraph::conn_accblk() {
     for (const auto& v : cdeps) {
         for (const auto& blk : v.acc_blks) {
-            const auto vertexs = blk.vertex_id;
-            auto node_num = vertexs.size();
-            // skip conn for empty(should not happen) or single node group
-            if (node_num <= 1) {continue;}
-            const auto cur_src = get_node_property(vertexs[0], cg);
-            const auto cur_ofm = cur_src.ofmap_size;
-            const auto cur_chan = cur_src.id_cout;
-            // TODO: impl fmap cal
-            for (int i=0;i<node_num-1;i++) {
-                // since input channel are impl in order
-                // and accum order is commutable
-                add_edge(vertexs[i], vertexs[i+1], CEdge{DepType::Accum,cur_chan,cur_ofm}, cg);
+            for (const auto& blk_elem : blk) {
+                const auto vertexs = blk_elem.vertex_id;
+                auto node_num = vertexs.size();
+                // skip conn for empty(should not happen) or single node group
+                if (node_num <= 1) {continue;}
+                const auto cur_src = get_node_property(vertexs[0], cg);
+                const auto cur_ofm = cur_src.ofmap_size;
+                const auto cur_chan = cur_src.id_cout;
+                // TODO: impl fmap cal
+                for (int i=0;i<node_num-1;i++) {
+                    // since input channel are impl in order
+                    // and accum order is commutable
+                    add_edge(vertexs[i], vertexs[i+1], CEdge{DepType::Accum,cur_chan,cur_ofm}, cg);
+                }
             }
         }
     }
@@ -105,33 +115,45 @@ void CGraph::inter_layer_conn() {
     for (const auto& v : cdeps) {
         // get acc blks and dep info
         const auto& deps = v.dep_info;
-        for (const auto& src : v.acc_blks) {
-            // get cur data volume and output channel id
-            auto src_node = src.vertex_id.back();
-            const auto src_property = get_node_property(src_node,cg);
-            auto cur_datavolume = src_property.ofmap_size;
-            // auto cur_cin_num = src_property.id_cout.second - src_property.id_cout.first + 1;
-            auto co_src = src.cout_id;
-            auto cur_cout_num = co_src.second - co_src.first + 1;
-            // get dst node
-            for (const auto& dep : deps) {
-                // skip output dep, represent by -1
-                if (dep.dep_layer == -1) {continue;}
-                // get dep layer info struct
-                for (const auto& dst_layer : cdeps[dep.dep_layer].acc_blks) {
-                    for (const auto& dst_node : dst_layer.vertex_id) {
-                        auto ci_dst = get_node_property(dst_node, cg).id_cin;
-                        // get intersection num
-                        auto start = std::max(co_src.first, ci_dst.first);
-                        auto end = std::min(co_src.second, ci_dst.second);
-                        if(start <= end) {
-                            auto overlap = end - start + 1;
-                            // add edge and corresponding data volume
-                            add_edge(src_node, dst_node, CEdge{DepType::Prop, {start,end}, cur_datavolume * overlap / cur_cout_num}, cg);
+        // use for determine connection relationship with dep layers grp
+        int grp_id = 0;
+        auto cur_dupnum = dup_num[v.layer];
+        for (const auto& src_grp : v.acc_blks) {
+            for (const auto& src : src_grp) {
+                // get cur data volume and output channel id
+                auto src_node = src.vertex_id.back();
+                const auto src_property = get_node_property(src_node,cg);
+                auto cur_datavolume = src_property.ofmap_size;
+                // auto cur_cin_num = src_property.id_cout.second - src_property.id_cout.first + 1;
+                auto co_src = src.cout_id;
+                auto cur_cout_num = co_src.second - co_src.first + 1;
+                // get dst node grp
+                for (const auto& dep : deps) {
+                    // skip output dep, represent by -1
+                    if (dep.dep_layer == -1) {continue;}
+                    auto dep_dupnum = dup_num[dep.dep_layer];
+                    auto conn_id = dup_to_dup(cur_dupnum, dep_dupnum, grp_id);
+                    // get dep layer info struct
+                    // for (const auto& dst_layer : cdeps[dep.dep_layer].acc_blks) {
+                    for (auto i : conn_id) {
+                        const auto& dst_grp = cdeps[dep.dep_layer].acc_blks[i];
+                        for (const auto& dst_layer : dst_grp) {
+                            for (const auto& dst_node : dst_layer.vertex_id) {
+                                auto ci_dst = get_node_property(dst_node, cg).id_cin;
+                                // get intersection num
+                                auto start = std::max(co_src.first, ci_dst.first);
+                                auto end = std::min(co_src.second, ci_dst.second);
+                                if(start <= end) {
+                                    auto overlap = end - start + 1;
+                                    // add edge and corresponding data volume
+                                    add_edge(src_node, dst_node, CEdge{DepType::Prop, {start,end}, cur_datavolume * overlap / cur_cout_num}, cg);
+                                }
+                            }
                         }
                     }
                 }
             }
+            grp_id++;
         }
     }
 }
@@ -142,10 +164,12 @@ void CGraph::print_graph_info() const{
     std::cout << "AccBlk info:" << std::endl;
     for(const auto&v : cdeps) {
         std::cout << "Layer: " << v.layer << std::endl;
-        for(const auto& blk : v.acc_blks) {
-            std::cout << "AccBlk: " << blk.cout_id.first << " - " << blk.cout_id.second << std::endl;
-            for(const auto& node : blk.vertex_id) {
-                std::cout << "Node: " << node << std::endl;
+        for (const auto& blk_grp : v.acc_blks) {
+            for(const auto& blk : blk_grp) {
+                std::cout << "AccBlk: " << blk.cout_id.first << " - " << blk.cout_id.second << std::endl;
+                for(const auto& node : blk.vertex_id) {
+                    std::cout << "Node: " << node << std::endl;
+                }
             }
         }
     }
@@ -183,18 +207,20 @@ void TGraph::analysis_zigzag() {
     // merge cnodes sequentially & layer-wise
     std::vector<size_t> cnode_id{};
     for(const auto& cdep : cg_ref->get_cdep()) {
-        for(const auto& accblk : cdep.acc_blks) {
-            for(const auto& node : accblk.vertex_id) {
-                if(cnode_id.size() == tile_xbar_num) {
-                    // merge cur group into a tnode
-                    auto tnode_id = add_node(TNode{cnode_id}, tg);
-                    // build node map, i is unique
-                    for (const auto& i : cnode_id) {
-                        node_map.emplace(i, tnode_id);
+        for (const auto& acc_grp : cdep.acc_blks) {
+            for(const auto& accblk : acc_grp) {
+                for(const auto& node : accblk.vertex_id) {
+                    if(cnode_id.size() == tile_xbar_num) {
+                        // merge cur group into a tnode
+                        auto tnode_id = add_node(TNode{cnode_id}, tg);
+                        // build node map, i is unique
+                        for (const auto& i : cnode_id) {
+                            node_map.emplace(i, tnode_id);
+                        }
+                        cnode_id.clear();
                     }
-                    cnode_id.clear();
+                    cnode_id.emplace_back(node);
                 }
-                cnode_id.emplace_back(node);
             }
         }
         // merge remaining cnodes
@@ -215,26 +241,29 @@ void TGraph::create_tnodes() {
     const auto& cdeps = cg_ref->get_cdep();
     for (const auto& cdep: cdeps) {
         // get cnode size
-        // BL split
-        auto col_size = cdep.acc_blks.size();
-        // WL split
-        auto row_size = cdep.acc_blks[0].vertex_id.size();
-        // uniformsplit
-        auto split = uniformsplit(row_size, col_size, tile_xbar_num);
-        // create TNode
-        for(const auto& cgroup : split) {
-            // get cnode id of cur tnode
-            std::vector<size_t> cnode_id{};
-            for(const auto& i : cgroup) {
-                cnode_id.emplace_back(cdep.acc_blks[i.second].vertex_id[i.first]);
-                // mergenode(cnode_id.back());
-            }
-            // clear invalid supernode info
-            // supernode.ofmap_size = 0;
-            auto tnode_id = add_node(TNode{cnode_id}, tg);
-            // build node map, i is unique
-            for (const auto& i : cnode_id) {
-                node_map.emplace(i, tnode_id);
+        auto acc_grp = cdep.acc_blks;
+        for (const auto& acc_blks: acc_grp) {
+            // BL split
+            auto col_size = acc_blks.size();
+            // WL split
+            auto row_size = acc_blks[0].vertex_id.size();
+            // uniformsplit
+            auto split = uniformsplit(row_size, col_size, tile_xbar_num);
+            // create TNode
+            for(const auto& cgroup : split) {
+                // get cnode id of cur tnode
+                std::vector<size_t> cnode_id{};
+                for(const auto& i : cgroup) {
+                    cnode_id.emplace_back(acc_blks[i.second].vertex_id[i.first]);
+                    // mergenode(cnode_id.back());
+                }
+                // clear invalid supernode info
+                // supernode.ofmap_size = 0;
+                auto tnode_id = add_node(TNode{cnode_id}, tg);
+                // build node map, i is unique
+                for (const auto& i : cnode_id) {
+                    node_map.emplace(i, tnode_id);
+                }
             }
         }
     }
@@ -246,13 +275,15 @@ void TGraph::create_TDep() {
     // create TDep
     for (const auto& cdep : cdeps) {
         // get cnode accblk index
-        const auto& accblks = cdep.acc_blks;
-        for(auto accblk : accblks) {
-            std::set<Node> tdep{};
-            for(auto node : accblk.vertex_id) {
-                tdep.emplace(node_map[node]);
+        const auto& accblks_grp = cdep.acc_blks;
+        for (auto accblks : accblks_grp) {
+            for(auto accblk : accblks) {
+                std::set<Node> tdep{};
+                for(auto node : accblk.vertex_id) {
+                    tdep.emplace(node_map[node]);
+                }
+                tdeps.emplace_back(tdep);
             }
-            tdeps.emplace_back(tdep);
         }
     }
 }

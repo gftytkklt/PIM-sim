@@ -247,3 +247,22 @@ std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec) {
     auto k = std::min(std::abs(src.first - dst.first), std::abs(src.second - dst.second));
     return Combination(n, k);
  }
+
+ std::vector<int> dup_to_dup(int M, int N, int dup_id) {
+    // M: original dup num, N: target dup num
+    // dup_id: current dup id in [0, M-1]
+    std::vector<int> result;
+    if (M == N) {
+        result.push_back(dup_id);
+        // return result;
+    }
+    else {
+        for (int i = dup_id * N / M; i <= (dup_id + 1) * N / M; i++) {
+            // result.push_back(i);
+            if (i < N) {
+                result.push_back(i);
+            } // i must be in [0, N-1]
+        }
+    }
+    return result;
+}

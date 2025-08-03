@@ -27,6 +27,8 @@ std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec);
 int Combination(int n, int k);
 // 2D shortest path num
 int shortest_path_num(std::pair<int, int> src, std::pair<int, int> dst);
+// M dup to N dup corresponding, dup_id is cur dup in [1, M]
+std::vector<int> dup_to_dup(int M, int N, int dup_id);
 
 // move Path to here for common use
 struct Path{
