@@ -90,17 +90,39 @@ def squeeze_matrix(matrix):
         raise ValueError("Squeezed matrix does not match original non-zero elements.")
     return new_matrix
 
-def create_cfg_file(home_path, mesh_size):
+def create_cfg_file(home_path, mesh_size, statistic_mode=False, inj_rate=0.01):
     cfg_file = 'booksim_cfg'
+    # statistic_mode = mesh_size > 20
     with open(cfg_file, 'r') as f:
         lines = f.readlines()
     # modify mesh size
-    for i, line in enumerate(lines):
-        line = line.strip()
-        matchobj = re.match(r'^k=', line)
-        if matchobj:
-            lines[i] = 'k=' + str(mesh_size) + ';' + '\n'
-            break
+    if not statistic_mode:
+        for i, line in enumerate(lines):
+            line = line.strip()
+            matchobj = re.match(r'^k=', line)
+            if matchobj:
+                lines[i] = 'k=' + str(mesh_size) + ';' + '\n'
+                break
+    else:
+        for i, line in enumerate(lines):
+            line = line.strip()
+            # mesh size
+            matchobj = re.match(r'^k=', line)
+            if matchobj:
+                lines[i] = 'k=' + str(mesh_size) + ';' + '\n'
+            # uniform traffic
+            matchobj = re.match(r'^traffic = ', line)
+            if matchobj:
+                lines[i] = 'traffic = uniform;' + '\n'
+            # on-off injection process
+            matchobj = re.match(r'^injection_process = ', line)
+            if matchobj:
+                lines[i] = 'injection_process = on_off;' + '\n'
+            # injection rate
+            matchobj = re.match(r'^injection_rate = ', line)
+            if matchobj:
+                lines[i] = 'injection_rate = ' + str(inj_rate) + ';' + '\n'
+                break # inj_rate is last line needed to modify
     with open(cfg_file, 'w') as f:
         f.writelines(lines)
     return cfg_file
@@ -124,8 +146,16 @@ def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
         # print("squeezed data_matrix shape is", data_matrix.shape)
         inj_matrix = divide_list_elements_3(data_matrix, bus_width * freq / fps)
         np.savetxt("inj_rate.txt", inj_matrix, fmt='%.12f')
+        inj_rate = 0.01
+        if mesh_size > 20:
+            statistic_mode = True
+            # generate average injection rate
+            row_avg = [np.sum(row) / np.count_nonzero(row) for row in inj_matrix]
+            inj_rate = np.sum(row_avg) / np.count_nonzero(row_avg)
+        else:
+            statistic_mode = False
         # create cfg file
-        cfg_file = create_cfg_file(home_path, mesh_size)
+        cfg_file = create_cfg_file(home_path, mesh_size, statistic_mode=statistic_mode, inj_rate=inj_rate)
         # pipe based implementation
         booksim_command = [home_path + '/booksim', cfg_file]
         result = subprocess.run(booksim_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -169,7 +199,6 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
         latency_map = comm_lat # lat_layer = latency_map[layer]
     bandwidth = bus_width * freq #B/s
     # update tile exec info
-    # tile_by_layer = defaultdict(list)
     exec_info = defaultdict(dict)
     effbw = {}
     seg_cal_lat = []
@@ -178,15 +207,10 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     overall_latency = 0.0
     overall_throughput = 0.0
     max_layerseg_lat = 0.0
-    # set tile by layer info
-    # for idx, tile_info in enumerate(all_tiles_mapping_infos):
-    #     tile_by_layer[tile_info.layer].append(idx)
     # update path latency of each segment
     for idx, comm_seg in enumerate(all_comm_segs):
         # cur layer seg
         layers = comm_seg.layers
-        # get all (layer, tile_idx) from tile_by_layer[layers]
-        # tile_ids = [idx for layer in layers for idx in tile_by_layer[layer]]
         # equivalent bandwidth computation (B/s)
         effbw.update({layer: bandwidth / (1 + latency_map.get(layer, 0)) for layer in layers})
         # get all paths
@@ -196,10 +220,6 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
                             for tile_info in all_tiles_mapping_infos 
                             if layer in tile_info.layer_paths_map
                             for path in tile_info.layer_paths_map[layer])
-        # print(merged_paths)
-        # for tile_id in tile_ids:
-        #     layer = all_tiles_mapping_infos[tile_id].layer
-        #     merged_paths.extend((layer, path) for path in all_tiles_mapping_infos[tile_id].paths)
         # update via delay
         via_delay = {}
         for layer, path in merged_paths:
@@ -234,80 +254,6 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     overall_latency = sum(seg_cal_lat) + sum(seg_trans_lat)
     overall_throughput = 1 / max_layerseg_lat if overall_latency > 0 else float('inf')
     return overall_latency, overall_throughput, seg_trans_lat, seg_trans_dict
-
-
-    # for idx, tile_info in enumerate(all_tiles_mapping_infos):
-    #     # local info
-    #     tile_id = tile_info.tile_id
-    #     # get ifm size to compute cal latency
-    #     ifm_size = sum(cn.ifmap_size for cn in tile_info.cnode)
-    #     # exec_info[tile_id]['cal_lat'] = 0
-    #     exec_info[tile_id]['cal_lat'] = tile_latency_cal(SimConfig_path, ifm_size, inputbit, outputbit)
-    #     exec_info[tile_id]['cal_lat'] /= 100000000 # ns to s, freq = 100MHz
-    #     # tile-layer map regestration
-    #     cur_layer = tile_info.layer
-    #     max_path_delay = 0.0
-    #     # update child info by path info
-    #     for path in tile_info.paths:
-    #         child_id = path.dst
-    #         # path_delay = (len(path.via)-1) * path.datavolume / cur_effbw
-    #         path_delay = path_delaydict[(tile_id,child_id)]
-    #         # update trans time info(cur tile as parent)
-    #         max_path_delay = max(max_path_delay, path_delay)
-    #         # parent info dict: src layer, path delay, tile id
-    #         if 'parent' not in exec_info[child_id]:
-    #             exec_info[child_id]['parent'] = []
-    #         exec_info[child_id]['parent'].append((cur_layer, path_delay, tile_id))
-    #     # update time dep info(cur tile as child)
-    #     if 'parent' not in exec_info[tile_id]:
-    #         exec_info[tile_id]['begin_time'] = 0.0
-    #         exec_info[tile_id]['merge_time'] = 0.0
-    #     else:
-    #         # merge time: intra-layer data driven
-    #         # # get merge and trans list
-    #         merge_list = [
-    #             element
-    #             for element in exec_info[tile_id]['parent']
-    #             if isinstance(element, (list, tuple)) and len(element) > 0
-    #             and element[0] == cur_layer
-    #         ]
-    #         trans_list = [
-    #             element
-    #             for element in exec_info[tile_id]['parent']
-    #             if isinstance(element, (list, tuple)) and len(element) > 0
-    #             and element[0] != cur_layer
-    #         ]
-    #         # update merge time
-    #         if not merge_list:
-    #             exec_info[tile_id]['merge_time'] = 0 
-    #         else:
-    #             exec_info[tile_id]['merge_time'] = max(merge_lat for _, merge_lat, _ in merge_list)
-    #         # update begin time(consider inter-layer parent only)
-    #         exec_info[tile_id]['begin_time'] = max(
-    #             path_delay + exec_info[parent_id]['begin_time'] + exec_info[parent_id]['cal_lat'] + exec_info[parent_id]['merge_time']
-    #             for _, path_delay, parent_id in trans_list)
-    #     # begin->compute->merge->trans
-    #     exec_info[tile_id]['end_time'] = exec_info[tile_id]['begin_time'] + exec_info[tile_id]['cal_lat'] + exec_info[tile_id]['merge_time'] + max_path_delay
-    #     layer_latdict[cur_layer] = max(layer_latdict.get(cur_layer, 0), exec_info[tile_id]['end_time'] - exec_info[tile_id]['begin_time'])
-    #     layer_caldict[cur_layer] = max(layer_caldict.get(cur_layer, 0), exec_info[tile_id]['cal_lat'])
-    #     layer_mergedict[cur_layer] = max(layer_mergedict.get(cur_layer, 0), exec_info[tile_id]['merge_time'])
-    #     layer_transdict[cur_layer] = max(layer_transdict.get(cur_layer, 0), max_path_delay)
-    #     if not syn:
-    #         ovarall_latency = max(ovarall_latency, exec_info[tile_id]['end_time'])
-    # # throughput get from layer_latdict
-    # overall_throughput = 1 / max(layer_latdict.values())
-    # # if sychronous, update latency by layer
-    # if syn:
-    #     for layer in layer_latdict.keys():
-    #         layer_latdict[layer] = layer_caldict[layer] + layer_mergedict[layer] + layer_transdict[layer]
-    #     ovarall_latency = sum(layer_latdict.values())
-    #     overall_throughput = 1 / max(layer_latdict.values())
-    # # get overall cal latency
-    # overall_cal_latency = sum(layer_caldict.values())
-    # cal_per = overall_cal_latency / ovarall_latency
-    # overall_merge_latency = sum(layer_mergedict.values())
-    # merge_per = sum(layer_mergedict.values()) / ovarall_latency
-    # return ovarall_latency, overall_throughput, overall_cal_latency, cal_per, overall_merge_latency, merge_per, effbw, layer_mergedict, layer_transdict
 
 def tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit):
     modelL_config = cp.ConfigParser()
