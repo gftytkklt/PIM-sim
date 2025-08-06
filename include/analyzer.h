@@ -56,13 +56,13 @@ public:
     void generate_comm_info();
     void print_result() const;
 private:
-    bool mapping_opt = true;
-    bool sched_opt = true;
+    OptType opt_type;
     CGraph cg;
     TGraph tg;
     HGraph hg;
     DGraph dg;
     AnalysisResult result;
     CommInfo comm_info;
+    OptType gen_opt_type(OptInfo opt);
 };
 #endif

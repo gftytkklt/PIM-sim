@@ -1,12 +1,26 @@
 #include "analyzer.h"
 Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt) :
-    mapping_opt{opt.mapping_opt},
-    sched_opt{opt.sched_opt},
+    opt_type{gen_opt_type(opt)},
     cg{kernels, info.xbar_size},
-    tg{std::make_shared<CGraph>(cg), info.xbar_num, mapping_opt},
-    hg{std::make_shared<TGraph>(tg), std::make_shared<CGraph>(cg), info.tile_size, mapping_opt},
-    dg{std::make_shared<HGraph>(hg), std::make_shared<TGraph>(tg), std::make_shared<CGraph>(cg), info.pipeline_depth, sched_opt}
+    tg{std::make_shared<CGraph>(cg), info.xbar_num, opt_type},
+    hg{std::make_shared<TGraph>(tg), std::make_shared<CGraph>(cg), info.tile_size, opt_type},
+    dg{std::make_shared<HGraph>(hg), std::make_shared<TGraph>(tg), std::make_shared<CGraph>(cg), info.pipeline_depth, opt_type}
     {}
+
+OptType Analyzer::gen_opt_type(OptInfo opt) {
+    if(opt.mapping_opt && opt.sched_opt){
+        return OptType::PIMAPPING;
+    }
+    else if(opt.mapping_opt && !opt.sched_opt){
+        return OptType::SPATEM;
+    }
+    else if(!opt.mapping_opt && opt.sched_opt){
+        return OptType::HITM;
+    }
+    else{
+        return OptType::MNSIM;
+    }
+}
 
 void Analyzer::generate_analysis_result(){
     // get deploy_info
