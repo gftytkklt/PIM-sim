@@ -946,23 +946,23 @@ def load_noc_perf(bw, xbar_size):
 if __name__ == "__main__":
     bw = 1
     xbar_size = (256, 256)
-    hw_info = make_hw_info(xbar_size, 4, (0,0), 1)
+    hw_info = make_hw_info(xbar_size, 8, (0,0), 1)
     begin_time = time.time()
     mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
     print(f"Total Time: {time.time()-begin_time}")
-    # save_noc_perf(mapping_result, bw, xbar_size)
-    # perf_dict = load_noc_perf(bw, xbar_size)
-    # # print(latency_dict.keys())
-    # if perf_dict is None:
-    #     print("latency dict not found. generate by mapping result...")
-    #     latency_dict, power_dict = save_noc_perf(mapping_result, bw, xbar_size)
-    # else:
-    #     latency_dict, power_dict = perf_dict
-    # # print(latency_dict)
+    save_noc_perf(mapping_result, bw, xbar_size)
+    perf_dict = load_noc_perf(bw, xbar_size)
+    # print(latency_dict.keys())
+    if perf_dict is None:
+        print("latency dict not found. generate by mapping result...")
+        latency_dict, power_dict = save_noc_perf(mapping_result, bw, xbar_size)
+    else:
+        latency_dict, power_dict = perf_dict
+    # print(latency_dict)
     # print(power_dict)
-    # power_analysis(mapping_result, latency_dict, power_dict, bw)
-    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    # plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    power_analysis(mapping_result, latency_dict, power_dict, bw)
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     # plot_all_comm(key_list, comm_result)
     # for key in key_list:

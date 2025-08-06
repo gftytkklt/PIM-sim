@@ -83,4 +83,25 @@ struct pair_second_comparator {
     }
 };
 
+// for paper experiments
+enum class OptType {
+    MNSIM,
+    HITM,
+    SPATEM,
+    PIMAPPING,
+};
+
+// convert OptType to string
+inline std::string opt_type_to_string(OptType opt_type) {
+    switch (opt_type) {
+        case OptType::MNSIM: return "MNSIM";
+        case OptType::HITM: return "HITM";
+        case OptType::SPATEM: return "SPATEM";
+        case OptType::PIMAPPING: return "PIMAPPING";
+        default: return "UNKNOWN";
+    }
+}
+
+int compute_node_num (std::pair<int, int> xbar_size, std::pair<int, int> window_shape, std::pair<int, int> channel_shape);
+
 #endif

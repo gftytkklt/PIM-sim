@@ -12,14 +12,6 @@
 #include "scheduler.h"
 #include "util.h"
 
-// for paper experiments
-enum class OptType {
-    MNSIM,
-    HITM,
-    SPATEM,
-    PIMAPPING,
-};
-
 // Dep info of a kernel dep
 struct Depinfo{
     int dep_layer;
@@ -291,6 +283,7 @@ public:
 
     CGraph() = default;
     CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size);
+    CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, OptType opt_type);
     // CGraph(CGraph&& other) noexcept;
     // CGraph& operator=(CGraph&& other) noexcept;
 

@@ -1,25 +1,28 @@
 #include "analyzer.h"
 Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt) :
     opt_type{gen_opt_type(opt)},
-    cg{kernels, info.xbar_size},
+    cg{kernels, info.xbar_size, opt_type},
     tg{std::make_shared<CGraph>(cg), info.xbar_num, opt_type},
     hg{std::make_shared<TGraph>(tg), std::make_shared<CGraph>(cg), info.tile_size, opt_type},
     dg{std::make_shared<HGraph>(hg), std::make_shared<TGraph>(tg), std::make_shared<CGraph>(cg), info.pipeline_depth, opt_type}
     {}
 
 OptType Analyzer::gen_opt_type(OptInfo opt) {
+    OptType opt_type; // default optimization type
     if(opt.mapping_opt && opt.sched_opt){
-        return OptType::PIMAPPING;
+        opt_type = OptType::PIMAPPING;
     }
     else if(opt.mapping_opt && !opt.sched_opt){
-        return OptType::SPATEM;
+        opt_type = OptType::SPATEM;
     }
     else if(!opt.mapping_opt && opt.sched_opt){
-        return OptType::HITM;
+        opt_type = OptType::HITM;
     }
     else{
-        return OptType::MNSIM;
+        opt_type = OptType::MNSIM;
     }
+    std::cout << "Opt type: " << opt_type_to_string(opt_type) << std::endl;
+    return opt_type;
 }
 
 void Analyzer::generate_analysis_result(){

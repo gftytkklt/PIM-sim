@@ -6,10 +6,76 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
     std::cout << "CGraph created" << std::endl;
 }
 
+CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, OptType opt_type)
+    : cg{}, kernels{kernels}, CNode_size{CNode_size}, cdeps{}, dup_num(kernels.size(), 1), opt_type{opt_type} {
+    analysis();
+    std::cout << "CGraph created" << std::endl;
+}
+
 void CGraph::analysis() {
+    // std::cout << "CG opt type: " << opt_type_to_string(opt_type) << std::endl;
+    // if (opt_type != OptType::MNSIM) {
+    //     create_dup_num();
+    // }
     create_cnodes();
     conn_accblk();
     inter_layer_conn();
+}
+
+void CGraph::create_dup_num() {
+    // layer-throughput reduction struct
+    struct LayerDup {
+        int layer;
+        int dup_num;
+        int compute_num; // compute num under current dup_num
+        int node_num; // num for single kernel
+    };
+    struct LayerDupComparator {
+        bool operator()(const LayerDup& a, const LayerDup& b) const {
+            return (a.compute_num > b.compute_num) || (a.compute_num == b.compute_num && a.layer < b.layer); // max throughput reduction first
+        }
+    };
+    std::multiset<LayerDup, LayerDupComparator> layer_dup_set;
+    // create dup_num for each layer
+    int total_node_num = 0;
+    // overall compute num for each layer
+    std::vector<int> layer_compute_nums(kernels.size(), 0);
+    // initialize layer_dup_set
+    for (const auto& i : kernels) {
+        auto layer_node_num = compute_node_num(CNode_size, i.wsize, i.channel);
+        total_node_num += layer_node_num;
+        auto layer_compute_num = i.ifmap_size.first * i.ifmap_size.second * i.channel.first * i.channel.second;
+        layer_dup_set.insert({i.layer, 1, layer_compute_num, layer_node_num});
+        layer_compute_nums[i.layer] = layer_compute_num;
+    }
+    int available_num = total_node_num; // available extra node
+    std::cout << "Total node num: " << total_node_num << std::endl;
+    // max throughput reduction layer first
+    auto it = layer_dup_set.begin();
+    while (available_num > 0 && it != layer_dup_set.end()) {
+        auto cur_iter = it++;
+        auto cur_node_num = cur_iter->node_num;
+        if (available_num >= cur_node_num) {
+            // update dup_num info
+            auto cur_layer = cur_iter->layer;
+            available_num -= cur_node_num;
+            std::cout << "Layer " << cur_layer << " cur node num: " << cur_node_num << " duplicated, available node num: " << available_num << std::endl;
+            dup_num[cur_layer] += cur_iter->dup_num;
+            // update layer_compute_num and dup_num
+            auto new_dup = cur_iter->dup_num + 1;
+            auto new_compute_num = layer_compute_nums[cur_layer] / new_dup;
+            // re-insert updated layer info
+            layer_dup_set.erase(cur_iter);
+            layer_dup_set.insert({cur_layer, new_dup, new_compute_num, cur_node_num});
+            // back to top of the set
+            it = layer_dup_set.begin();
+        }
+    }
+    // print dup_num
+    // std::cout << "Duplication number for each layer:" << std::endl;
+    // for (size_t i = 0; i < dup_num.size(); i++) {
+    //     std::cout << "Layer " << i << ": " << dup_num[i] << std::endl;
+    // }
 }
 
 void CGraph::create_cnodes() {
@@ -49,13 +115,16 @@ void CGraph::create_cnodes() {
                     int node_ifm = -1;
                     int node_ofm = -1;
                     // last accblk: generate ofm
-                    node_ifm = cur_ifm.first * cur_ifm.second / cur_dup * (ci_end - ci_begin);
+                    // node_ifm = cur_ifm.first * cur_ifm.second / cur_dup * (ci_end - ci_begin);
+                    node_ifm = std::max(cur_ifm.first * cur_ifm.second / cur_dup, 1) * (ci_end - ci_begin);
                     if(ci_end == ker_in) {
-                        node_ofm = cur_ofm.first * cur_ofm.second / cur_dup * (co_end - co_begin);
+                        // node_ofm = cur_ofm.first * cur_ofm.second / cur_dup * (co_end - co_begin);
+                        node_ofm = std::max(cur_ofm.first * cur_ofm.second / cur_dup, 1) * (co_end - co_begin);
                     }
                     // other accblk: generate ifm
                     else {
-                        node_ofm = cur_ifm.first * cur_ifm.second / cur_dup * (co_end - co_begin);
+                        // node_ofm = cur_ifm.first * cur_ifm.second / cur_dup * (co_end - co_begin);
+                        node_ofm = std::max(cur_ifm.first * cur_ifm.second / cur_dup, 1) * (co_end - co_begin);
                     }
                     auto cnode = CNode{cur_l, node_ifm, node_ofm, ci_id, co_id};
                     // add node to accblk
@@ -191,6 +260,7 @@ TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, OptType opt_
 }
 
 void TGraph::analysis() {
+    // std::cout << "TGraph opt type: " << opt_type_to_string(opt_type) << std::endl;
     if(opt_type == OptType::PIMAPPING) {
         create_tnodes();
     }
@@ -331,26 +401,6 @@ void TGraph::inter_tile_conn() {
 }
 
 void TGraph::update_tedges(Node src_t, Node dst_t, CEdge cedge, int src_layer) {
-    // auto& cur_tedge = get_edge_property(src_t, dst_t, tg);
-    // auto acc_num = cedge.datavolume * (cedge.c_type == DepType::Accum);
-    // auto prop_num = cedge.datavolume * (cedge.c_type == DepType::Prop);
-    // // if empty, create new edge
-    // // std::cout << cedge << std::endl;
-    // if (cur_tedge.t_type == DepType::ErrorType) {
-    //     // std::cout << "Create new edge" << std::endl;
-    //     add_edge(src_t, dst_t, TEdge{cedge.c_type, acc_num, prop_num}, tg);
-    // }
-    // else {
-    //     // update edge
-    //     if(cur_tedge.t_type != cedge.c_type) {
-    //         cur_tedge.t_type = DepType::Mixed;
-    //     }
-    //     cur_tedge.accvolume += acc_num;
-    //     cur_tedge.propvolume += prop_num;
-    //     set_edge_property(src_t, dst_t, cur_tedge, tg);
-    // }
-
-    // std::cout << cur_tedge << std::endl;
     auto acc_num = cedge.datavolume * (cedge.c_type == DepType::Accum);
     auto prop_num = cedge.datavolume * (cedge.c_type == DepType::Prop);
     auto [e, found] = boost::edge(src_t, dst_t, tg);
@@ -425,6 +475,7 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
 }
 
 void HGraph::analysis() {
+    // std::cout << "HGraph opt type: " << opt_type_to_string(opt_type) << std::endl;
     init_hw_setting();
     if(opt_type == OptType::PIMAPPING){
         greedy_mapping();
@@ -593,6 +644,7 @@ DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> t
 }
 
 void DGraph::analysis() {
+    // std::cout << "DGraph opt type: " << opt_type_to_string(opt_type) << std::endl;
     // segment DHCG
     set_harbor();
     set_sdg();

@@ -266,3 +266,12 @@ std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec) {
     }
     return result;
 }
+
+int compute_node_num(std::pair<int, int> xbar_size, std::pair<int, int> window_shape, std::pair<int, int> channel_shape) {
+    auto [WL, BL] = xbar_size;
+    auto [w, h] = window_shape;
+    auto [ci, co] = channel_shape;
+    auto in_split = std::max(1, w * h * ci / WL);
+    auto out_split = std::max(1, co / BL);
+    return in_split * out_split;
+}
