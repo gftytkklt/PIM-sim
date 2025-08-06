@@ -335,7 +335,7 @@ private:
     int tile_xbar_num; // number of xbar in a tile
     OptType opt_type = OptType::PIMAPPING; // mapping optimization flag, default true
     void analysis() override final;
-    void analysis_zigzag(); // for zigzag mapping baseline
+    void create_tnodes_MNSIM(); // for zigzag mapping baseline
     void create_tnodes();
     void create_tnodes_SPATEM();
     // void create_tnodes_HitM(); // using zigzag mapping, don't need to implement

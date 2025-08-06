@@ -264,8 +264,11 @@ void TGraph::analysis() {
     if(opt_type == OptType::PIMAPPING) {
         create_tnodes();
     }
+    else if(opt_type == OptType::SPATEM) {
+        create_tnodes_SPATEM();
+    }
     else{
-        analysis_zigzag();
+        create_tnodes_MNSIM();
     }
     // create_tnodes();
     create_TDep();
@@ -273,7 +276,7 @@ void TGraph::analysis() {
     // print_graph_info();
 }
 
-void TGraph::analysis_zigzag() {
+void TGraph::create_tnodes_MNSIM() {
     // merge cnodes sequentially & layer-wise
     std::vector<size_t> cnode_id{};
     for(const auto& cdep : cg_ref->get_cdep()) {
@@ -303,7 +306,6 @@ void TGraph::analysis_zigzag() {
             cnode_id.clear();
         }
     }
-    
 }
 
 void TGraph::create_tnodes() {
@@ -335,6 +337,43 @@ void TGraph::create_tnodes() {
                     node_map.emplace(i, tnode_id);
                 }
             }
+        }
+    }
+}
+
+void TGraph::create_tnodes_SPATEM() {
+    // inter-layer merge strategy
+    std::vector<std::vector<size_t>> cnode_ids{};
+    int tile_num = (boost::num_vertices(cg_ref->get_graph()) + tile_xbar_num - 1) / tile_xbar_num;
+    cnode_ids.resize(tile_num);
+    // std::cout << "Tile num: " << tile_num << std::endl;
+    // std::cout << "cnode_ids size: " << cnode_ids.size() << std::endl;
+    // traverse cdeps
+    int cur_cnode_counter = 0;
+    for (const auto& cdep : cg_ref->get_cdep()) {
+        // get acc blks vector
+        const auto& acc_blks_vec = cdep.acc_blks;
+        for (const auto& acc_blks : acc_blks_vec) {
+            // get cnode id
+            for (const auto& acc_blk : acc_blks) {
+                for (const auto& node : acc_blk.vertex_id) {
+                    auto cur_tnode_id = cur_cnode_counter % tile_num;
+                    // std::cout << "cur_tnode_id: " << cur_tnode_id << std::endl;
+                    cnode_ids[cur_tnode_id].emplace_back(node);
+                    // std::cout << "done" << std::endl;
+                    cur_cnode_counter++;
+                }
+            }
+        }
+    }
+    // create TNode
+    for (const auto& cnode_id : cnode_ids) {
+        if (cnode_id.empty()) {continue;}
+        // create tnode
+        auto tnode_id = add_node(TNode{cnode_id}, tg);
+        // build node map, i is unique
+        for (const auto& i : cnode_id) {
+            node_map.emplace(i, tnode_id);
         }
     }
 }
