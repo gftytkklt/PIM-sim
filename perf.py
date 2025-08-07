@@ -88,9 +88,9 @@ def get_opt_str(opt_info):
     if opt_info == (1, 1):
         return "This Paper"
     elif opt_info == (1, 0):
-        return "Map only"
+        return "SPATEM"
     elif opt_info == (0, 1):
-        return "Sched only"
+        return "HITM"
     else:
         return "MNSIM"
 
@@ -877,7 +877,7 @@ def power_analysis(mapping_results, latency_dict, power_dict, bw):
                 power[i] += avg_pwr * total_time
         print(f"Power Consumption for {get_opt_str(opt)}: {power}")
 
-def save_noc_perf(comm_segs, bus_width = None, xbar_size = None):
+def get_noc_perf(comm_segs, bus_width = None, xbar_size = None, save=False):
     # 获取所有模型名称和优化选项组合
     models = list(comm_segs.keys())
     opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
@@ -893,12 +893,13 @@ def save_noc_perf(comm_segs, bus_width = None, xbar_size = None):
             latency_dict[(model, opt)] = latency  # 将latency值按模型和优化方法存储到字典
             power_dict[(model, opt)] = power  # 将power值按模型和优化方法存储到字典
             print(f"model={model}, opt={opt}, time={time.time()-start_time}")
-
-    filename = f"results/noc_perf_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
-    with open(filename, 'wb') as f:
-        # pickle.dump(latency_dict, f)
-        pickle.dump((latency_dict, power_dict), f)
-        print("Data saved.")
+    
+    if save:
+        filename = f"results/noc_perf_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
+        with open(filename, 'wb') as f:
+            # pickle.dump(latency_dict, f)
+            pickle.dump((latency_dict, power_dict), f)
+            print("Data saved.")
     return latency_dict, power_dict
 
 def load_and_plot(dict_key=None, norm=0):
@@ -948,17 +949,16 @@ if __name__ == "__main__":
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 8, (0,0), 1)
     begin_time = time.time()
-    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
+    mapping_result, comm_result = perf_analysis(models_dir='demo', hwinfo = hw_info)
     print(f"Total Time: {time.time()-begin_time}")
-    save_noc_perf(mapping_result, bw, xbar_size)
     perf_dict = load_noc_perf(bw, xbar_size)
-    # print(latency_dict.keys())
     if perf_dict is None:
         print("latency dict not found. generate by mapping result...")
-        latency_dict, power_dict = save_noc_perf(mapping_result, bw, xbar_size)
+        latency_dict, power_dict = get_noc_perf(mapping_result, bw, xbar_size)
     else:
+        print("latency dict found. use it.")
         latency_dict, power_dict = perf_dict
-    # print(latency_dict)
+    print(latency_dict)
     # print(power_dict)
     power_analysis(mapping_result, latency_dict, power_dict, bw)
     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")

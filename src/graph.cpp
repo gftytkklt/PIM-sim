@@ -256,11 +256,13 @@ TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num)
 
 TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, OptType opt_type) 
     : tg{}, cg_ref{cg}, tile_xbar_num{tile_xbar_num}, opt_type{opt_type} {
+    auto cnode_num = cg_ref->num_nodes(cg_ref->get_graph());
+    std::cout << "cnode num: " << cnode_num << " tile xbar num: " << tile_xbar_num << std::endl;
     analysis();
 }
 
 void TGraph::analysis() {
-    // std::cout << "TGraph opt type: " << opt_type_to_string(opt_type) << std::endl;
+    // std::cout << "TGraph opt type: " << opt_type_to_string(opt_type) << std::endl; 
     if(opt_type == OptType::PIMAPPING) {
         create_tnodes();
     }
@@ -499,9 +501,10 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
 
 HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size, OptType opt_type)
     : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, mapper{}, opt_type{opt_type} {
-    if (tile_size.first * tile_size.second < tg_ref->num_nodes(tg_ref->get_graph())) {
+    auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
+    std::cout << "num tile: " << num_tile << std::endl;
+    if (tile_size.first * tile_size.second < num_tile) {
         // throw std::invalid_argument("Tile size does not match the number of nodes in the TGraph.");
-        auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
         auto tile_x = static_cast<int>(std::ceil(std::sqrt(num_tile)));
         this->tile_size = std::make_pair(std::max(tile_size.first,tile_x), std::max(tile_size.second,tile_x));
         std::cout << "Reshape to " << this->tile_size.first << " x " << this->tile_size.second << " to fit algorithm size" << std::endl;
@@ -518,6 +521,9 @@ void HGraph::analysis() {
     init_hw_setting();
     if(opt_type == OptType::PIMAPPING){
         greedy_mapping();
+    }
+    else if(opt_type == OptType::SPATEM){
+        SPATEM_mapping();
     }
     else{
         zigzag_mapping();
@@ -593,6 +599,32 @@ void HGraph::greedy_mapping() {
         // std::cout << std::endl;
         mapper.map_group(tdep, dep_set);
     }
+    // update HGraph
+    for (size_t i = 0; i < num_nodes(tg); ++i) {
+        // auto tnode = tg_ref->get_node_property(i, tg);
+        auto hnode = mapper.get_core(i);
+        auto hid = xy_to_id(hnode);
+        set_node_property(hid, HNode{i, hnode, true}, hg);
+    }
+}
+
+void HGraph::SPATEM_mapping() {
+    // sort Tnode by connection intensity
+    const auto& tg = tg_ref->get_graph();
+    // build connection intensity map
+    // traverse TEdges
+    std::unordered_map<size_t, std::unordered_map<size_t, int>> conn_intensity_map;
+    for (const auto& e : boost::make_iterator_range(edges(tg))) {
+        auto src = boost::source(e, tg);
+        auto dst = boost::target(e, tg);
+        auto tedge = tg_ref->get_edge_property(e, tg);
+        auto datavolume = tedge.accvolume + tedge.propvolume;
+        conn_intensity_map[src][dst] += datavolume;
+        conn_intensity_map[dst][src] += datavolume; // undirected graph
+    }
+    auto mapping_order = neighbor_ranking_sort(conn_intensity_map);
+    // map Tnode to HNode
+    mapper.SPATEM_mapping(mapping_order);
     // update HGraph
     for (size_t i = 0; i < num_nodes(tg); ++i) {
         // auto tnode = tg_ref->get_node_property(i, tg);

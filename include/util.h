@@ -7,6 +7,7 @@
 #include <string>
 #include <tuple>
 #include <algorithm>
+#include <unordered_map>
 
 std::vector<std::vector<std::pair<int, int>>> uniformsplit(int M, int N, int K);
 int UniqueElements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2);
@@ -29,6 +30,7 @@ int Combination(int n, int k);
 int shortest_path_num(std::pair<int, int> src, std::pair<int, int> dst);
 // M dup to N dup corresponding, dup_id is cur dup in [1, M]
 std::vector<int> dup_to_dup(int M, int N, int dup_id);
+std::vector<size_t> neighbor_ranking_sort(const std::unordered_map<size_t, std::unordered_map<size_t, int>>& conn_intensity_map);
 
 // move Path to here for common use
 struct Path{

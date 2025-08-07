@@ -97,6 +97,7 @@ def create_cfg_file(home_path, mesh_size, statistic_mode=False, inj_rate=0.01):
         lines = f.readlines()
     # modify mesh size
     if not statistic_mode:
+        # print("Mesh size is", mesh_size, "and statistic mode is", statistic_mode)
         for i, line in enumerate(lines):
             line = line.strip()
             matchobj = re.match(r'^k=', line)
@@ -104,6 +105,7 @@ def create_cfg_file(home_path, mesh_size, statistic_mode=False, inj_rate=0.01):
                 lines[i] = 'k=' + str(mesh_size) + ';' + '\n'
                 break
     else:
+        # print("statistic mode on")
         for i, line in enumerate(lines):
             line = line.strip()
             # mesh size
@@ -172,8 +174,8 @@ def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
         if packet_line and network_line:
             packet_latency = float(packet_line.group(1))
             network_latency = float(network_line.group(1))
-            # print("packet latency is", packet_latency)
-            # print("network latency is", network_latency)
+            print("packet latency is", packet_latency)
+            print("network latency is", network_latency)
             latency = max(packet_latency - network_latency, 0)
         else:
             latency = 0  # default latency if not found

@@ -376,6 +376,7 @@ private:
     void init_hw_setting(); // init hardware template
     void zigzag_mapping(); // zigzag mapping for HCG
     void greedy_mapping(); // map TNode to HNode
+    void SPATEM_mapping(); // SPATEM mapping for HCG
     void init_path(); // init XY-routing path
     void add_path(Node src, Node dst, size_t path_index);
     void remove_path(Node src, Node dst, size_t path_index);

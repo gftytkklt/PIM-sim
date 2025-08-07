@@ -53,6 +53,9 @@ public:
     // zigzag mapping
     void zigzag_mapping(int node_num);
 
+    // SPATEM mapping, zigzag according to tnodes_seq
+    void SPATEM_mapping(std::vector<size_t> tnodes_seq);
+
     // HNode getter
     std::pair<int, int> get_core(size_t node) const;
 

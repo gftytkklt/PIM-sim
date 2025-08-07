@@ -168,20 +168,20 @@ void Analyzer::print_result() const {
     //     }
     //     std::cout << std::endl;
     // }
-    std::cout << "Comm Segs:" << std::endl;
-    for (const auto& seg : result.comm_segs) {
-        std::cout << "Layers: ";
-        for (const auto& layer : seg.layers) {
-            std::cout << layer << " ";
-        }
-        std::cout << std::endl;
-        for (const auto& row : seg.datas) {
-            for (const auto& col : row) {
-                std::cout << col << " ";
-            }
-            std::cout << std::endl;
-        }
-    }
+    // std::cout << "Comm Segs:" << std::endl;
+    // for (const auto& seg : result.comm_segs) {
+    //     std::cout << "Layers: ";
+    //     for (const auto& layer : seg.layers) {
+    //         std::cout << layer << " ";
+    //     }
+    //     std::cout << std::endl;
+    //     for (const auto& row : seg.datas) {
+    //         for (const auto& col : row) {
+    //             std::cout << col << " ";
+    //         }
+    //         std::cout << std::endl;
+    //     }
+    // }
     std::cout << "Comm Info:" << std::endl;
     std::cout << "Path num: " << comm_info.path_num << std::endl;
     std::cout << "Data volume: " << comm_info.datavolume << std::endl;

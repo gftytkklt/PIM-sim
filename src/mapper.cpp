@@ -238,6 +238,26 @@ void Mapper::zigzag_mapping(int node_num) {
     }
 }
 
+void Mapper::SPATEM_mapping(std::vector<size_t> tnodes_seq) {
+    // init zigzag sequence
+    std::vector<std::pair<int, int>> zigzag_seq;
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            zigzag_seq.push_back({i, j});
+        }
+        if (i + 1 < rows) {
+            for (int j = cols - 1; j >= 0; --j) {
+                zigzag_seq.push_back({i + 1, j});
+            }
+        }
+        ++i;
+    }
+    // map nodes to cores
+    for (size_t i = 0; i < tnodes_seq.size(); ++i) {
+        map_node_to_core(tnodes_seq[i], zigzag_seq[i].first, zigzag_seq[i].second);
+    }
+}
+
 bool Mapper::map_group(const Group& group, const Group& dep_set) {
     // identify mapped and unmapped nodes
     std::vector<size_t> mapped_nodes;

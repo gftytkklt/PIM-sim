@@ -275,3 +275,34 @@ int compute_node_num(std::pair<int, int> xbar_size, std::pair<int, int> window_s
     auto out_split = std::max(1, co / BL);
     return in_split * out_split;
 }
+
+std::vector<size_t> neighbor_ranking_sort(const std::unordered_map<size_t, std::unordered_map<size_t, int>>& conn_intensity_map) {
+    std::unordered_map<size_t, double> intensity_scores;
+    for (const auto& [node, neighbors] : conn_intensity_map) {
+        double score = 0.0;
+        for (const auto& [neighbor, intensity] : neighbors) {
+            if (conn_intensity_map.find(neighbor) != conn_intensity_map.end()) {
+                for (const auto& [co_neighbor, co_intensity] : conn_intensity_map.at(neighbor)) {
+                    if (co_neighbor == node || co_neighbor == neighbor) {
+                        continue;
+                    }
+                    if (conn_intensity_map.at(node).find(co_neighbor) != conn_intensity_map.at(node).end()) {
+                        double min_intensity = std::min(
+                            conn_intensity_map.at(node).at(co_neighbor), 
+                            conn_intensity_map.at(neighbor).at(co_neighbor));
+                        score += min_intensity;
+                    }
+                }
+            }
+        }
+        intensity_scores[node] = score;
+    }
+    std::vector<size_t> sorted_nodes;
+    for (const auto& [node, score] : intensity_scores) {
+        sorted_nodes.push_back(node);
+    }
+    std::sort(sorted_nodes.begin(), sorted_nodes.end(), [&](size_t a, size_t b) {
+        return intensity_scores[a] > intensity_scores[b];
+    });
+    return sorted_nodes;
+}
