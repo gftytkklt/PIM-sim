@@ -91,7 +91,7 @@ def squeeze_matrix(matrix):
     return new_matrix
 
 def create_cfg_file(home_path, mesh_size, statistic_mode=False, inj_rate=0.01):
-    cfg_file = 'booksim_cfg'
+    cfg_file = 'booksim_cfg' if not statistic_mode else 'booksim_cfg_stat'
     # statistic_mode = mesh_size > 20
     with open(cfg_file, 'r') as f:
         lines = f.readlines()
@@ -149,17 +149,28 @@ def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
         inj_matrix = divide_list_elements_3(data_matrix, bus_width * freq / fps)
         np.savetxt("inj_rate.txt", inj_matrix, fmt='%.12f')
         inj_rate = 0.01
-        if mesh_size > 20:
+        if mesh_size > 1:
             statistic_mode = True
-            # generate average injection rate
-            row_avg = [np.sum(row) / np.count_nonzero(row) for row in inj_matrix]
-            inj_rate = np.sum(row_avg) / np.count_nonzero(row_avg)
+            # # generate average injection rate
+            # row_avg = [np.sum(row) / np.count_nonzero(row) for row in inj_matrix if np.count_nonzero(row) > 0]
+            # # print(row_avg, "is the average injection rate for mesh size", mesh_size)
+            # inj_rate = np.sum(row_avg) / np.count_nonzero(row_avg)
+            inj_rate = np.mean(inj_matrix)
+            # assertion: inj_rate should be smaller than 1
+            if inj_rate > 1:
+                # layer and invalid inj_rate info
+                print("Layer:", layers, "Invalid injection rate:", inj_rate)
+                # print(len(row_avg), "is the average injection rate for mesh size", mesh_size)
+                raise ValueError("Injection rate exceeds 1, which is invalid for booksim evaluation.")
+            # print(inj_rate, "is the average injection rate for mesh size", mesh_size)
         else:
             statistic_mode = False
+        # continue
         # create cfg file
         cfg_file = create_cfg_file(home_path, mesh_size, statistic_mode=statistic_mode, inj_rate=inj_rate)
         # pipe based implementation
         booksim_command = [home_path + '/booksim', cfg_file]
+        # print("Running command:", ' '.join(booksim_command))
         result = subprocess.run(booksim_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         output_lines = result.stdout.strip()
         # print("output_line", output_lines)
@@ -170,15 +181,20 @@ def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
             power = float(power_line.group(1))
             # print("Total Power is", power)
         else:
+            power = 0.0  # default power if not found
             print("Total Power not found in output.")
         if packet_line and network_line:
             packet_latency = float(packet_line.group(1))
             network_latency = float(network_line.group(1))
-            print("packet latency is", packet_latency)
-            print("network latency is", network_latency)
-            latency = max(packet_latency - network_latency, 0)
+            # print("packet latency is", packet_latency)
+            # print("network latency is", network_latency)
+            # latency = max(packet_latency - network_latency, 0)
+            latency = network_latency / packet_latency
+            if latency < 0.1:
+                print("layers", layers, "latency", latency, "network_latency", network_latency, "packet_latency", packet_latency)
+            # latency = max(network_latency-12, 0)  # 12 is the default latency for booksim2
         else:
-            latency = 0  # default latency if not found
+            latency = 1  # default latency if not found
         for layer in layers:
             latency_map[layer] = latency
             power_map[layer] = power
@@ -214,7 +230,8 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
         # cur layer seg
         layers = comm_seg.layers
         # equivalent bandwidth computation (B/s)
-        effbw.update({layer: bandwidth / (1 + latency_map.get(layer, 0)) for layer in layers})
+        # effbw.update({layer: bandwidth / (1 + latency_map.get(layer, 0)) for layer in layers})
+        effbw.update({layer: bandwidth * latency_map.get(layer, 1) for layer in layers})  # ideal bandwidth
         # get all paths
         merged_paths = []
         merged_paths.extend((layer, path) 

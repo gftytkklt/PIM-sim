@@ -40,8 +40,8 @@ in_ports = 1;
 out_ports = 1;
 
 //Custom Traffic
-traffic = uniform;
-injection_process = on_off;
+traffic = custom;
+injection_process = custom;
 
 // Constant delays
 routing_delay = 1;
@@ -58,7 +58,7 @@ sample_period = 10000;
 warmup_periods = 1000;
 max_samples = 1;
 
-injection_rate = nan;
+injection_rate = 0.01;
 
 num_vcs = 1;
 

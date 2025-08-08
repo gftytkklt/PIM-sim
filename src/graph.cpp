@@ -14,9 +14,9 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
 
 void CGraph::analysis() {
     // std::cout << "CG opt type: " << opt_type_to_string(opt_type) << std::endl;
-    // if (opt_type != OptType::MNSIM) {
-    //     create_dup_num();
-    // }
+    if (opt_type != OptType::MNSIM) {
+        create_dup_num();
+    }
     create_cnodes();
     conn_accblk();
     inter_layer_conn();
@@ -59,7 +59,7 @@ void CGraph::create_dup_num() {
             // update dup_num info
             auto cur_layer = cur_iter->layer;
             available_num -= cur_node_num;
-            std::cout << "Layer " << cur_layer << " cur node num: " << cur_node_num << " duplicated, available node num: " << available_num << std::endl;
+            // std::cout << "Layer " << cur_layer << " cur node num: " << cur_node_num << " duplicated, available node num: " << available_num << std::endl;
             dup_num[cur_layer] += cur_iter->dup_num;
             // update layer_compute_num and dup_num
             auto new_dup = cur_iter->dup_num + 1;
