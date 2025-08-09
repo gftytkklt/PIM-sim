@@ -858,7 +858,7 @@ def plot_pipeline():
     fig.savefig("results/pipeline.pdf", dpi=300, bbox_inches='tight')
     plt.close()
 
-def power_analysis(mapping_results, latency_dict, power_dict, bw):
+def power_analysis(mapping_results, latency_dict, power_dict, bw, comm_results=None):
     models = list(mapping_results.keys())
     opt_combinations = sorted(set(opt for opts in mapping_results.values() for opt in opts))
     for i, opt in enumerate(opt_combinations):
@@ -875,7 +875,14 @@ def power_analysis(mapping_results, latency_dict, power_dict, bw):
                 # total_time = merge_dict[i][key] + trans_dict[i][key]
                 total_time = time_data[i][key]  # 使用计算得到的时间
                 power[i] += avg_pwr * total_time
+        # get data volume from comm_results
+        if comm_results is not None:
+            data_volume = [comm_results[model].get(opt, {}).get('datavolume', 0) for model in models]
+            efficiency = [ 1 / p for p, dv in zip(power, data_volume)]
         print(f"Power Consumption for {get_opt_str(opt)}: {power}")
+        print(f"data_volume for {get_opt_str(opt)}: {data_volume}")
+        print(f"Efficiency for {get_opt_str(opt)}: {efficiency}")
+    return power, data_volume, efficiency
 
 def get_noc_perf(comm_segs, bus_width = None, xbar_size = None, save=False):
     # 获取所有模型名称和优化选项组合
@@ -961,7 +968,7 @@ if __name__ == "__main__":
     
     # print(latency_dict)
     # print(power_dict)
-    power_analysis(mapping_result, latency_dict, power_dict, bw)
+    power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
     # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]

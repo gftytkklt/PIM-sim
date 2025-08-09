@@ -8,6 +8,8 @@
 #include <tuple>
 #include <algorithm>
 #include <unordered_map>
+#include <unordered_set>
+#include <queue>
 
 std::vector<std::vector<std::pair<int, int>>> uniformsplit(int M, int N, int K);
 int UniqueElements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2);
@@ -27,10 +29,11 @@ std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec);
 // Combination C(n, k)
 int Combination(int n, int k);
 // 2D shortest path num
-int shortest_path_num(std::pair<int, int> src, std::pair<int, int> dst);
+long long shortest_path_num(std::pair<int, int> src, std::pair<int, int> dst);
 // M dup to N dup corresponding, dup_id is cur dup in [1, M]
 std::vector<int> dup_to_dup(int M, int N, int dup_id);
 std::vector<size_t> neighbor_ranking_sort(const std::unordered_map<size_t, std::unordered_map<size_t, int>>& conn_intensity_map);
+std::vector<size_t> k_group_sort(const std::unordered_map<size_t, std::unordered_map<size_t, int>>& conn_intensity_map, size_t k);
 
 // move Path to here for common use
 struct Path{

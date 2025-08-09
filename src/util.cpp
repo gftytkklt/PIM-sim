@@ -242,10 +242,26 @@ std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec) {
     return Combination(n - 1, k - 1) + Combination(n - 1, k);
  }
 
- int shortest_path_num(std::pair<int, int> src, std::pair<int, int> dst) {
+ long long fast_Combination(long long n, long long k) {
+    if (k == 0 || k == n) {
+        return 1;
+    }
+    if (k > n / 2) {
+        k = n - k; // C(n, k) == C(n, n-k)
+    }
+    long long result = 1;
+    for (int i = 0; i < k; ++i) {
+        result *= (n - i);
+        result /= (i + 1);
+    }
+    return result;
+ }
+
+ long long shortest_path_num(std::pair<int, int> src, std::pair<int, int> dst) {
     auto n = manhattan_distance(src, dst);
     auto k = std::min(std::abs(src.first - dst.first), std::abs(src.second - dst.second));
-    return Combination(n, k);
+    // return Combination(n, k);
+    return fast_Combination(n, k);
  }
 
  std::vector<int> dup_to_dup(int M, int N, int dup_id) {
@@ -304,5 +320,83 @@ std::vector<size_t> neighbor_ranking_sort(const std::unordered_map<size_t, std::
     std::sort(sorted_nodes.begin(), sorted_nodes.end(), [&](size_t a, size_t b) {
         return intensity_scores[a] > intensity_scores[b];
     });
+    return sorted_nodes;
+}
+
+std::vector<size_t> k_group_sort(const std::unordered_map<size_t, std::unordered_map<size_t, int>>& conn_intensity_map, size_t K) {
+    std::vector<size_t> sorted_nodes;
+    std::unordered_set<size_t> used_nodes;
+    
+    // 使用最大堆存储节点强度
+    using NodeStrength = std::pair<int, size_t>;
+    std::priority_queue<NodeStrength> strength_heap;
+    
+    // 初始化节点强度堆
+    for (const auto& [node, neighbors] : conn_intensity_map) {
+        int total = 0;
+        for (const auto& [_, intensity] : neighbors) {
+            total += intensity;
+        }
+        strength_heap.push({total, node});
+    }
+    
+    // 分组构建
+    while (!strength_heap.empty()) {
+        // 获取当前最强节点
+        size_t start_node = strength_heap.top().second;
+        strength_heap.pop();
+        
+        if (used_nodes.find(start_node) != used_nodes.end()) continue;
+        
+        // 初始化当前组
+        std::vector<size_t> current_group = {start_node};
+        used_nodes.insert(start_node);
+        sorted_nodes.push_back(start_node);
+        
+        // 为当前组维护候选节点连接强度
+        std::unordered_map<size_t, int> candidate_scores;
+        
+        // 初始化候选节点（起始节点的邻居）
+        auto start_neighbors = conn_intensity_map.find(start_node);
+        if (start_neighbors != conn_intensity_map.end()) {
+            for (const auto& [neighbor, intensity] : start_neighbors->second) {
+                if (used_nodes.find(neighbor) == used_nodes.end()) {
+                    candidate_scores[neighbor] = intensity;
+                }
+            }
+        }
+        
+        // 增量添加K-1个节点
+        for (size_t i = 1; i < K; ++i) {
+            if (candidate_scores.empty()) break;
+            
+            // 找到最佳候选
+            size_t best_candidate = -1;
+            int max_score = -1;
+            for (const auto& [candidate, score] : candidate_scores) {
+                if (score > max_score) {
+                    max_score = score;
+                    best_candidate = candidate;
+                }
+            }
+            
+            // 添加最佳候选
+            current_group.push_back(best_candidate);
+            used_nodes.insert(best_candidate);
+            sorted_nodes.push_back(best_candidate);
+            candidate_scores.erase(best_candidate);
+            
+            // 更新候选列表：添加新候选的邻居
+            auto new_neighbors = conn_intensity_map.find(best_candidate);
+            if (new_neighbors != conn_intensity_map.end()) {
+                for (const auto& [neighbor, intensity] : new_neighbors->second) {
+                    if (used_nodes.find(neighbor) == used_nodes.end()) {
+                        candidate_scores[neighbor] += intensity; // 累加连接强度
+                    }
+                }
+            }
+        }
+    }
+    std::cout << "sorted nodes size: " << sorted_nodes.size() << std::endl;
     return sorted_nodes;
 }

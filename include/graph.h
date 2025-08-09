@@ -336,7 +336,8 @@ private:
     OptType opt_type = OptType::PIMAPPING; // mapping optimization flag, default true
     void analysis() override final;
     void create_tnodes_MNSIM(); // for zigzag mapping baseline
-    void create_tnodes();
+    void create_tnodes(); // old create tnodes method
+    void create_tnodes_PIMAPPING();
     void create_tnodes_SPATEM();
     // void create_tnodes_HitM(); // using zigzag mapping, don't need to implement
     void create_TDep();

@@ -264,7 +264,8 @@ TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, OptType opt_
 void TGraph::analysis() {
     // std::cout << "TGraph opt type: " << opt_type_to_string(opt_type) << std::endl; 
     if(opt_type == OptType::PIMAPPING) {
-        create_tnodes();
+        // create_tnodes();
+        create_tnodes_PIMAPPING();
     }
     else if(opt_type == OptType::SPATEM) {
         create_tnodes_SPATEM();
@@ -339,6 +340,83 @@ void TGraph::create_tnodes() {
                     node_map.emplace(i, tnode_id);
                 }
             }
+        }
+    }
+}
+
+void TGraph::create_tnodes_PIMAPPING() {
+    // struct TNodeGroup {
+    //     std::vector<size_t> cnode_id; // cnode id
+    //     struct Ofm{
+    //         int intra_layer = 0; // intra-layer ofm size
+    //         int inter_layer = 0; // inter-layer ofm size
+    //     };
+    //     struct TileData {
+    //         int ifmap_size = 0;
+    //         Ofm ofmap_size = {};
+    //     }; // tile data volume
+    //     TileData inter_tile{}, intra_tile{};
+    // };
+    // const auto& cg = cg_ref->get_graph();
+    // const auto& cdeps = cg_ref->get_cdep();
+    // std::map<size_t, bool> cnode_visited; // cnode visited flag
+    // TNodeGroup tnode_group{}; // current tnode group
+    // for (const auto& cdep: cdeps) {
+    //     // get cnode size
+    //     auto acc_grp = cdep.acc_blks;
+    //     for (const auto& acc_blks: acc_grp) {
+    //         // BL split
+    //         auto col_size = acc_blks.size();
+    //         // WL split
+    //         auto row_size = acc_blks[0].vertex_id.size();
+    //         // 
+    //     }
+    // }
+    std::unordered_map<size_t, std::unordered_map<size_t, int>> conn_intensity_map;
+    const auto& cg = cg_ref->get_graph();
+    // build intensity map by ofm
+    for (const auto& e: boost::make_iterator_range(edges(cg))) {
+        auto src = source(e, cg);
+        auto dst = target(e, cg);
+        auto cedge = cg_ref->get_edge_property(e, cg);
+        conn_intensity_map[src][dst] += cedge.datavolume;
+        conn_intensity_map[dst][src] += cedge.datavolume;
+    }
+    // update intensity map by ifm
+    for (const auto& cdep_vec: cg_ref->get_cdep()) {
+        for (const auto& acc_blks : cdep_vec.acc_blks) {
+            auto col_size = acc_blks.size();
+            auto row_size = acc_blks[0].vertex_id.size();
+            for (auto i = 0; i < row_size; i++) {
+                auto common_ifm = cg_ref->get_node_property(acc_blks[0].vertex_id[i], cg).ifmap_size;
+                for (auto j = 1; j < col_size; j++) {
+                    conn_intensity_map[acc_blks[0].vertex_id[i]][acc_blks[j].vertex_id[i]] += common_ifm;
+                }
+            }
+        }
+    }
+    // get sorted cnode by conn intensity
+    auto sorted_cnodes = k_group_sort(conn_intensity_map, tile_xbar_num);
+    // create tnodes
+    std::vector<size_t> cnode_id{};
+    for (const auto& cnode : sorted_cnodes) {
+        if(cnode_id.size() == tile_xbar_num) {
+            // merge cur group into a tnode
+            auto tnode_id = add_node(TNode{cnode_id}, tg);
+            // build node map, i is unique
+            for (const auto& i : cnode_id) {
+                node_map.emplace(i, tnode_id);
+            }
+            cnode_id.clear();
+        }
+        cnode_id.emplace_back(cnode);
+    }
+    // merge remaining cnodes
+    if(!cnode_id.empty()) {
+        auto tnode_id = add_node(TNode{cnode_id}, tg);
+        // build node map, i is unique
+        for (const auto& i : cnode_id) {
+            node_map.emplace(i, tnode_id);
         }
     }
 }
@@ -521,9 +599,12 @@ void HGraph::analysis() {
     init_hw_setting();
     if(opt_type == OptType::PIMAPPING){
         greedy_mapping();
+        std::cout << "mapped over PIMAPPING" << std::endl;
+        // SPATEM_mapping();
     }
     else if(opt_type == OptType::SPATEM){
         SPATEM_mapping();
+        // greedy_mapping();
     }
     else{
         zigzag_mapping();
@@ -717,8 +798,11 @@ DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> t
 void DGraph::analysis() {
     // std::cout << "DGraph opt type: " << opt_type_to_string(opt_type) << std::endl;
     // segment DHCG
+    std::cout << "Segmenting DHCG..." << std::endl;
     set_harbor();
+    std::cout << "Harbor set." << std::endl;
     set_sdg();
+    std::cout << "SDG set." << std::endl;
     // create_DSeg();
     // std::cout << "before" << std::endl;
     // print_path_info();
@@ -730,6 +814,7 @@ void DGraph::analysis() {
     else {
         xy_routing();
     }
+    std::cout << "DGraph analysis done." << std::endl;
 }
 
 void DGraph::set_harbor() {
@@ -879,13 +964,18 @@ std::vector<std::shared_ptr<Path>> DGraph::get_pathset(std::vector<size_t> path_
 void DGraph::bce_routing() {
     // schedule pathset-wise
     for (auto& seg : path_segs) {
+        // std::cout << "Scheduling segment with " << seg.size() << " paths." << std::endl;
         auto pathset = get_pathset(seg);
+        // std::cout << "Pathset size: " << pathset.size() << std::endl;
         scheduler.set_path_set(pathset);
+        // std::cout << "Pathset set." << std::endl;
         auto schedinfo = scheduler.schedule();
+        // std::cout << "Scheduling done." << std::endl;
         congestion_segs.push_back(schedinfo);
         for (const auto& path : pathset) {
             add_path(path);
         }
+        // std::cout << "Segment scheduling done." << std::endl;
     }
 }
 

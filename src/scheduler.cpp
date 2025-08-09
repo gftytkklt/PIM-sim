@@ -34,6 +34,7 @@ long long Scheduler::schedule() {
     // print path set num
     // std::cout << "Path num: " << path_set->size() << std::endl;
     init_bce();
+    // std::cout << "BCE initialized." << std::endl;
     // print bce
     // for (const auto& [key, val] : bce_map) {
     //     std::cout << "Edge id: " << key << " BCE: " << val << std::endl;
@@ -47,10 +48,12 @@ long long Scheduler::schedule() {
     //     std::cout << std::endl;
     // }
     congestion_aware_routing();
+    // std::cout << "Congestion aware routing done." << std::endl;
     long long total_congestion = 0;
     for (const auto& [key, val] : congestion_map) {
         total_congestion += val.getCSum();
     }
+    // std::cout << "Total congestion: " << total_congestion << std::endl;
     // std::cout << "sch Path after:" << std::endl;
     // for (const auto& path : *path_set) {
     //     for (const auto& via : path.via) {
@@ -122,12 +125,13 @@ void Scheduler::init_bce() {
         std::queue<Vertex> q;
         std::stack<Vertex> s;
         std::vector<int> dist(boost::num_vertices(graph), -1); // distance from src
-        std::vector<int> sigma(boost::num_vertices(graph), 0); // shortest path count
+        std::vector<long long> sigma(boost::num_vertices(graph), 0); // shortest path count
         std::vector<std::vector<Edge>> prev(boost::num_vertices(graph)); // previous edge
 
         dist[src] = 0;
         sigma[src] = 1;
         q.push(src);
+        // std::cout << "probe1" << std::endl;
         // BFS process
         while(!q.empty()) {
             auto v = q.front();
@@ -148,6 +152,7 @@ void Scheduler::init_bce() {
                 }
             }
         }
+        // std::cout << "BFS done." << std::endl;
         // traverse nodes in reverse order
         while(!s.empty()) {
             auto w = s.top();
@@ -168,13 +173,33 @@ void Scheduler::init_bce() {
                 // while sigma(s,w) is known, sigma (w,t) need BFS from w
                 // however, in 2D mesh case, sigma(w,t) can be calculated by manhattan distance
                 // std::cout << "Edge: " << v << " -> " << w << " id: " << edge_map[UnorderedPair{v, w}] << std::endl;
+                // std::cout << "possible bottleneck begin" << std::endl;
                 auto sigma_wt = shortest_path_num(w_tile, path.dst);
+                // assertion: non-negative sigma_wt
+                if (sigma_wt <= 0) {
+                    std::cout << "sigma_wt is non-positive, " << sigma_wt << std::endl;
+                    std::cout << "w_tile: " << w_tile.first << "," << w_tile.second << std::endl;
+                    std::cout << "dst: " << path.dst.first << "," << path.dst.second << std::endl;
+                    assert(sigma_wt > 0);
+                    // continue;
+                }
+                // std::cout << "possible bottleneck end" << std::endl;
                 double delta = static_cast<double>(sigma[v]) * sigma_wt / sigma[dst] * data_volume;
+                if (delta < 0) {
+                    std::cout << "delta is negative, " << delta << std::endl;
+                    std::cout << "sigma[v]: " << sigma[v] << std::endl;
+                    std::cout << "sigma_wt: " << sigma_wt << std::endl;
+                    std::cout << "sigma[dst]: " << sigma[dst] << std::endl;
+                    std::cout << "data_volume: " << data_volume << std::endl;
+                    assert(delta >= 0);
+                    // continue;
+                }
                 // do not div by 2 because prev property do not commute
                 auto edge_id = edge_map[UnorderedPair{v, w}];
                 bce_map[edge_id] += delta;
             }
         }
+        // std::cout << "probe3" << std::endl;
     }
     // normalize bce
     // find max_element first
