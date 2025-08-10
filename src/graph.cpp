@@ -798,11 +798,11 @@ DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> t
 void DGraph::analysis() {
     // std::cout << "DGraph opt type: " << opt_type_to_string(opt_type) << std::endl;
     // segment DHCG
-    std::cout << "Segmenting DHCG..." << std::endl;
+    // std::cout << "Segmenting DHCG..." << std::endl;
     set_harbor();
-    std::cout << "Harbor set." << std::endl;
+    // std::cout << "Harbor set." << std::endl;
     set_sdg();
-    std::cout << "SDG set." << std::endl;
+    // std::cout << "SDG set." << std::endl;
     // create_DSeg();
     // std::cout << "before" << std::endl;
     // print_path_info();
@@ -814,7 +814,7 @@ void DGraph::analysis() {
     else {
         xy_routing();
     }
-    std::cout << "DGraph analysis done." << std::endl;
+    // std::cout << "DGraph analysis done." << std::endl;
 }
 
 void DGraph::set_harbor() {

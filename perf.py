@@ -83,10 +83,10 @@ def perf_analysis(models_dir='demo', hwinfo=None, debug=False):
     print(f"成功测试 {success} 个模型。")
     return comm_segs, comm_results
 
-def get_opt_str(opt_info):
+def get_opt_str(opt_info, ideal = 0):
     # return f"{'DP' if opt_info[0] else 'ZZ'}-{'CA' if opt_info[1] else 'XY'}"
     if opt_info == (1, 1):
-        return "This Paper"
+        return "This Paper" if not ideal else "Ideal"
     elif opt_info == (1, 0):
         return "SPATEM"
     elif opt_info == (0, 1):
@@ -234,7 +234,7 @@ def plot_comm(comm_result, ax=None, dict_key=None, norm=1,
     return ax
 
 # parse seg elems in this function and plot
-def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None):
+def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None, ideal=0):
     # 设置学术风格参数
     plt.style.use('seaborn-v0_8-paper')
     plt.rcParams.update({
@@ -259,6 +259,11 @@ def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None):
     # 获取绘图数据
     models = list(mapping_results.keys())
     opt_combinations = sorted(set(opt for opts in mapping_results.values() for opt in opts))
+    # add ideal option
+    if ideal:
+        print("Ideal case added")
+        opt_combinations.append((1, 1))  # 添加理想情况
+        # print(opt_combinations)
     bar_width = 0.18  # 调整宽度适应更多分组
     inner_space = 0.2
     index = np.arange(len(models))
@@ -270,13 +275,13 @@ def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None):
     
     # 绘制柱状图
     for i, opt in enumerate(opt_combinations):
-        ideal = 1 if i == 4 else 0
-        values = [latency_est(mapping_res=mapping_results[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=ideal)[list_id] for model in models]  # 保持原有计算逻辑
-        
+        cur_ideal = 1 if i == 4 else 0
+        values = [latency_est(mapping_res=mapping_results[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None, ideal=cur_ideal)[list_id] for model in models]  # 保持原有计算逻辑
         # 标准化处理
         if norm and i == 0:
             base_values = values
         values = [v/b for v, b in zip(values, base_values)] if norm else values
+        # print(values)
         
         # 创建柱状图
         pos = index + i * bar_width * (1 + inner_space)
@@ -286,7 +291,7 @@ def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None):
                       linewidth=0.6,
                       hatch=hatch_patterns[i%len(hatch_patterns)],
                       alpha=0.9,
-                      label=f'{get_opt_str(opt)}',
+                      label=f'{get_opt_str(opt, cur_ideal)}',
                       error_kw=error_kw)
         
         # 特殊标注理想情况
@@ -967,10 +972,10 @@ if __name__ == "__main__":
         latency_dict, power_dict = perf_dict
     
     # print(latency_dict)
-    # print(power_dict)
-    power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency")
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput")
+    # # print(power_dict)
+    # power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency", ideal=1)
+    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput", ideal=1)
     # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     # plot_all_comm(key_list, comm_result)
     # for key in key_list:

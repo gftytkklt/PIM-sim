@@ -207,12 +207,13 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
     all_comm_segs = mapping_res.comm_segs # comm_seg: layer and data matrix
     # print("tile num is", len(all_tiles_mapping_infos))
     # get inter-tile lat first if not provided
-    if comm_lat is None and ideal == 0:
+    # if comm_lat is None and ideal == 0:
+    if comm_lat is None:
         latency_map = booksim_eval(all_comm_segs, bus_width, freq)
         # modify filename manually after saving
         # pickle.dump(latency_map, open(f"results/noc_perf_dict_bw=1_xbar=256_256.pkl", "wb"))
-    elif ideal == 1:
-        latency_map = {}
+    # elif ideal == 1:
+    #     latency_map = {}
     else:
         latency_map = comm_lat # lat_layer = latency_map[layer]
     bandwidth = bus_width * freq #B/s
@@ -245,8 +246,12 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
             cur_effbw = effbw[layer]
             path_delay = path.datavolume / cur_effbw
             for s, d in zip(path.via[:-1], path.via[1:]):
-                # via_delay[(s, d)] = path_delay
-                via_delay.update({(s, d): via_delay.get((s, d), 0) + path_delay})
+                if ideal:
+                    # max delay only
+                    via_delay.update({(s, d): max(via_delay.get((s, d), 0), path_delay)})
+                else:
+                    # all delay accumulation
+                    via_delay.update({(s, d): via_delay.get((s, d), 0) + path_delay})
         # update path delay
         cur_max_path_delay = 0.0
         for _, path in merged_paths:
