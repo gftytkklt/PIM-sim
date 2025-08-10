@@ -264,8 +264,14 @@ def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None, 
         print("Ideal case added")
         opt_combinations.append((1, 1))  # 添加理想情况
         # print(opt_combinations)
-    bar_width = 0.18  # 调整宽度适应更多分组
-    inner_space = 0.2
+    # bar_width = 0.18  # 调整宽度适应更多分组
+    # inner_space = 0.2
+    n_opts = len(opt_combinations)
+    max_bar_width = 0.18  # 最大柱宽
+    group_width = 0.9
+    bar_width = min(max_bar_width, group_width / (n_opts + (n_opts-1)*0.2))
+    inner_space = bar_width * 0.2  # 间距与柱宽比例关联
+
     index = np.arange(len(models))
     
     # 绘图参数初始化
@@ -284,7 +290,8 @@ def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None, 
         # print(values)
         
         # 创建柱状图
-        pos = index + i * bar_width * (1 + inner_space)
+        # pos = index + i * bar_width * (1 + inner_space)
+        pos = index + i * (bar_width + inner_space)
         bars = ax.bar(pos, values, bar_width,
                       color=palette[i%len(palette)],
                       edgecolor='black',
@@ -327,7 +334,7 @@ def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None, 
     ax.spines['bottom'].set_linewidth(0.5)
     ax.spines['left'].set_linewidth(0.5)
 
-    legend = ax.legend(ncol=2, loc='upper left', 
+    legend = ax.legend(ncol=n_opts, loc='upper left', 
                      bbox_to_anchor=(0, 1.15),
                      frameon=True,
                      fancybox=False,
