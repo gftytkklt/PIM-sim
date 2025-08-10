@@ -246,18 +246,13 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
             cur_effbw = effbw[layer]
             path_delay = path.datavolume / cur_effbw
             for s, d in zip(path.via[:-1], path.via[1:]):
-                if ideal:
-                    # max delay only
-                    via_delay.update({(s, d): max(via_delay.get((s, d), 0), path_delay)})
-                else:
-                    # all delay accumulation
-                    via_delay.update({(s, d): via_delay.get((s, d), 0) + path_delay})
+                via_delay.update({(s, d): via_delay.get((s, d), 0) + path_delay})
         # update path delay
         cur_max_path_delay = 0.0
-        for _, path in merged_paths:
+        for layer, path in merged_paths:
             path_delay = 0
             for s, d in zip(path.via[:-1], path.via[1:]):
-                path_delay += via_delay[(s, d)]
+                path_delay += via_delay[(s, d)] if not ideal else path.datavolume / cur_effbw
             cur_max_path_delay = max(cur_max_path_delay, path_delay)
         # generate computation pipeline layer-wise
         cur_max_compute_latency = 0.0

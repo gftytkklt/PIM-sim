@@ -348,6 +348,133 @@ def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None, 
     file_name = f'results/norm_{plot_type}_{bw}.pdf'
     fig.savefig(file_name, dpi=600, bbox_inches='tight')
 
+# for different bw performance plot
+def plot_bw_perf(mapping_results, bw_list=[1,2,4,8,16], xbar_size=(256, 256), norm=1, plot_type=None):
+        # 设置学术风格参数
+    plt.style.use('seaborn-v0_8-paper')
+    plt.rcParams.update({
+        "font.family": "Times New Roman",
+        "mathtext.fontset": "stix",
+        "axes.titlesize": 20,
+        "axes.labelsize": 16,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
+        "legend.fontsize": 12,
+        "grid.linewidth": 0.5,
+        "lines.linewidth": 1,
+        "hatch.linewidth": 0.5,
+        'font.weight': 'bold'
+    })
+    fig, ax = plt.subplots(figsize=(8, 4.5))  # 更适合论文栏宽的尺寸
+
+    # 学术配色方案（ColorBrewer Set1 + 灰度扩展）
+    palette = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#b07aa1', '#9c755f']
+    hatch_patterns = ['//', '\\\\', '||', '--', '++', 'xx', 'oo']
+    
+    # 获取绘图数据
+    models = list(mapping_results.keys())
+    opt_combinations = sorted(set(opt for opts in mapping_results.values() for opt in opts))
+    index = np.arange(len(models))
+    
+    # 绘图参数初始化
+    lat_dict = {}
+    thr_dict = {}
+    # list_id = 0 if plot_type == "latency" else 1
+
+    for bw in bw_list:
+        print(f"bw: {bw}")
+        latency_dict, _ = load_noc_perf(bw, xbar_size)
+        avg_lat = []
+        avg_thr = []
+        base_values = []
+        for opt in opt_combinations:
+            # six absolute value for different models
+            values = [latency_est(mapping_res=mapping_results[model].get(opt, 0), bus_width=bw, comm_lat=latency_dict[(model, opt)] if latency_dict is not None else None)[0:2] for model in models]
+            # latency = [v[0] for v in values]
+            # throughput = [v[1] for v in values]
+            # rely on baseline is the first opt option
+            if norm and not base_values:
+                base_values = values
+            # values = [v/b for v, b in zip(values, base_values)]
+            latency = [v[0]/b[0] for v, b in zip(values, base_values)] if base_values else latency
+            throughput = [v[1]/b[1] for v, b in zip(values, base_values)] if base_values else throughput
+            print(latency)
+            print(throughput)
+            avg_lat.append(np.mean(latency))
+            avg_thr.append(np.mean(throughput))
+        # print(bw_avgs)
+        lat_dict[bw] = avg_lat
+        thr_dict[bw] = avg_thr
+        print(lat_dict[bw], thr_dict[bw])
+
+    n_opts = len(opt_combinations)
+    n_bw = len(bw_list)
+    max_bar_width = 0.18  # 最大柱宽
+    group_width = 0.8
+    bar_width = min(max_bar_width, group_width / n_opts)
+    inner_space = bar_width * 0.2  # 间距与柱宽比例关联
+    
+    index = np.arange(n_bw)
+    
+    # 绘制柱状图
+    for i, opt in enumerate(opt_combinations):
+        lat_values = [lat_dict[bw][i] for bw in bw_list]
+        thr_values = [thr_dict[bw][i] for bw in bw_list]
+
+        # 计算柱状图位置
+        pos = index + i * (bar_width + inner_space)
+        
+        bars = ax.bar(pos, lat_values, bar_width,
+                      color=palette[i % len(palette)],
+                      edgecolor='black',
+                      linewidth=0.6,
+                      hatch=hatch_patterns[i % len(hatch_patterns)],
+                      alpha=0.9,
+                      label=f'{get_opt_str(opt)}')
+        
+        # 特殊标注理想情况
+        if opt == (1, 1):
+            for bar, value in zip(bars, lat_values):
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2, height, 
+                        f'{value:.2f}', 
+                        ha='center', va='bottom',
+                        fontsize=8, rotation=0, fontweight='bold',
+                        bbox=dict(facecolor='white', alpha=0.8, 
+                                edgecolor='none', pad=0.2))
+    
+    # 坐标轴和标签优化
+    ylabel = f"Normalized {plot_type}" if norm else plot_type
+    ax.set_ylabel(ylabel, labelpad=5, fontweight='bold')
+    ax.set_xlabel('Bus Width', fontweight='bold')
+    
+    # 设置横坐标标签为带宽值
+    ax.set_xticks(index + (n_opts - 1) * (bar_width + inner_space) / 2)
+    ax.set_xticklabels([str(bw) for bw in bw_list], 
+                     rotation=0, ha='center', rotation_mode='anchor', fontweight='bold')
+    
+    # 网格和边框优化
+    ax.yaxis.grid(True, linestyle='--', alpha=0.6)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_linewidth(0.5)
+    ax.spines['left'].set_linewidth(0.5)
+
+    # 图例
+    legend = ax.legend(ncol=n_opts, loc='upper left', 
+                     bbox_to_anchor=(0, 1.15),
+                     frameon=True,
+                     fancybox=False,
+                     shadow=False,
+                     edgecolor='black',
+                     prop={'weight': 'bold'})
+    legend.get_frame().set_linewidth(0.5)
+    
+    # 紧凑布局并保存
+    plt.tight_layout(pad=1.5)
+    file_name = f'results/avg_by_bw_{plot_type}.pdf'
+    fig.savefig(file_name, dpi=600, bbox_inches='tight')
+
 def brkdown_stat(comm_segs, latency_dict, bw=1):
     models = list(comm_segs.keys())
     opt_combinations = [(0, 0), (1, 1)]
@@ -964,25 +1091,24 @@ def load_noc_perf(bw, xbar_size):
         return None
 
 if __name__ == "__main__":
-    bw = 1
+    bw_list = [1, 2, 4, 8, 16]
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 8, (0,0), 1)
     begin_time = time.time()
-    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
+    mapping_result, comm_result = perf_analysis(models_dir='demo', hwinfo = hw_info)
     print(f"Total Time: {time.time()-begin_time}")
-    perf_dict = load_noc_perf(bw, xbar_size)
-    if perf_dict is None:
-        print("latency dict not found. generate by mapping result...")
-        latency_dict, power_dict = get_noc_perf(mapping_result, bw, xbar_size, save=True)
-    else:
-        print("latency dict found. use it.")
-        latency_dict, power_dict = perf_dict
-    
-    # print(latency_dict)
-    # # print(power_dict)
-    # power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency", ideal=1)
-    plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput", ideal=1)
+    # for bw in bw_list:
+    #     perf_dict = load_noc_perf(bw, xbar_size)
+    #     if perf_dict is None:
+    #         print("latency dict not found. generate by mapping result...")
+    #         latency_dict, power_dict = get_noc_perf(mapping_result, bw, xbar_size, save=True)
+    #     else:
+    #         print("latency dict found. use it.")
+    #         latency_dict, power_dict = perf_dict
+    #     power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
+    #     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency", ideal=1)
+    #     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput", ideal=1)
+    plot_bw_perf(mapping_result, bw_list, xbar_size)
     # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     # plot_all_comm(key_list, comm_result)
     # for key in key_list:
