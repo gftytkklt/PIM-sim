@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from matplotlib.ticker import PercentFormatter
 import numpy as np
+from statistics import geometric_mean as gmean
 import logging
 import pickle
 import time
@@ -365,17 +366,17 @@ def plot_bw_perf(mapping_results, bw_list=[1,2,4,8,16], xbar_size=(256, 256), no
         "hatch.linewidth": 0.5,
         'font.weight': 'bold'
     })
-    fig, ax = plt.subplots(figsize=(8, 4.5))  # 更适合论文栏宽的尺寸
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 5))
 
     # 学术配色方案（ColorBrewer Set1 + 灰度扩展）
     palette = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#b07aa1', '#9c755f']
-    hatch_patterns = ['//', '\\\\', '||', '--', '++', 'xx', 'oo']
+    markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*']  # 不同标记样式
     
     # 获取绘图数据
     models = list(mapping_results.keys())
     opt_combinations = sorted(set(opt for opts in mapping_results.values() for opt in opts))
-    index = np.arange(len(models))
-    
+    opt_labels = [get_opt_str(opt) for opt in opt_combinations]
+
     # 绘图参数初始化
     lat_dict = {}
     thr_dict = {}
@@ -398,82 +399,190 @@ def plot_bw_perf(mapping_results, bw_list=[1,2,4,8,16], xbar_size=(256, 256), no
             # values = [v/b for v, b in zip(values, base_values)]
             latency = [v[0]/b[0] for v, b in zip(values, base_values)] if base_values else latency
             throughput = [v[1]/b[1] for v, b in zip(values, base_values)] if base_values else throughput
-            print(latency)
-            print(throughput)
-            avg_lat.append(np.mean(latency))
-            avg_thr.append(np.mean(throughput))
+            # print(latency)
+            # print(throughput)
+            # avg_lat.append(np.mean(latency))
+            # avg_thr.append(np.mean(throughput))
+            # geometric mean
+            avg_lat.append(gmean(latency))
+            avg_thr.append(gmean(throughput))
         # print(bw_avgs)
         lat_dict[bw] = avg_lat
         thr_dict[bw] = avg_thr
-        print(lat_dict[bw], thr_dict[bw])
+        # print(lat_dict[bw], thr_dict[bw])
 
-    n_opts = len(opt_combinations)
-    n_bw = len(bw_list)
-    max_bar_width = 0.18  # 最大柱宽
-    group_width = 0.8
-    bar_width = min(max_bar_width, group_width / n_opts)
-    inner_space = bar_width * 0.2  # 间距与柱宽比例关联
+    # 重组数据结构：按优化策略而不是带宽
+    lat_by_opt = {}
+    thr_by_opt = {}
     
-    index = np.arange(n_bw)
-    
-    # 绘制柱状图
     for i, opt in enumerate(opt_combinations):
-        lat_values = [lat_dict[bw][i] for bw in bw_list]
-        thr_values = [thr_dict[bw][i] for bw in bw_list]
+        lat_by_opt[opt] = [lat_dict[bw][i] for bw in bw_list]
+        thr_by_opt[opt] = [thr_dict[bw][i] for bw in bw_list]
+    
+    # 绘制延迟折线图 (ax1)
+    for i, opt in enumerate(opt_combinations):
+        values = lat_by_opt[opt]
+        ax1.plot(bw_list, values, 
+                 marker=markers[i % len(markers)], 
+                 markersize=8,
+                 linewidth=2,
+                 color=palette[i % len(palette)],
+                 label=get_opt_str(opt))
+    
+    # 设置延迟图标题和标签
+    ax1.set_title('Average Latency' if norm else 'Latency', fontweight='bold')
+    # ax1.set_ylabel('Normalized Latency' if norm else 'Latency', fontweight='bold')
+    ax1.set_xlabel('Bus Width(GB)', fontweight='bold')
+    
+    # 设置X轴刻度
+    ax1.set_xticks(bw_list)
+    
+    # 设置Y轴范围
+    min_lat = min(min(values) for values in lat_by_opt.values())
+    max_lat = max(max(values) for values in lat_by_opt.values())
+    ax1.set_ylim(min_lat * 0.9, max_lat * 1.1)
 
-        # 计算柱状图位置
-        pos = index + i * (bar_width + inner_space)
-        
-        bars = ax.bar(pos, lat_values, bar_width,
-                      color=palette[i % len(palette)],
-                      edgecolor='black',
-                      linewidth=0.6,
-                      hatch=hatch_patterns[i % len(hatch_patterns)],
-                      alpha=0.9,
-                      label=f'{get_opt_str(opt)}')
-        
-        # 特殊标注理想情况
-        if opt == (1, 1):
-            for bar, value in zip(bars, lat_values):
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2, height, 
-                        f'{value:.2f}', 
-                        ha='center', va='bottom',
-                        fontsize=8, rotation=0, fontweight='bold',
-                        bbox=dict(facecolor='white', alpha=0.8, 
-                                edgecolor='none', pad=0.2))
+    # 在延迟子图上添加最后一个点的数值
+    for i, opt in enumerate(opt_combinations):
+        values = lat_by_opt[opt]
+        last_value = values[-1]
+        ax1.text(bw_list[-1], last_value, f'{last_value:.2f}', 
+                ha='left', va='center', fontsize=9, fontweight='bold',
+                bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', pad=0.5))
     
-    # 坐标轴和标签优化
-    ylabel = f"Normalized {plot_type}" if norm else plot_type
-    ax.set_ylabel(ylabel, labelpad=5, fontweight='bold')
-    ax.set_xlabel('Bus Width', fontweight='bold')
+    # 绘制吞吐量折线图 (ax2)
+    for i, opt in enumerate(opt_combinations):
+        values = thr_by_opt[opt]
+        ax2.plot(bw_list, values, 
+                 marker=markers[i % len(markers)], 
+                 markersize=8,
+                 linewidth=2,
+                 color=palette[i % len(palette)],
+                 label=get_opt_str(opt))
     
-    # 设置横坐标标签为带宽值
-    ax.set_xticks(index + (n_opts - 1) * (bar_width + inner_space) / 2)
-    ax.set_xticklabels([str(bw) for bw in bw_list], 
-                     rotation=0, ha='center', rotation_mode='anchor', fontweight='bold')
+    # 设置吞吐量图标题和标签
+    ax2.set_title('Average Throughput' if norm else 'Throughput', fontweight='bold')
+    # ax2.set_ylabel('Normalized Throughput' if norm else 'Throughput', fontweight='bold')
+    ax2.set_xlabel('Bus Width(GB)', fontweight='bold')
     
-    # 网格和边框优化
-    ax.yaxis.grid(True, linestyle='--', alpha=0.6)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_linewidth(0.5)
-    ax.spines['left'].set_linewidth(0.5)
+    # 设置X轴刻度
+    ax2.set_xticks(bw_list)
+    
+    # 设置Y轴范围
+    min_thr = min(min(values) for values in thr_by_opt.values())
+    max_thr = max(max(values) for values in thr_by_opt.values())
+    ax2.set_ylim(min_thr * 0.9, max_thr * 1.1)
 
-    # 图例
-    legend = ax.legend(ncol=n_opts, loc='upper left', 
-                     bbox_to_anchor=(0, 1.15),
-                     frameon=True,
-                     fancybox=False,
-                     shadow=False,
-                     edgecolor='black',
-                     prop={'weight': 'bold'})
-    legend.get_frame().set_linewidth(0.5)
+    for i, opt in enumerate(opt_combinations):
+        values = thr_by_opt[opt]
+        last_value = values[-1]
+        ax2.text(bw_list[-1], last_value, f'{last_value:.2f}', 
+                ha='left', va='center', fontsize=9, fontweight='bold',
+                bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', pad=0.5))
+    
+    # 共享图例
+    handles, labels = ax1.get_legend_handles_labels()
+    fig.legend(handles, labels, 
+               loc='upper center', 
+               ncol=len(opt_combinations),
+               bbox_to_anchor=(0.5, 1.05),
+               frameon=True,
+               fancybox=False,
+               shadow=False,
+               edgecolor='black',
+               prop={'weight': 'bold'})
+    
+    # 网格和边框优化（两个子图）
+    for ax in [ax1, ax2]:
+        ax.yaxis.grid(True, linestyle='--', alpha=0.6)
+        ax.xaxis.grid(False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_linewidth(0.5)
+        ax.spines['left'].set_linewidth(0.5)
     
     # 紧凑布局并保存
-    plt.tight_layout(pad=1.5)
-    file_name = f'results/avg_by_bw_{plot_type}.pdf'
+    plt.tight_layout(rect=[0, 0, 1, 0.95])  # 为图例留出空间
+    file_name = f'results/dual_line_by_opt_{"norm" if norm else "raw"}.pdf'
     fig.savefig(file_name, dpi=600, bbox_inches='tight')
+
+    # # 绘制延迟折线图 (ax1)
+    # for i, bw in enumerate(bw_list):
+    #     values = lat_dict[bw]
+    #     ax1.plot(opt_labels, values, 
+    #              marker=markers[i % len(markers)], 
+    #              markersize=8,
+    #              linewidth=2,
+    #              color=palette[i % len(palette)],
+    #              label=f'BW={bw}')
+        
+    #     # 添加数据点标签
+    #     for j, value in enumerate(values):
+    #         ax1.text(j, value, f'{value:.2f}', 
+    #                  ha='center', va='bottom',
+    #                  fontsize=9, fontweight='bold')
+    
+    # # 设置延迟图标题和标签
+    # ax1.set_title('Average Latency' if norm else 'Latency', fontweight='bold')
+    # # ax1.set_ylabel('Normalized Latency' if norm else 'Latency', fontweight='bold')
+    # # ax1.set_xlabel('Optimization Strategy', fontweight='bold')
+    
+    # # 设置Y轴范围
+    # min_lat = min(min(values) for values in lat_dict.values())
+    # max_lat = max(max(values) for values in lat_dict.values())
+    # ax1.set_ylim(min_lat * 0.9, max_lat * 1.1)
+    
+    # # 绘制吞吐量折线图 (ax2)
+    # for i, bw in enumerate(bw_list):
+    #     values = thr_dict[bw]
+    #     ax2.plot(opt_labels, values, 
+    #              marker=markers[i % len(markers)], 
+    #              markersize=8,
+    #              linewidth=2,
+    #              color=palette[i % len(palette)],
+    #              label=f'BW={bw}')
+        
+    #     # 添加数据点标签
+    #     for j, value in enumerate(values):
+    #         ax2.text(j, value, f'{value:.2f}', 
+    #                  ha='center', va='bottom',
+    #                  fontsize=9, fontweight='bold')
+    
+    # # 设置吞吐量图标题和标签
+    # ax2.set_title('Average Throughput' if norm else 'Throughput', fontweight='bold')
+    # # ax2.set_ylabel('Normalized Throughput' if norm else 'Throughput', fontweight='bold')
+    # # ax2.set_xlabel('Optimization Strategy', fontweight='bold')
+    
+    # # 设置Y轴范围
+    # min_thr = min(min(values) for values in thr_dict.values())
+    # max_thr = max(max(values) for values in thr_dict.values())
+    # ax2.set_ylim(min_thr * 0.9, max_thr * 1.1)
+    
+    # # 共享图例
+    # handles, labels = ax1.get_legend_handles_labels()
+    # fig.legend(handles, labels, 
+    #            loc='upper center', 
+    #            ncol=len(bw_list),
+    #            bbox_to_anchor=(0.5, 1.05),
+    #            frameon=True,
+    #            fancybox=False,
+    #            shadow=False,
+    #            edgecolor='black',
+    #            prop={'weight': 'bold'})
+    
+    # # 网格和边框优化（两个子图）
+    # for ax in [ax1, ax2]:
+    #     ax.yaxis.grid(True, linestyle='--', alpha=0.6)
+    #     ax.xaxis.grid(False)
+    #     ax.spines['top'].set_visible(False)
+    #     ax.spines['right'].set_visible(False)
+    #     ax.spines['bottom'].set_linewidth(0.5)
+    #     ax.spines['left'].set_linewidth(0.5)
+    
+    # # 紧凑布局并保存
+    # plt.tight_layout(rect=[0, 0, 1, 0.95])  # 为图例留出空间
+    # file_name = f'results/dual_line_by_bw_{"norm" if norm else "raw"}.pdf'
+    # fig.savefig(file_name, dpi=600, bbox_inches='tight')
 
 def brkdown_stat(comm_segs, latency_dict, bw=1):
     models = list(comm_segs.keys())
@@ -1095,7 +1204,7 @@ if __name__ == "__main__":
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 8, (0,0), 1)
     begin_time = time.time()
-    mapping_result, comm_result = perf_analysis(models_dir='demo', hwinfo = hw_info)
+    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
     print(f"Total Time: {time.time()-begin_time}")
     # for bw in bw_list:
     #     perf_dict = load_noc_perf(bw, xbar_size)
