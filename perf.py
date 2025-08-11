@@ -117,7 +117,7 @@ def plot_all_comm(dict_list, comm_result):
     
     # 统一配色方案和阴影模式
     palette = ['#2b83ba', '#abdda4', '#fdae61', '#d7191c']  # ColorBrewer 4-class
-    hatches = ['///', '\\\\\\', '|||', '---']
+    # hatches = ['///', '\\\\\\', '|||', '---']
     
     # 遍历数据集
     for idx, dict_key in enumerate(dict_list):
@@ -126,7 +126,7 @@ def plot_all_comm(dict_list, comm_result):
                  dict_key=dict_key,
                  norm=1,
                  palette=palette,
-                 hatches=hatches,
+                #  hatches=hatches,
                  subplot_label=f'({chr(97+idx)})')  # (a), (b) 格式
 
     # 统一图例
@@ -176,7 +176,7 @@ def plot_comm(comm_result, ax=None, dict_key=None, norm=1,
         
         bars = ax.bar(pos, values, bar_width,
                       color=color,
-                      edgecolor='black',
+                      edgecolor='none',
                       linewidth=0.6,
                       hatch=hatch,
                       alpha=0.9,
@@ -255,7 +255,7 @@ def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None, 
 
     # 学术配色方案（ColorBrewer Set1 + 灰度扩展）
     palette = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#b07aa1', '#9c755f']
-    hatch_patterns = ['//', '\\\\', '||', '--', '++', 'xx', 'oo']
+    # hatch_patterns = ['//', '\\\\', '||', '--', '++', 'xx', 'oo']
     
     # 获取绘图数据
     models = list(mapping_results.keys())
@@ -295,9 +295,9 @@ def plot_perf(mapping_results, latency_dict=None, bw=4, norm=0, plot_type=None, 
         pos = index + i * (bar_width + inner_space)
         bars = ax.bar(pos, values, bar_width,
                       color=palette[i%len(palette)],
-                      edgecolor='black',
+                      edgecolor='none',
                       linewidth=0.6,
-                      hatch=hatch_patterns[i%len(hatch_patterns)],
+                    #   hatch=hatch_patterns[i%len(hatch_patterns)],
                       alpha=0.9,
                       label=f'{get_opt_str(opt, cur_ideal)}',
                       error_kw=error_kw)
@@ -586,65 +586,115 @@ def plot_bw_perf(mapping_results, bw_list=[1,2,4,8,16], xbar_size=(256, 256), no
 
 def brkdown_stat(comm_segs, latency_dict, bw=1):
     models = list(comm_segs.keys())
-    opt_combinations = [(0, 0), (1, 1)]
+    print(models)
+    opt_combinations = [(0, 0), (0, 1), (1, 0), (1, 1)]
     perf_dict = {}
     for opt in opt_combinations:
+        print(get_opt_str(opt))
         perf_dict[opt] = {}
         stats = [latency_est(mapping_res=comm_segs[model].get(opt, 0), 
                             bus_width=bw, 
                             comm_lat=latency_dict[(model, opt)])
                  for model in models]
         overall_stats = [stat[0] for stat in stats]
-        cal_stats = [stat[2] for stat in stats]
-        merge_stats = [stat[4] for stat in stats]
-        trans_stats = [overall_stat - cal_stat - merge_stat for overall_stat, cal_stat, merge_stat in zip(overall_stats, cal_stats, merge_stats)]
+        cal_stats = [sum(stat[3]) for stat in stats]
+        trans_stats = [sum(stat[2]) for stat in stats]
+        print(overall_stats)
+        print(cal_stats)
+        print(trans_stats)
+        # merge_stats = [stat[4] for stat in stats]
+        # trans_stats = [overall_stat - cal_stat - merge_stat for overall_stat, cal_stat, merge_stat in zip(overall_stats, cal_stats, merge_stats)]
         perf_dict[opt]["overall"] = overall_stats
         perf_dict[opt]["cal"] = cal_stats
-        perf_dict[opt]["merge"] = merge_stats
+        # perf_dict[opt]["merge"] = merge_stats
         perf_dict[opt]["trans"] = trans_stats
     pickle.dump(perf_dict, open("results/perf_dict.pkl", "wb"))
 
 def brkdown_analysis():
     stats = pickle.load(open("results/perf_dict.pkl", "rb"))
     base_stats = stats[(0, 0)]
+    HITM_stats = stats[(0, 1)]
+    SPATEM_stats = stats[(1, 0)]
     opt_stats = stats[(1, 1)]
+
     base_cal = base_stats["cal"]
-    base_merge = base_stats["merge"]
     base_trans = base_stats["trans"]
+    base_overall = [c + t for c, t in zip(base_cal, base_trans)]
+
+    HITM_cal = HITM_stats["cal"]
+    HITM_trans = HITM_stats["trans"]
+    HITM_overall = [c + t for c, t in zip(HITM_cal, HITM_trans)]
+
+    SPATEM_cal = SPATEM_stats["cal"]
+    SPATEM_trans = SPATEM_stats["trans"]
+    SPATEM_overall = [c + t for c, t in zip(SPATEM_cal, SPATEM_trans)]
+
     opt_cal = opt_stats["cal"]
-    opt_merge = opt_stats["merge"]
     opt_trans = opt_stats["trans"]
+    opt_overall = [c + t for c, t in zip(opt_cal, opt_trans)]
+
+    HITM_cal_improve = [(opt - base) / base for base, opt in zip(base_cal, HITM_cal)]
+    SPATEM_cal_improve = [(opt - base) / base for base, opt in zip(base_cal, SPATEM_cal)]
     cal_improve = [(opt - base) / base for base, opt in zip(base_cal, opt_cal)]
-    merge_improve = [(opt - base) / base for base, opt in zip(base_merge, opt_merge)]
+    
+    HITM_trans_improve = [(opt - base) / base for base, opt in zip(base_trans, HITM_trans)]
+    SPATEM_trans_improve = [(opt - base) / base for base, opt in zip(base_trans, SPATEM_trans)]
     trans_improve = [(opt - base) / base for base, opt in zip(base_trans, opt_trans)]
-    # print base stat, transfer to ms
-    # base_cal = [f"{stat*10:.2f}ms" for stat in base_cal]
-    # base_merge = [f"{stat*10:.2f}ms" for stat in base_merge]
-    # base_trans = [f"{stat*10:.2f}ms" for stat in base_trans]
+
+    HITM_overall_improve = [(opt - base) / base for base, opt in zip(base_overall, HITM_overall)]
+    SPATEM_overall_improve = [(opt - base) / base for base, opt in zip(base_overall, SPATEM_overall)]
+    overall_improve = [(opt - base) / base for base, opt in zip(base_overall, opt_overall)]
     # multiple by 10 to transfer to ms
     base_cal = [f"{stat*10}" for stat in base_cal]
-    base_merge = [f"{stat*10}" for stat in base_merge]
     base_trans = [f"{stat*10}" for stat in base_trans]
+    base_overall = [f"{stat*10}" for stat in base_overall]
+
+    HITM_cal = [f"{stat*10}" for stat in HITM_cal]
+    HITM_trans = [f"{stat*10}" for stat in HITM_trans]
+    HITM_overall = [f"{stat*10}" for stat in HITM_overall]
+
+    SPATEM_cal = [f"{stat*10}" for stat in SPATEM_cal]
+    SPATEM_trans = [f"{stat*10}" for stat in SPATEM_trans]
+    SPATEM_overall = [f"{stat*10}" for stat in SPATEM_overall]
+
     opt_cal = [f"{stat*10}" for stat in opt_cal]
-    opt_merge = [f"{stat*10}" for stat in opt_merge]
     opt_trans = [f"{stat*10}" for stat in opt_trans]
+    opt_overall = [f"{stat*10}" for stat in opt_overall]
     print("base_cal:", base_cal)
-    print("base_merge:", base_merge)
     print("base_trans:", base_trans)
-    # print improve stat, transfer to ms
-    # opt_cal = [f"{stat*10:.2f}ms" for stat in opt_cal]
-    # opt_merge = [f"{stat*10:.2f}ms" for stat in opt_merge]
-    # opt_trans = [f"{stat*10:.2f}ms" for stat in opt_trans]
+    print("base_overall:", base_overall)
+    print("HITM_cal:", HITM_cal)
+    print("HITM_trans:", HITM_trans)
+    print("HITM_overall:", HITM_overall)
+    print("SPATEM_cal:", SPATEM_cal)
+    print("SPATEM_trans:", SPATEM_trans)
+    print("SPATEM_overall:", SPATEM_overall)
     print("opt_cal:", opt_cal)
-    print("opt_merge:", opt_merge)
     print("opt_trans:", opt_trans)
+    print("opt_overall:", opt_overall)
+
     # transfer to percentage, reserve 2 decimal
-    cal_improve = [f"{improve:.2%}" for improve in cal_improve]  
-    merge_improve = [f"{improve:.2%}" for improve in merge_improve]
+    HITM_cal_improve = [f"{improve:.2%}" for improve in HITM_cal_improve]
+    SPATEM_cal_improve = [f"{improve:.2%}" for improve in SPATEM_cal_improve]
+    cal_improve = [f"{improve:.2%}" for improve in cal_improve]
+
+    HITM_trans_improve = [f"{improve:.2%}" for improve in HITM_trans_improve]
+    SPATEM_trans_improve = [f"{improve:.2%}" for improve in SPATEM_trans_improve]
     trans_improve = [f"{improve:.2%}" for improve in trans_improve]
+
+    HITM_overall_improve = [f"{improve:.2%}" for improve in HITM_overall_improve]
+    SPATEM_overall_improve = [f"{improve:.2%}" for improve in SPATEM_overall_improve]
+    overall_improve = [f"{improve:.2%}" for improve in overall_improve]
+
+    print("HITM_cal_improve:", HITM_cal_improve)
+    print("HITM_trans_improve:", HITM_trans_improve)
+    print("HITM_overall_improve:", HITM_overall_improve)
+    print("SPATEM_cal_improve:", SPATEM_cal_improve)
+    print("SPATEM_trans_improve:", SPATEM_trans_improve)
+    print("SPATEM_overall_improve:", SPATEM_overall_improve)
     print("cal_improve:", cal_improve)
-    print("merge_improve:", merge_improve)
     print("trans_improve:", trans_improve)
+    print("overall_improve:", overall_improve)
 
 def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1, ideal = 0):
     plt.rcParams["font.family"] = "Times New Roman"
@@ -670,19 +720,24 @@ def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1, ideal = 0):
         # 获取数据
         cm_pers = [latency_est(mapping_res=comm_segs[model].get(opt, 0), 
                             bus_width=bw, 
-                            comm_lat=latency_dict[(model, opt)], ideal=ideal)[3:6] 
+                            comm_lat=latency_dict[(model, opt)], ideal=ideal)[2:4] 
                  for model in models]
         
-        cal_pers = [cm_per[0] for cm_per in cm_pers]
-        merge_pers = [cm_per[2] for cm_per in cm_pers]
-        lat_pers = [1 - cal_per - merge_per for cal_per, merge_per in zip(cal_pers, merge_pers)]
+        cal_lat = [sum(cm_per[1]) for cm_per in cm_pers]
+        lat_lat = [sum(cm_per[0]) for cm_per in cm_pers]
+        cal_pers = [cal / (cal + lat) if (cal + lat) > 0 else 0 for cal, lat in zip(cal_lat, lat_lat)]
+        lat_pers = [lat / (cal + lat) if (cal + lat) > 0 else 0 for cal, lat in zip(cal_lat, lat_lat)]
+        print(cal_pers, lat_pers)
+        # merge_pers = [cm_per[2] for cm_per in cm_pers]
+        # lat_pers = [1 - cal_per - merge_per for cal_per, merge_per in zip(cal_pers, merge_pers)]
         
         # 绘制堆叠条形图
         bars1 = ax.barh(index, cal_pers, bar_width, color=color_palette[0], label='Compute', edgecolor='black', linewidth=0.8)
-        bars2 = ax.barh(index, merge_pers, bar_width, left=cal_pers, color=color_palette[1], label='Merge', edgecolor='black', linewidth=0.8)
-        bars3 = ax.barh(index, lat_pers, bar_width, 
-                       left=[c + m for c, m in zip(cal_pers, merge_pers)], 
-                       color=color_palette[2], label='Latency', edgecolor='black', linewidth=0.8)
+        # bars2 = ax.barh(index, merge_pers, bar_width, left=cal_pers, color=color_palette[1], label='Merge', edgecolor='black', linewidth=0.8)
+        bars2 = ax.barh(index, lat_pers, bar_width, left=cal_pers, color=color_palette[1], label='Trans', edgecolor='black', linewidth=0.8)
+        # bars3 = ax.barh(index, lat_pers, bar_width, 
+        #                left=[c + m for c, m in zip(cal_pers, merge_pers)], 
+        #                color=color_palette[2], label='Latency', edgecolor='black', linewidth=0.8)
         
         # 优化百分比标签
         label_params = {
@@ -692,13 +747,11 @@ def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1, ideal = 0):
             'color': 'black',
             'fontweight': 'bold'
         }
-        for j, (cal_per, merge_per, lat_per) in enumerate(zip(cal_pers, merge_pers, lat_pers)):
+        for j, (cal_per, lat_per) in enumerate(zip(cal_pers, lat_pers)):
             if cal_per > threshold:
                 ax.text(cal_per/2, j, f'{cal_per*100:.0f}%', **label_params)
-            if merge_per > threshold:
-                ax.text(cal_per + merge_per/2, j, f'{merge_per*100:.0f}%', **label_params)
             if lat_per > threshold:
-                ax.text(cal_per + merge_per + lat_per/2-0.02, j,  # 微调位置
+                ax.text(cal_per + lat_per/2-0.02, j,  # 微调位置
                        f'{lat_per*100:.0f}%', **label_params)
         # 优化坐标轴设置
         ax.set_title(get_opt_str(opt), pad=10, fontsize=12, fontweight='bold')
@@ -722,8 +775,10 @@ def plot_brkdown(comm_segs, latency_dict, bw=1, threshold=0.1, ideal = 0):
                fontsize=12, fontweight='bold')
 
     # 优化图例
-    handles = [bars1, bars2, bars3]
-    labels = ['Compute', 'Merge', 'Trans']
+    # handles = [bars1, bars2, bars3]
+    handles = [bars1, bars2]
+    # labels = ['Compute', 'Merge', 'Trans']
+    labels = ['Compute', 'Trans']
     fig.legend(handles, labels,
               loc='upper center',
               bbox_to_anchor=(0.5, 1.02),  # 提升图例位置
@@ -1109,6 +1164,7 @@ def plot_pipeline():
 def power_analysis(mapping_results, latency_dict, power_dict, bw, comm_results=None):
     models = list(mapping_results.keys())
     opt_combinations = sorted(set(opt for opts in mapping_results.values() for opt in opts))
+    all_powers = {opt: [] for opt in opt_combinations}
     for i, opt in enumerate(opt_combinations):
         print(f"Optimization: {get_opt_str(opt)}")
         ideal = 1 if i == 4 else 0
@@ -1127,9 +1183,15 @@ def power_analysis(mapping_results, latency_dict, power_dict, bw, comm_results=N
         if comm_results is not None:
             data_volume = [comm_results[model].get(opt, {}).get('datavolume', 0) for model in models]
             efficiency = [ 1 / p for p, dv in zip(power, data_volume)]
-        print(f"Power Consumption for {get_opt_str(opt)}: {power}")
-        print(f"data_volume for {get_opt_str(opt)}: {data_volume}")
-        print(f"Efficiency for {get_opt_str(opt)}: {efficiency}")
+        # print(f"Power Consumption for {get_opt_str(opt)}: {power}")
+        # print(f"data_volume for {get_opt_str(opt)}: {data_volume}")
+        # print(f"Efficiency for {get_opt_str(opt)}: {efficiency}")
+        all_powers[opt] = power  # 存储当前优化的功耗数据
+
+        # normalized_power by all_powers[(0,0)]
+        if all_powers[(0, 0)]:
+            normalized_power = [p / all_powers[(0, 0)][i] for i, p in enumerate(power)]
+        print(normalized_power)
     return power, data_volume, efficiency
 
 def get_noc_perf(comm_segs, bus_width = None, xbar_size = None, save=False):
@@ -1204,8 +1266,10 @@ if __name__ == "__main__":
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 8, (0,0), 1)
     begin_time = time.time()
-    mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
-    print(f"Total Time: {time.time()-begin_time}")
+    # mapping_result, comm_result = perf_analysis(models_dir='models', hwinfo = hw_info)
+    print(f"Total Time: {time.time()-begin_time}")  
+
+    ## for bw data gen
     # for bw in bw_list:
     #     perf_dict = load_noc_perf(bw, xbar_size)
     #     if perf_dict is None:
@@ -1217,14 +1281,28 @@ if __name__ == "__main__":
     #     power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
     #     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="latency", ideal=1)
     #     plot_perf(mapping_result, latency_dict, bw, norm=1, plot_type="throughput", ideal=1)
-    plot_bw_perf(mapping_result, bw_list, xbar_size)
+    # plot_bw_perf(mapping_result, bw_list, xbar_size)
+
+    ## for bw=1 main case data gen
+    # perf_dict = load_noc_perf(1, xbar_size)
+    # if perf_dict is None:
+    #     print("latency dict not found. generate by mapping result...")
+    #     latency_dict, power_dict = get_noc_perf(mapping_result, 1, xbar_size, save=True)
+    # else:
+    #     print("latency dict found. use it.")
+    #     latency_dict, power_dict = perf_dict
+    # power_analysis(mapping_result, latency_dict, power_dict, 1, comm_result)
+    # plot_perf(mapping_result, latency_dict, 1, norm=1, plot_type="latency", ideal=1)
+    # plot_perf(mapping_result, latency_dict, 1, norm=1, plot_type="throughput", ideal=1)
     # key_list = ["path_num", "datavolume", "total_hops", "total_congestion"]
     # plot_all_comm(key_list, comm_result)
     # for key in key_list:
     #     get_data_percentage(comm_result, dict_key=key)
-    # # brkdown_stat(mapping_result, latency_dict, bw)
-    # plot_brkdown(mapping_result, latency_dict, bw, ideal=0)
-    # # brkdown_analysis()
+    # brkdown_stat(mapping_result, latency_dict, 1)
+
+    ## standalone brkdown analysis
+    brkdown_analysis()
+    # plot_brkdown(mapping_result, latency_dict, 1, ideal=0)
     # plot_bw(mapping_result, latency_dict, bw)
     # plot_xbarsize()
     # plot_pipeline()

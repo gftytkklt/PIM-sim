@@ -272,7 +272,7 @@ def latency_est(SimConfig_path='SimConfig.ini',inputbit=8, outputbit=8, mapping_
 
     overall_latency = sum(seg_cal_lat) + sum(seg_trans_lat)
     overall_throughput = 1 / max_layerseg_lat if overall_latency > 0 else float('inf')
-    return overall_latency, overall_throughput, seg_trans_lat, seg_trans_dict
+    return overall_latency, overall_throughput, seg_trans_lat, seg_cal_lat, seg_trans_dict
 
 def tile_latency_cal(SimConfig_path,tile_indata,inputbit,outputbit):
     modelL_config = cp.ConfigParser()
