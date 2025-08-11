@@ -945,7 +945,7 @@ def plot_grouped_bars(data1, data2,
     # 通用参数
     x = np.arange(len(bar_labels))  # 柱状图位置
     width = 0.35  # 柱宽
-    colors = ['#4C72B0', '#DD8452']  # 学术蓝橙配色
+    colors = ['#4C72B0', '#DD8452', '#55A868', '#C44E52']  # 学术蓝橙绿配色
 
     # 绘制子图1
     for idx, (d, label) in enumerate(zip(data1, group_labels)):
@@ -995,7 +995,7 @@ def plot_grouped_bars(data1, data2,
 
     # 统一图例
     handles = [plt.Rectangle((0,0),1,1, fc=colors[i], ec='white') 
-              for i in range(2)]
+              for i in range(3)]
     fig.legend(handles, group_labels,
               loc='upper center', 
               bbox_to_anchor=(0.5, 1.05),
@@ -1010,26 +1010,36 @@ def plot_grouped_bars(data1, data2,
     plt.close()
 
 def plot_xbarsize():
-    mapping_result_256, _ = perf_analysis(models_dir='demo', hwinfo = make_hw_info((256, 256), 4, (0,0), 1))
-    mapping_result_128, _ = perf_analysis(models_dir='demo', hwinfo = make_hw_info((128, 128), 4, (0,0), 1))
-    lat_dict_256 = pickle.load(open("results/noc_perf_dict_bw=1_xbar=256_256.pkl", "rb"))
-    lat_dict_128 = pickle.load(open("results/noc_perf_dict_bw=1_xbar=128_128.pkl", "rb"))
+    mapping_result_512, _ = perf_analysis(models_dir='xbars', hwinfo = make_hw_info((512, 512), 4, (0,0), 1))
+    mapping_result_256, _ = perf_analysis(models_dir='xbars', hwinfo = make_hw_info((256, 256), 4, (0,0), 1))
+    mapping_result_128, _ = perf_analysis(models_dir='xbars', hwinfo = make_hw_info((128, 128), 4, (0,0), 1))
+    # lat_dict_256 = pickle.load(open("results/noc_perf_dict_bw=1_xbar=256_256.pkl", "rb"))
+    # lat_dict_128 = pickle.load(open("results/noc_perf_dict_bw=1_xbar=128_128.pkl", "rb"))
+    lat_dict_512, _ = get_noc_perf(mapping_result_512, 1, xbar_size=(512, 512))
+    lat_dict_256, _ = get_noc_perf(mapping_result_256, 1, xbar_size=(256, 256))
+    lat_dict_128, _ = get_noc_perf(mapping_result_128, 1, xbar_size=(128, 128))
     model = 'vgg16.onnx'
     opt_combinations = sorted(set(opt for opts in mapping_result_256.values() for opt in opts))
+    res_512 = [latency_est(mapping_res=mapping_result_512[model].get(opt, 0), bus_width=1, comm_lat=lat_dict_512[(model, opt)]) for opt in opt_combinations]
     res_256 = [latency_est(mapping_res=mapping_result_256[model].get(opt, 0), bus_width=1, comm_lat=lat_dict_256[(model, opt)]) for opt in opt_combinations]
     res_128 = [latency_est(mapping_res=mapping_result_128[model].get(opt, 0), bus_width=1, comm_lat=lat_dict_128[(model, opt)]) for opt in opt_combinations]
+    lat_512 = [res[0] for res in res_512]
+    throughput_512 = [res[1] for res in res_512]
     lat_256 = [res[0] for res in res_256]
     throughput_256 = [res[1] for res in res_256]
     lat_128 = [res[0] for res in res_128]
     throughput_128 = [res[1] for res in res_128]
-    lat_base = lat_256[0]
+    lat_base = lat_128[0]
+    lat_512 = [lat / lat_base for lat in lat_512]
     lat_256 = [lat / lat_base for lat in lat_256]
     lat_128 = [lat / lat_base for lat in lat_128]
-    throughput_base = throughput_256[0]
+    throughput_base = throughput_128[0]
+    throughput_512 = [throughput / throughput_base for throughput in throughput_512]
     throughput_256 = [throughput / throughput_base for throughput in throughput_256]
     throughput_128 = [throughput / throughput_base for throughput in throughput_128]
     bar_labels = [get_opt_str(opt) for opt in opt_combinations]
-    plot_grouped_bars([lat_256, lat_128], [throughput_256, throughput_128], bar_labels=bar_labels, save_path='results/xbarsize.pdf')
+    group_labels = ['128x128', '256x256', '512x512']
+    plot_grouped_bars([lat_128, lat_256, lat_512], [throughput_128, throughput_256, throughput_512], group_labels=group_labels, bar_labels=bar_labels, save_path='results/xbarsize.pdf')
     # print(f"lat_256={lat_256}, throughput_256={throughput_256}")
     # print(f"lat_128={lat_128}, throughput_128={throughput_128}")
 
@@ -1301,8 +1311,7 @@ if __name__ == "__main__":
     # brkdown_stat(mapping_result, latency_dict, 1)
 
     ## standalone brkdown analysis
-    brkdown_analysis()
+    # brkdown_analysis()
     # plot_brkdown(mapping_result, latency_dict, 1, ideal=0)
-    # plot_bw(mapping_result, latency_dict, bw)
-    # plot_xbarsize()
+    plot_xbarsize()
     # plot_pipeline()
