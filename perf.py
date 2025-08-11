@@ -911,7 +911,7 @@ def plot_bw(comm_segs, latency_dict, bw=1):
     fig.savefig('results/lat_bw.pdf', bbox_inches='tight')
 
 def plot_grouped_bars(data1, data2, 
-                     group_labels=('256x256', '128x128'),
+                     group_labels=('128x128', '256x256', '512x512'),
                      bar_labels=['A', 'B', 'C', 'D'],
                      ylabel='Performance Metric',
                      save_path='grouped_bars.pdf'):
@@ -944,62 +944,66 @@ def plot_grouped_bars(data1, data2,
 
     # 通用参数
     x = np.arange(len(bar_labels))  # 柱状图位置
-    width = 0.35  # 柱宽
+    n_groups = len(group_labels)    # 组数（现在为3）
+    width = 0.25  # 柱宽（减小宽度以适应三组数据）
     colors = ['#4C72B0', '#DD8452', '#55A868', '#C44E52']  # 学术蓝橙绿配色
+    
+    # 计算偏移量（使三组柱状图居中）
+    offset = (n_groups - 1) * width / 2
 
     # 绘制子图1
-    for idx, (d, label) in enumerate(zip(data1, group_labels)):
-        bars = ax1.bar(x - width/2 + idx*width, d, width, 
-               color=colors[idx], 
-               edgecolor='white',
-               linewidth=0.5,
-               label=label)
+    for idx, d in enumerate(data1):
+        pos = x - offset + idx * width
+        bars = ax1.bar(pos, d, width, 
+                       color=colors[idx], 
+                       edgecolor='white',
+                       linewidth=0.5,
+                       label=group_labels[idx])
+        # 添加数据标签
         for bar in bars:
             height = bar.get_height()
             ax1.text(bar.get_x() + bar.get_width()/2., height,
                      f'{height:.2f}',
-                     ha='center', va='bottom',fontweight='bold',
+                     ha='center', va='bottom', fontweight='bold',
                      fontsize=8)
 
     # 绘制子图2
-    for idx, (d, label) in enumerate(zip(data2, group_labels)):
-        bars = ax2.bar(x - width/2 + idx*width, d, width, 
-               color=colors[idx], 
-               edgecolor='white',
-               linewidth=0.5,
-               label=label)
+    for idx, d in enumerate(data2):
+        pos = x - offset + idx * width
+        bars = ax2.bar(pos, d, width, 
+                       color=colors[idx], 
+                       edgecolor='white',
+                       linewidth=0.5,
+                       label=group_labels[idx])
+        # 添加数据标签
         for bar in bars:
             height = bar.get_height()
             ax2.text(bar.get_x() + bar.get_width()/2., height,
                      f'{height:.2f}',
-                     ha='center', va='bottom',fontweight='bold',
+                     ha='center', va='bottom', fontweight='bold',
                      fontsize=8)
 
     # 统一设置子图格式
     for ax, title in zip([ax1, ax2], ['Normalized latency', 'Normalized throughput']):
         ax.set_xticks(x)
         ax.set_xticklabels(bar_labels, fontweight='bold')
-        # ax.set_yticklabels(fontweight='bold')
-        # ax.set_ylabel(ylabel)
         ax.grid(axis='y', linestyle=':', alpha=0.4)
         ax.spines[['top', 'right']].set_visible(False)
         ax.set_title(title, pad=10, fontweight='semibold')
         
         # 添加子图标签
         ax.text(0.5, -0.1, f'({"a" if ax==ax1 else "b"})', 
-               transform=ax.transAxes,
-               va='top', ha='center',
-               fontsize=10, fontweight='bold')
-        
-    # ax1.set_ylabel('Normalized latency')
+                transform=ax.transAxes,
+                va='top', ha='center',
+                fontsize=10, fontweight='bold')
 
-    # 统一图例
+    # 统一图例（现在处理三组数据）
     handles = [plt.Rectangle((0,0),1,1, fc=colors[i], ec='white') 
-              for i in range(3)]
+              for i in range(n_groups)]
     fig.legend(handles, group_labels,
               loc='upper center', 
               bbox_to_anchor=(0.5, 1.05),
-              ncol=2,
+              ncol=n_groups,  # 根据组数调整列数
               frameon=False,
               fontsize=9,
               prop={'weight': 'bold'})
@@ -1010,15 +1014,16 @@ def plot_grouped_bars(data1, data2,
     plt.close()
 
 def plot_xbarsize():
-    mapping_result_512, _ = perf_analysis(models_dir='xbars', hwinfo = make_hw_info((512, 512), 4, (0,0), 1))
-    mapping_result_256, _ = perf_analysis(models_dir='xbars', hwinfo = make_hw_info((256, 256), 4, (0,0), 1))
-    mapping_result_128, _ = perf_analysis(models_dir='xbars', hwinfo = make_hw_info((128, 128), 4, (0,0), 1))
+    mapping_result_512, _ = perf_analysis(models_dir='xbars', hwinfo = make_hw_info((512, 512), 2, (0,0), 1))
+    mapping_result_256, _ = perf_analysis(models_dir='xbars', hwinfo = make_hw_info((256, 256), 8, (0,0), 1))
+    mapping_result_128, _ = perf_analysis(models_dir='xbars', hwinfo = make_hw_info((128, 128), 32, (0,0), 1))
     # lat_dict_256 = pickle.load(open("results/noc_perf_dict_bw=1_xbar=256_256.pkl", "rb"))
     # lat_dict_128 = pickle.load(open("results/noc_perf_dict_bw=1_xbar=128_128.pkl", "rb"))
     lat_dict_512, _ = get_noc_perf(mapping_result_512, 1, xbar_size=(512, 512))
     lat_dict_256, _ = get_noc_perf(mapping_result_256, 1, xbar_size=(256, 256))
     lat_dict_128, _ = get_noc_perf(mapping_result_128, 1, xbar_size=(128, 128))
     model = 'vgg16.onnx'
+    # model = 'alexnet.onnx'
     opt_combinations = sorted(set(opt for opts in mapping_result_256.values() for opt in opts))
     res_512 = [latency_est(mapping_res=mapping_result_512[model].get(opt, 0), bus_width=1, comm_lat=lat_dict_512[(model, opt)]) for opt in opt_combinations]
     res_256 = [latency_est(mapping_res=mapping_result_256[model].get(opt, 0), bus_width=1, comm_lat=lat_dict_256[(model, opt)]) for opt in opt_combinations]
