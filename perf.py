@@ -1050,10 +1050,12 @@ def plot_xbarsize():
 
 
 def plot_pipeline():
-    mapping_result_LS, _ = perf_analysis(models_dir='models', hwinfo = make_hw_info((256, 256), 4, (0,0), 1))
-    mapping_result_LP, _ = perf_analysis(models_dir='models', hwinfo = make_hw_info((256, 256), 4, (0,0), 10000))
-    lat_dict_LS = pickle.load(open("results/noc_perf_dict_bw=1_xbar=256_256.pkl", "rb"))
-    lat_dict_LP = pickle.load(open("results/noc_perf_dict_bw=1_xbar=256_256_LP.pkl", "rb"))
+    mapping_result_LS, _ = perf_analysis(models_dir='models', hwinfo = make_hw_info((256, 256), 8, (0,0), 1))
+    mapping_result_LP, _ = perf_analysis(models_dir='models', hwinfo = make_hw_info((256, 256), 8, (0,0), 10000))
+    # lat_dict_LS = pickle.load(open("results/noc_perf_dict_bw=1_xbar=256_256.pkl", "rb"))
+    # lat_dict_LP = pickle.load(open("results/noc_perf_dict_bw=1_xbar=256_256_LP.pkl", "rb"))
+    lat_dict_LS, _ = load_noc_perf(1, (256, 256))
+    lat_dict_LP, _ = get_noc_perf(mapping_result_LP, 1, xbar_size=(256, 256))
     models = list(mapping_result_LS.keys())
     index = np.arange(len(models))
     opts = [(0, 0), (1, 1)]
@@ -1104,8 +1106,8 @@ def plot_pipeline():
     bar_width = 0.18  # 柱宽
     x = np.arange(len(models))  # 模型位置
     colors = ['#4C72B0', '#55A868', '#C44E52', '#8172B2']  # 学术配色方案
-    patterns = ['//', 'xx', '..', '**']  # 纹理样式
-    labels = ['Base-LS', 'Base-LP', 'Opt-LS', 'Opt-LP']
+    # patterns = ['//', 'xx', '..', '**']  # 纹理样式
+    labels = ['LS-MNSIM', 'LP-MNSIM', 'LS-PIMAPPING', 'LP-PIMAPPING']
 
     # 设置对数刻度
     for ax in [ax1, ax2]:
@@ -1118,7 +1120,7 @@ def plot_pipeline():
         bars = ax1.bar(x + i*bar_width, lat_data[i], bar_width,
                color=colors[i],
                edgecolor='k',
-               hatch=patterns[i],
+            #    hatch=patterns[i],
                label=labels[i])
         for bar in bars:
             height = bar.get_height()
@@ -1132,7 +1134,7 @@ def plot_pipeline():
         bars = ax2.bar(x + i*bar_width, throughput_data[i], bar_width,
                color=colors[i],
                edgecolor='k',
-               hatch=patterns[i],
+            #    hatch=patterns[i],
                label=labels[i])
         for bar in bars:
             height = bar.get_height()
@@ -1161,14 +1163,13 @@ def plot_pipeline():
                fontsize=10, fontweight='bold')
 
     # 统一图例
-    handles = [plt.Rectangle((0,0),1,1, fc=colors[i], ec='k', hatch=patterns[i]) 
-             for i in range(4)]
+    handles = [plt.Rectangle((0,0),1,1, fc=colors[i], ec='k') for i in range(4)]
     fig.legend(handles, labels,
               loc='center',
-              bbox_to_anchor=(0.5, 1),
+              bbox_to_anchor=(0.5, 0.95),
               ncol=4,
               frameon=False,
-              fontsize=9,
+              fontsize=12,
               prop={'weight': 'bold'})
 
     # 优化布局并保存
@@ -1318,5 +1319,5 @@ if __name__ == "__main__":
     ## standalone brkdown analysis
     # brkdown_analysis()
     # plot_brkdown(mapping_result, latency_dict, 1, ideal=0)
-    plot_xbarsize()
-    # plot_pipeline()
+    # plot_xbarsize()
+    plot_pipeline()
