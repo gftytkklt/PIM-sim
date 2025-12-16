@@ -11,6 +11,7 @@
 #include "mapper.h"
 #include "scheduler.h"
 #include "util.h"
+#include "strategy/StrategyBase.h"
 
 // Dep info of a kernel dep
 struct Depinfo{
@@ -110,7 +111,7 @@ using DEdge = HEdge;
 
 // std::ostream& operator<<(std::ostream& os, const DEdge& dedge);
 
-template <typename NodeProperty, typename EdgeProperty>
+template <typename Derived, typename NodeProperty, typename EdgeProperty>
 class BaseGraph {
 protected:
     using Graph = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, NodeProperty, EdgeProperty>;
@@ -123,6 +124,16 @@ protected:
 
     // default ctor
     BaseGraph() = default;
+    explicit BaseGraph(std::shared_ptr<StrategyBase<Derived>> strategy) : strategy{std::move(strategy)} {}
+
+    std::shared_ptr<StrategyBase<Derived>> strategy;
+    virtual void analysis() {
+        if (strategy) {
+            strategy->analysis(static_cast<Derived&>(*this));
+        } else {
+           std::cout << "No strategy set for analysis" << std::endl;
+        }
+    }
 
     // add vertices and edges
     template <typename GraphType>
@@ -168,13 +179,13 @@ protected:
         return boost::num_edges(g);
     }
 public:
+
     template <typename GraphType>
     const NodeProperty& get_node_property(Node v, const GraphType& g) const {
         return g[v];
         // method deprecated but works
         // return g.m_vertices[n].m_property.m_value;
     } 
-
     template <typename GraphType>
     NodeProperty& get_node_property(Node v, GraphType& g) {
         return g[v];
@@ -236,9 +247,6 @@ public:
         return adj_nodes;
     }
 
-    // analysis func interface
-    virtual void analysis() = 0;
-
     // print graph
     template <typename GraphType>
     void print_graph_info(const GraphType& g) const {
@@ -264,7 +272,8 @@ class TGraph;
 class HGraph;
 class DGraph;
 
-class CGraph : public BaseGraph<CNode, CEdge> {
+class CGraph : public BaseGraph<CGraph, CNode, CEdge> {
+    friend class CStrategyBase;
     friend class TGraph;
 public:
     // acc cnodes group with in a NN kernel
@@ -282,8 +291,7 @@ public:
     };
 
     CGraph() = default;
-    CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size);
-    CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, OptType opt_type);
+    CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, std::shared_ptr<CStrategyBase> strategy);
     // CGraph(CGraph&& other) noexcept;
     // CGraph& operator=(CGraph&& other) noexcept;
 
@@ -293,6 +301,13 @@ public:
     auto& get_cdep() { return cdeps; }
     const auto& get_depth_map() const { return depth_map; }
     void print_graph_info() const;
+
+    // create and connect accblk kernel-wise
+    void create_cnodes();
+    void conn_accblk();
+    void inter_layer_conn();
+    void create_dup_num();
+
 private:
     const std::vector<NNkernel> kernels;
     std::vector<int> dup_num;
@@ -301,23 +316,17 @@ private:
     std::vector<CDep> cdeps; // kernel-wise dep list
     std::map<int, int> depth_map; // (layer, depth) for each layer
     OptType opt_type = OptType::PIMAPPING; // mapping optimization flag, default true
-    // create and connect accblk kernel-wise
-    void analysis() override final;
-    void create_cnodes();
-    void conn_accblk();
-    void inter_layer_conn();
-    void create_dup_num();
 };
 
-class TGraph : public BaseGraph<TNode, TEdge> {
+class TGraph : public BaseGraph<TGraph, TNode, TEdge> {
+    friend class TStrategyBase;
     friend class HGraph;
     friend class DGraph;
 public:
     using TDep = std::vector<std::set<Node>>; // TNode acctile info
     TGraph() = default;
-    TGraph(const CGraph& cg, int tile_xbar_num);
-    TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num);
-    TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, OptType opt_type);
+    TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, std::shared_ptr<TStrategyBase> strategy);
+
     const Graph& get_graph() const { return tg; }
     Graph& get_graph() { return tg; }
     const TDep& get_tdep() const { return tdeps; }
@@ -327,15 +336,8 @@ public:
         return cg_ref->get_node_property(cnode_id, cg_ref->get_graph()).layer;
     }
     void print_graph_info() const;
-private:
-    Graph tg; // T-VDFG
-    std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
-    std::unordered_map<Node, Node> node_map; // map from cnode to tnode
-    TDep tdeps;
-    int tile_xbar_num; // number of xbar in a tile
-    OptType opt_type = OptType::PIMAPPING; // mapping optimization flag, default true
-    void analysis() override final;
-    void create_tnodes_MNSIM(); // for zigzag mapping baseline
+
+    void create_tnodes_MNSIM();// for zigzag mapping baseline
     void create_tnodes(); // old create tnodes method
     void create_tnodes_PIMAPPING();
     void create_tnodes_SPATEM();
@@ -343,16 +345,23 @@ private:
     void create_TDep();
     void inter_tile_conn();
     void update_tedges(Node src_t, Node dst_t, CEdge cedge, int src_layer);
+
+private:
+    Graph tg; // T-VDFG
+    std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
+    std::unordered_map<Node, Node> node_map; // map from cnode to tnode
+    TDep tdeps;
+    int tile_xbar_num; // number of xbar in a tile
+    OptType opt_type = OptType::PIMAPPING; // mapping optimization flag, default true
 };
 
-class HGraph : public BaseGraph<HNode, HEdge> {
+class HGraph : public BaseGraph<HGraph, HNode, HEdge> {
+    friend class HStrategyBase;
     friend class DGraph;
 public:
     HGraph() = default;
-    HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size);
-    HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size, OptType opt_type);
-    // automatic hardware template generation, tile size generated by algorithm requirement
-    HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg);
+    HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size, std::shared_ptr<HStrategyBase> strategy);
+    
     const UGraph& get_graph() const { return hg; }
     auto get_shape() const { return tile_size; }
     // for HNode id, xy transformation
@@ -365,6 +374,15 @@ public:
     auto get_tnode(std::pair<int, int> xy) const {return mapper.get_node(xy);}
     // print graph info
     void print_graph_info() const;
+
+    void init_hw_setting(); // init hardware template
+    void zigzag_mapping(); // zigzag mapping for HCG
+    void greedy_mapping(); // map TNode to HNode
+    void SPATEM_mapping(); // SPATEM mapping for HCG
+    void init_path(); // init XY-routing path
+    void add_path(Node src, Node dst, size_t path_index);
+    void remove_path(Node src, Node dst, size_t path_index);
+
 private:
     UGraph hg; // HCG
     std::shared_ptr<const TGraph> tg_ref; // T-VDFG for HCG inference
@@ -373,22 +391,14 @@ private:
     std::vector<Path> paths; // path info
     Mapper mapper; // mapper for HCG
     OptType opt_type = OptType::PIMAPPING; // mapping optimization flag, default true
-    void analysis() override final;
-    void init_hw_setting(); // init hardware template
-    void zigzag_mapping(); // zigzag mapping for HCG
-    void greedy_mapping(); // map TNode to HNode
-    void SPATEM_mapping(); // SPATEM mapping for HCG
-    void init_path(); // init XY-routing path
-    void add_path(Node src, Node dst, size_t path_index);
-    void remove_path(Node src, Node dst, size_t path_index);
 };
 
-class DGraph : public BaseGraph<DNode, DEdge> {
+class DGraph : public BaseGraph<DGraph, DNode, DEdge> {
+    friend class DStrategyBase;
 public:
     DGraph() = default;
-    DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg,std::shared_ptr<const CGraph> cg);
-    DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth);
-    DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth, OptType opt_type);
+    DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth, std::shared_ptr<DStrategyBase> strategy);
+    
     std::pair<int, int> id_to_xy(size_t id) const {return hg_ref->id_to_xy(id);}
     size_t xy_to_id(std::pair<int, int> xy) const {return hg_ref->xy_to_id(xy);}
     // get path ptr with src tnode id
@@ -409,6 +419,13 @@ public:
     auto get_congestion_segs() const {return congestion_segs;}
     void print_graph_info() const;
     void print_path_info() const;
+    void set_harbor();
+    void set_sdg();
+    // void create_DSeg();
+    void bce_routing();
+    void xy_routing();
+    void add_path(const std::shared_ptr<Path> path_ptr);
+
 private:
     int pipeline_depth; // pipeline depth for DHCG partition
     std::pair<int, int> tile_size; // (W, H) of tile array
@@ -429,13 +446,6 @@ private:
     auto get_core(size_t node) const {return hg_ref->mapper.get_core(node);}
     auto get_node(int x, int y) const {return hg_ref->mapper.get_node(x, y);}
     auto get_node(std::pair<int, int> xy) const {return hg_ref->mapper.get_node(xy);}
-    void analysis() override final;
-    void set_harbor();
-    void set_sdg();
-    // void create_DSeg();
-    void bce_routing();
-    void xy_routing();
-    void add_path(const std::shared_ptr<Path> path_ptr);
 };
 
 #endif

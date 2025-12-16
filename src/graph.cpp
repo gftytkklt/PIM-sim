@@ -1,25 +1,11 @@
 #include "graph.h"
 
-CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size) 
-    : cg{}, kernels{kernels}, CNode_size{CNode_size}, cdeps{}, dup_num(kernels.size(), 1){
-    analysis();
+CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, 
+               std::shared_ptr<CStrategyBase> strategy)
+    : BaseGraph<CGraph, CNode, CEdge>(strategy),
+      kernels{kernels}, CNode_size{CNode_size}, cdeps{}, dup_num(kernels.size(), 1) {
+    this->analysis();
     std::cout << "CGraph created" << std::endl;
-}
-
-CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, OptType opt_type)
-    : cg{}, kernels{kernels}, CNode_size{CNode_size}, cdeps{}, dup_num(kernels.size(), 1), opt_type{opt_type} {
-    analysis();
-    std::cout << "CGraph created" << std::endl;
-}
-
-void CGraph::analysis() {
-    // std::cout << "CG opt type: " << opt_type_to_string(opt_type) << std::endl;
-    if (opt_type != OptType::MNSIM) {
-        create_dup_num();
-    }
-    create_cnodes();
-    conn_accblk();
-    inter_layer_conn();
 }
 
 void CGraph::create_dup_num() {
@@ -229,7 +215,7 @@ void CGraph::inter_layer_conn() {
 
 void CGraph::print_graph_info() const{ 
     std::cout << "Graph info:" << std::endl;
-    BaseGraph<CNode, CEdge>::print_graph_info(cg);
+    BaseGraph<CGraph, CNode, CEdge>::print_graph_info(cg);
     std::cout << "AccBlk info:" << std::endl;
     for(const auto&v : cdeps) {
         std::cout << "Layer: " << v.layer << std::endl;
@@ -244,39 +230,13 @@ void CGraph::print_graph_info() const{
     }
 }
 
-TGraph::TGraph(const CGraph& cg, int tile_xbar_num) 
-    : tg{}, cg_ref{std::make_shared<const CGraph>(cg)}, tile_xbar_num{tile_xbar_num} {
-    analysis();
-}
-
-TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num) 
-    : tg{}, cg_ref{cg}, tile_xbar_num{tile_xbar_num} {
-    analysis();
-}
-
-TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, OptType opt_type) 
-    : tg{}, cg_ref{cg}, tile_xbar_num{tile_xbar_num}, opt_type{opt_type} {
+TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, 
+               std::shared_ptr<TStrategyBase> strategy)
+    : BaseGraph<TGraph, TNode, TEdge>(strategy),
+      tg{}, cg_ref{cg}, node_map{}, tdeps{}, tile_xbar_num{tile_xbar_num} {
     auto cnode_num = cg_ref->num_nodes(cg_ref->get_graph());
     std::cout << "cnode num: " << cnode_num << " tile xbar num: " << tile_xbar_num << std::endl;
-    analysis();
-}
-
-void TGraph::analysis() {
-    // std::cout << "TGraph opt type: " << opt_type_to_string(opt_type) << std::endl; 
-    if(opt_type == OptType::PIMAPPING) {
-        // create_tnodes();
-        create_tnodes_PIMAPPING();
-    }
-    else if(opt_type == OptType::SPATEM) {
-        create_tnodes_SPATEM();
-    }
-    else{
-        create_tnodes_MNSIM();
-    }
-    // create_tnodes();
-    create_TDep();
-    inter_tile_conn();
-    // print_graph_info();
+    this->analysis();
 }
 
 void TGraph::create_tnodes_MNSIM() {
@@ -540,7 +500,7 @@ void TGraph::update_tedges(Node src_t, Node dst_t, CEdge cedge, int src_layer) {
 
 void TGraph::print_graph_info() const { 
     std::cout << "Graph info:" << std::endl;
-    BaseGraph<TNode, TEdge>::print_graph_info(tg);
+    BaseGraph<TGraph, TNode, TEdge>::print_graph_info(tg);
     std::cout << "TDep info:" << std::endl;
     int i = 0;
     for(const auto& v : tdeps) {
@@ -552,65 +512,24 @@ void TGraph::print_graph_info() const {
     }
 }
 
-HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size)
-    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, mapper{}{
-    if (tile_size.first * tile_size.second < tg_ref->num_nodes(tg_ref->get_graph())) {
-        // throw std::invalid_argument("Tile size does not match the number of nodes in the TGraph.");
-        auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
-        auto tile_x = static_cast<int>(std::ceil(std::sqrt(num_tile)));
-        this->tile_size = std::make_pair(std::max(tile_size.first,tile_x), std::max(tile_size.second,tile_x));
-        std::cout << "Reshape to " << this->tile_size.first << " x " << this->tile_size.second << " to fit algorithm size" << std::endl;
-    }
-    else {
-        std::cout << "Tile size: " << this->tile_size.first << " x " << this->tile_size.second << std::endl;
-    }
-    mapper = Mapper{this->tile_size};
-    analysis();
-}
-
-HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg)
-    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{}, mapper{} {
-    auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
-    auto tile_x = static_cast<int>(std::ceil(std::sqrt(num_tile)));
-    tile_size = std::make_pair(tile_x, tile_x);
-    mapper = Mapper{tile_size};
-    analysis();
-}
-
-HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, std::pair<int, int> tile_size, OptType opt_type)
-    : hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, mapper{}, opt_type{opt_type} {
+HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, 
+               std::pair<int, int> tile_size, std::shared_ptr<HStrategyBase> strategy)
+    : BaseGraph<HGraph, HNode, HEdge>(strategy),
+      hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, paths{}, mapper{} {
+    
     auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
     std::cout << "num tile: " << num_tile << std::endl;
+    
     if (tile_size.first * tile_size.second < num_tile) {
-        // throw std::invalid_argument("Tile size does not match the number of nodes in the TGraph.");
         auto tile_x = static_cast<int>(std::ceil(std::sqrt(num_tile)));
         this->tile_size = std::make_pair(std::max(tile_size.first,tile_x), std::max(tile_size.second,tile_x));
         std::cout << "Reshape to " << this->tile_size.first << " x " << this->tile_size.second << " to fit algorithm size" << std::endl;
-    }
-    else {
+    } else {
         std::cout << "Tile size: " << this->tile_size.first << " x " << this->tile_size.second << std::endl;
     }
+    
     mapper = Mapper{this->tile_size};
-    analysis();
-}
-
-void HGraph::analysis() {
-    // std::cout << "HGraph opt type: " << opt_type_to_string(opt_type) << std::endl;
-    init_hw_setting();
-    if(opt_type == OptType::PIMAPPING){
-        greedy_mapping();
-        std::cout << "mapped over PIMAPPING" << std::endl;
-        // SPATEM_mapping();
-    }
-    else if(opt_type == OptType::SPATEM){
-        SPATEM_mapping();
-        // greedy_mapping();
-    }
-    else{
-        zigzag_mapping();
-    }
-    // greedy_mapping();
-    init_path();
+    this->analysis();
 }
 
 void HGraph::init_hw_setting() {
@@ -777,44 +696,18 @@ size_t HGraph::xy_to_id(std::pair<int, int> xy) const {
 
 void HGraph::print_graph_info() const {
     std::cout << "HGraph info:" << std::endl;
-    BaseGraph<HNode, HEdge>::print_graph_info(hg);
+    BaseGraph<HGraph, HNode, HEdge>::print_graph_info(hg);
 }
 
-DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg,std::shared_ptr<const CGraph> cg)
-    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{1}, tile_size{hg->tile_size}, scheduler{hg->tile_size} {
-    analysis();
-}
-
-DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth)
-    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth}, tile_size{hg->tile_size}, scheduler{hg->tile_size} {
-    analysis();
-}
-
-DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth, OptType opt_type)
-    : hg_ref{hg}, tg_ref{tg}, cg_ref{cg}, pipeline_depth{pipeline_depth}, tile_size{hg->tile_size}, scheduler{hg->tile_size}, opt_type{opt_type} {
-    analysis();
-}
-
-void DGraph::analysis() {
-    // std::cout << "DGraph opt type: " << opt_type_to_string(opt_type) << std::endl;
-    // segment DHCG
-    // std::cout << "Segmenting DHCG..." << std::endl;
-    set_harbor();
-    // std::cout << "Harbor set." << std::endl;
-    set_sdg();
-    // std::cout << "SDG set." << std::endl;
-    // create_DSeg();
-    // std::cout << "before" << std::endl;
-    // print_path_info();
-    if (opt_type == OptType::PIMAPPING) {
-        bce_routing();
-        // std::cout << "after" << std::endl;
-        // print_path_info();
-    }
-    else {
-        xy_routing();
-    }
-    // std::cout << "DGraph analysis done." << std::endl;
+DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg,
+               std::shared_ptr<const CGraph> cg, int pipeline_depth, 
+               std::shared_ptr<DStrategyBase> strategy)
+    : BaseGraph<DGraph, DNode, DEdge>(strategy),
+      pipeline_depth{pipeline_depth}, tile_size{hg->tile_size},
+      sdg{}, path_segs{}, layer_segs{}, hg_ref{hg}, tg_ref{tg}, cg_ref{cg},
+      tdep_map{}, harbor_map{}, path_map{}, paths{}, congestion_segs{},
+      scheduler{hg->tile_size} {
+    this->analysis();
 }
 
 void DGraph::set_harbor() {

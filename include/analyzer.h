@@ -1,6 +1,7 @@
 #ifndef ANALYZER_H
 #define ANALYZER_H
 #include "graph.h"
+#include "strategy/StrategyBase.h" 
 
 using DataMatrix = std::vector<std::vector<int>>;
 
@@ -57,12 +58,16 @@ public:
     void print_result() const;
 private:
     OptType opt_type;
-    CGraph cg;
-    TGraph tg;
-    HGraph hg;
-    DGraph dg;
+    // CGraph cg;
+    // TGraph tg;
+    // HGraph hg;
+    // DGraph dg;
+    std::shared_ptr<CGraph> cg;
+    std::shared_ptr<TGraph> tg;
+    std::shared_ptr<HGraph> hg;
+    std::shared_ptr<DGraph> dg;
     AnalysisResult result;
     CommInfo comm_info;
-    OptType gen_opt_type(OptInfo opt);
+    // OptType gen_opt_type(OptInfo opt);
 };
 #endif

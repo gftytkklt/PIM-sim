@@ -1,13 +1,7 @@
 #include "analyzer.h"
-Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt) :
-    opt_type{gen_opt_type(opt)},
-    cg{kernels, info.xbar_size, opt_type},
-    tg{std::make_shared<CGraph>(cg), info.xbar_num, opt_type},
-    hg{std::make_shared<TGraph>(tg), std::make_shared<CGraph>(cg), info.tile_size, opt_type},
-    dg{std::make_shared<HGraph>(hg), std::make_shared<TGraph>(tg), std::make_shared<CGraph>(cg), info.pipeline_depth, opt_type}
-    {}
+#include <iostream>
 
-OptType Analyzer::gen_opt_type(OptInfo opt) {
+static OptType gen_opt_type_from_optinfo(const OptInfo& opt) {
     OptType opt_type; // default optimization type
     if(opt.mapping_opt && opt.sched_opt){
         opt_type = OptType::PIMAPPING;
@@ -25,27 +19,41 @@ OptType Analyzer::gen_opt_type(OptInfo opt) {
     return opt_type;
 }
 
+Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt) {
+    opt_type = gen_opt_type_from_optinfo(opt);
+    
+    auto cg_strategy = createCStrategy(opt_type);
+    auto tg_strategy = createTStrategy(opt_type);
+    auto hg_strategy = createHStrategy(opt_type);
+    auto dg_strategy = createDStrategy(opt_type);
+    
+    cg = std::make_shared<CGraph>(kernels, info.xbar_size, cg_strategy);
+    tg = std::make_shared<TGraph>(cg, info.xbar_num, tg_strategy);
+    hg = std::make_shared<HGraph>(tg, cg, info.tile_size, hg_strategy);
+    dg = std::make_shared<DGraph>(hg, tg, cg, info.pipeline_depth, dg_strategy);
+}
+
 void Analyzer::generate_analysis_result(){
     // get deploy_info
-    auto cgraph = cg.get_graph();
-    auto tgraph = tg.get_graph();
+    auto cgraph = cg->get_graph();
+    auto tgraph = tg->get_graph();
     // traverse tnodes to generate deploy info
     for (const auto& v : boost::make_iterator_range(boost::vertices(tgraph))) {
         // get tile id
-        auto tile_id = hg.get_hnode(v);
+        auto tile_id = hg->get_hnode(v);
         // get paths
-        auto path_map = dg.get_path_map(v);
+        auto path_map = dg->get_path_map(v);
         std::map<int, std::vector<Path>> cur_layer_paths_map;
         for (const auto& [layer, path_id] : path_map) {
             // get paths with this tile as source, only one path per iter actually
-            auto paths = dg.get_pathset({path_id});
+            auto paths = dg->get_pathset({path_id});
             cur_layer_paths_map[layer].push_back(*paths[0]); // get the only path
         }
         // get cnode
-        auto cnode_id = tg.get_node_property(v, tgraph).cnode_id;
+        auto cnode_id = tg->get_node_property(v, tgraph).cnode_id;
         std::vector<CNode> cnode;
         std::transform(cnode_id.begin(), cnode_id.end(), std::back_inserter(cnode), [&](auto& node){
-            return cg.get_node_property(node, cgraph);
+            return cg->get_node_property(node, cgraph);
         });
         // store the result
         result.deploy_info.push_back(DeployInfo{tile_id, cur_layer_paths_map, cnode});
@@ -91,17 +99,17 @@ void Analyzer::generate_analysis_result(){
     //     result.deploy_info.push_back(DeployInfo{layer, tile_id, child_tile, path_vec, cnode});
     // }
     // create data matrix
-    auto [rows, cols] = hg.get_shape();
-    auto path_segs = dg.get_path_segs();
-    auto layer_segs = dg.get_layer_segs();
+    auto [rows, cols] = hg->get_shape();
+    auto path_segs = dg->get_path_segs();
+    auto layer_segs = dg->get_layer_segs();
     for (auto i = 0;i < path_segs.size(); i++) {
         DataMatrix data(rows*cols, std::vector<int>(rows*cols, 0));
-        auto paths = dg.get_pathset(path_segs[i]);
+        auto paths = dg->get_pathset(path_segs[i]);
         for (const auto& path : paths) {
             auto datavolume = path->datavolume;
             for (int i = 0; i < path->via.size()-1; i++) {
-                auto src = hg.xy_to_id(path->via[i]);
-                auto dst = hg.xy_to_id(path->via[i+1]);
+                auto src = hg->xy_to_id(path->via[i]);
+                auto dst = hg->xy_to_id(path->via[i+1]);
                 data[src][dst] += datavolume;
             }
         }
@@ -112,14 +120,14 @@ void Analyzer::generate_analysis_result(){
 
 void Analyzer::generate_comm_info() {
     // get path info from path_seg
-    auto path_segs = dg.get_path_segs();
+    auto path_segs = dg->get_path_segs();
     int path_num = 0;
     int datavolume = 0;
     int total_hops = 0;
     long long total_congestion = 0;
     for (const auto& seg : path_segs) {
         path_num += seg.size();
-        auto paths = dg.get_pathset(seg);
+        auto paths = dg->get_pathset(seg);
         // for (const auto& path : seg) {
         for (const auto& path : paths) {
             // datavolume += path.datavolume;
@@ -129,7 +137,7 @@ void Analyzer::generate_comm_info() {
         }
     }
     // get total congestion
-    for (const auto& congestion : dg.get_congestion_segs()) {
+    for (const auto& congestion : dg->get_congestion_segs()) {
         total_congestion += congestion;
     }
     comm_info = CommInfo{path_num, datavolume, total_hops, total_congestion};

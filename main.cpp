@@ -60,13 +60,40 @@ void check_data(const std::vector<NNkernel>& kernels) {
 }
 
 void test6(const std::vector<NNkernel>& kernels){
-    std::shared_ptr<CGraph> cg = std::make_shared<CGraph>(kernels, std::make_pair(1152, 256));
-    decltype(cg->get_graph()) graph = cg->get_graph();
-    TGraph tg = TGraph(cg, 3);
-    tg = TGraph(cg, 2);
-    auto hg = HGraph(std::make_shared<TGraph>(tg), cg);
-    auto dg = DGraph(std::make_shared<HGraph>(hg), std::make_shared<TGraph>(tg), cg);
+    // std::shared_ptr<CGraph> cg = std::make_shared<CGraph>(kernels, std::make_pair(1152, 256));
+    // decltype(cg->get_graph()) graph = cg->get_graph();
+    // TGraph tg = TGraph(cg, 3);
+    // tg = TGraph(cg, 2);
+    // auto hg = HGraph(std::make_shared<TGraph>(tg), cg);
+    // auto dg = DGraph(std::make_shared<HGraph>(hg), std::make_shared<TGraph>(tg), cg);
+
+    OptType test_opt_type = OptType::PIMAPPING;
+    
+    auto cg = std::make_shared<CGraph>(
+        kernels, 
+        std::make_pair(1152, 256), 
+        createCStrategy(test_opt_type)
+    );
+    
+    auto tg_ptr = std::make_shared<TGraph>(cg, 2, createTStrategy(test_opt_type));
+    
+    //add tile_size and strategy
+    auto hg_ptr = std::make_shared<HGraph>(
+        tg_ptr, 
+        cg,
+        std::make_pair(3, 3),
+        createHStrategy(test_opt_type)
+    );
+    
+    auto dg = DGraph(
+        hg_ptr,
+        tg_ptr,
+        cg,
+        1,  // pipeline_depth
+        createDStrategy(test_opt_type)
+    );
 }
+
 void test7(const std::vector<NNkernel>& kernels){
     HWInfo info = {{1152, 256}, 2, {3, 3}, 1};
     OptInfo opt;
