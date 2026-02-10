@@ -1,5 +1,5 @@
 import multiprocessing as mp
-import os
+import os, sys
 import csv
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -12,6 +12,10 @@ import pickle
 import time
 from MappingInfo import latency_est, booksim_eval
 from onnx_analysis import analysis_model, make_opt_info, load_kernel, make_hw_info
+from logger import Logger
+
+home_path = os.getcwd()
+logger = Logger(f"{home_path}/runs", "perf.log")
 
 
 # demo for debug, models for run
@@ -1633,7 +1637,7 @@ def run_booksim_task(args):
     segs = GLOBAL_COMM_SEGS[model].get(opt, 0).comm_segs
     latency, power = booksim_eval(segs, bus_width)
     print(f"model={model}, opt={opt}, time={time.time() - start_time}")
-    return (model, opt, latency, power)
+    return (model, opt, latency, power, os.getpid())
 
 
 def get_noc_perf(comm_segs, bus_width=None, xbar_size=None, save=False):
@@ -1652,9 +1656,10 @@ def get_noc_perf(comm_segs, bus_width=None, xbar_size=None, save=False):
     # save latency dict
     with mp.Pool() as pool:
         results = pool.map(run_booksim_task, booksim_tasks)
-        for model, opt, latency, power in results:
+        for model, opt, latency, power, pid in results:
             latency_dict[(model, opt)] = latency
             power_dict[(model, opt)] = power
+            logger.info(f"(model={model}, opt={opt}) booksim worker process PID={pid}")
 
     if save:
         filename = f"results/noc_perf_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
@@ -1716,26 +1721,26 @@ def load_noc_perf(bw, xbar_size):
 
 
 if __name__ == "__main__":
-    # bw_list = [1, 2, 4, 8, 16]
-    bw_list = [1, 2]
+    bw_list = [1, 2, 4, 8, 16]
+    # bw_list = [1, 2]
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 8, (0, 0), 1)
 
     begin_time = time.time()
     mapping_result, comm_result = perf_analysis(models_dir="models", hwinfo=hw_info)
-    print(f"Total Time: {time.time() - begin_time}")
+    logger.info(f"Total Time: {time.time() - begin_time}")
 
     mp.set_start_method("fork", force=True)
     # for bw data gen
     for bw in bw_list:
         perf_dict = load_noc_perf(bw, xbar_size)
         if perf_dict is None:
-            print("Latency dict not found, generate from mapping result...")
+            logger.warning("Latency dict not found, generate from mapping result...")
             latency_dict, power_dict = get_noc_perf(
                 mapping_result, bw, xbar_size, save=True
             )
         else:
-            print("Latency dict found, use it.")
+            logger.info("Latency dict found, use it.")
             latency_dict, power_dict = perf_dict
 
         power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
@@ -1769,4 +1774,5 @@ if __name__ == "__main__":
     # brkdown_analysis()
     # plot_brkdown(mapping_result, latency_dict, 1, ideal=0)
     # plot_xbarsize()
+    logger.info("Start running plot_pipeline.")
     plot_pipeline()
