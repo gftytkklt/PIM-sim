@@ -17,3 +17,5 @@
 !booksim_cfg
 !SimConfig.ini
 !techfile.txt
+/runs
+/results
