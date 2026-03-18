@@ -40,17 +40,17 @@ protected:
 
 
 TEST_F(GraphTest, CGraphConstruction) {
-    auto strategy = createCStrategy(OptType::PIMAPPING);
+    auto strategy = createStrategy<CGraph>(OptType::PIMAPPING);
     auto cg = std::make_shared<CGraph>(kernels, std::make_pair(1152, 256), strategy);
     ASSERT_TRUE(cg != nullptr);
     ASSERT_GT(cg->get_cdep().size(), 0);
 }
 
 TEST_F(GraphTest, TGraphConstruction) {
-    auto cg_strategy = createCStrategy(OptType::PIMAPPING);
+    auto cg_strategy = createStrategy<CGraph>(OptType::PIMAPPING);
     auto cg = std::make_shared<CGraph>(kernels, std::make_pair(1152, 256), cg_strategy);
     
-    auto tg_strategy = createTStrategy(OptType::PIMAPPING);
+    auto tg_strategy = createStrategy<TGraph>(OptType::PIMAPPING);
     auto tg = std::make_shared<TGraph>(cg, 2, tg_strategy);
     
     ASSERT_TRUE(tg != nullptr);
@@ -58,29 +58,29 @@ TEST_F(GraphTest, TGraphConstruction) {
 }
 
 TEST_F(GraphTest, HGraphConstruction) {
-    auto cg_strategy = createCStrategy(OptType::PIMAPPING);
+    auto cg_strategy = createStrategy<CGraph>(OptType::PIMAPPING);
     auto cg = std::make_shared<CGraph>(kernels, std::make_pair(1152, 256), cg_strategy);
     
-    auto tg_strategy = createTStrategy(OptType::PIMAPPING);
+    auto tg_strategy = createStrategy<TGraph>(OptType::PIMAPPING);
     auto tg = std::make_shared<TGraph>(cg, 2, tg_strategy);
     
-    auto hg_strategy = createHStrategy(OptType::PIMAPPING);
+    auto hg_strategy = createStrategy<HGraph>(OptType::PIMAPPING);
     auto hg = std::make_shared<HGraph>(tg, cg, std::make_pair(3, 3), hg_strategy);
     
     ASSERT_TRUE(hg != nullptr);
 }
 
 TEST_F(GraphTest, DGraphConstruction) {
-    auto cg_strategy = createCStrategy(OptType::PIMAPPING);
+    auto cg_strategy = createStrategy<CGraph>(OptType::PIMAPPING);
     auto cg = std::make_shared<CGraph>(kernels, std::make_pair(1152, 256), cg_strategy);
     
-    auto tg_strategy = createTStrategy(OptType::PIMAPPING);
+    auto tg_strategy = createStrategy<TGraph>(OptType::PIMAPPING);
     auto tg = std::make_shared<TGraph>(cg, 2, tg_strategy);
     
-    auto hg_strategy = createHStrategy(OptType::PIMAPPING);
+    auto hg_strategy = createStrategy<HGraph>(OptType::PIMAPPING);
     auto hg = std::make_shared<HGraph>(tg, cg, std::make_pair(3, 3), hg_strategy);
     
-    auto dg_strategy = createDStrategy(OptType::PIMAPPING);
+    auto dg_strategy = createStrategy<DGraph>(OptType::PIMAPPING);
     auto dg = std::make_shared<DGraph>(hg, tg, cg, 1, dg_strategy);
     
     ASSERT_TRUE(dg != nullptr);
@@ -90,9 +90,9 @@ TEST_F(GraphTest, DGraphConstruction) {
 TEST_F(GraphTest, DifferentStrategies) {
     
     auto cg_mnsim = std::make_shared<CGraph>(
-        kernels, std::make_pair(1152, 256), createCStrategy(OptType::MNSIM));
+        kernels, std::make_pair(1152, 256), createStrategy<CGraph>(OptType::MNSIM));
     auto tg_spatem = std::make_shared<TGraph>(
-        cg_mnsim, 2, createTStrategy(OptType::SPATEM));
+        cg_mnsim, 2, createStrategy<TGraph>(OptType::SPATEM));
     
     ASSERT_TRUE(cg_mnsim != nullptr);
     ASSERT_TRUE(tg_spatem != nullptr);

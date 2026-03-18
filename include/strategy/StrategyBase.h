@@ -2,6 +2,9 @@
 #define STRATEGYBASE_H
 
 #include <memory>
+#include <unordered_map>
+#include <functional>
+#include <type_traits>
 #include "util.h"
 
 class CGraph;
@@ -16,29 +19,107 @@ public:
     virtual ~StrategyBase() = default;
 };
 
-class CStrategyBase : public StrategyBase<CGraph> {
+// 策略类声明（不包含实现）
+class CStrategyDefault : public StrategyBase<CGraph> {
 public:
-    virtual void analysis(CGraph& graph) override = 0;
+    void analysis(CGraph& graph) override;
 };
 
-class TStrategyBase : public StrategyBase<TGraph> {
+class CStrategyMNSIM : public StrategyBase<CGraph> {
 public:
-    virtual void analysis(TGraph& graph) override = 0;
+    void analysis(CGraph& graph) override;
 };
 
-class HStrategyBase : public StrategyBase<HGraph> {
+// 其他策略类声明类似...
+class TStrategyMNSIM : public StrategyBase<TGraph> {
 public:
-    virtual void analysis(HGraph& graph) override = 0;
+    void analysis(TGraph& graph) override;
 };
 
-class DStrategyBase : public StrategyBase<DGraph> {
+class TStrategyPIMAPPING : public StrategyBase<TGraph> {
 public:
-    virtual void analysis(DGraph& graph) override = 0;
+    void analysis(TGraph& graph) override;
 };
 
-std::shared_ptr<CStrategyBase> createCStrategy(OptType opt_type);
-std::shared_ptr<TStrategyBase> createTStrategy(OptType opt_type);
-std::shared_ptr<HStrategyBase> createHStrategy(OptType opt_type);
-std::shared_ptr<DStrategyBase> createDStrategy(OptType opt_type);
+class TStrategySPATEM : public StrategyBase<TGraph> {
+public:
+    void analysis(TGraph& graph) override;
+};
+
+class HStrategyMNSIM : public StrategyBase<HGraph> {
+public:
+    void analysis(HGraph& graph) override;
+};
+
+class HStrategyPIMAPPING : public StrategyBase<HGraph> {
+public:
+    void analysis(HGraph& graph) override;
+};
+
+class HStrategySPATEM : public StrategyBase<HGraph> {
+public:
+    void analysis(HGraph& graph) override;
+};
+
+class DStrategyDefault : public StrategyBase<DGraph> {
+public:
+    void analysis(DGraph& graph) override;
+};
+
+class DStrategyPIMAPPING : public StrategyBase<DGraph> {
+public:
+    void analysis(DGraph& graph) override;
+};
+
+// 统一创建策略的模板函数
+template<typename GraphType>
+std::shared_ptr<StrategyBase<GraphType>> createStrategy(OptType opt_type) {
+    // 为每个GraphType特化处理
+    if constexpr (std::is_same_v<GraphType, CGraph>) {
+        switch (opt_type) {
+            case OptType::MNSIM: return std::make_shared<CStrategyMNSIM>();
+            case OptType::HITM:
+            case OptType::SPATEM:
+            case OptType::PIMAPPING:
+            default: return std::make_shared<CStrategyDefault>();
+        }
+    } 
+    else if constexpr (std::is_same_v<GraphType, TGraph>) {
+        switch (opt_type) {
+            case OptType::SPATEM: return std::make_shared<TStrategySPATEM>();
+            case OptType::PIMAPPING: return std::make_shared<TStrategyPIMAPPING>();
+            case OptType::MNSIM:
+            case OptType::HITM:
+            default: return std::make_shared<TStrategyMNSIM>();
+        }
+    }
+    else if constexpr (std::is_same_v<GraphType, HGraph>) {
+        switch (opt_type) {
+            case OptType::SPATEM: return std::make_shared<HStrategySPATEM>();
+            case OptType::PIMAPPING: return std::make_shared<HStrategyPIMAPPING>();
+            case OptType::MNSIM:
+            case OptType::HITM:
+            default: return std::make_shared<HStrategyMNSIM>();
+        }
+    }
+    else if constexpr (std::is_same_v<GraphType, DGraph>) {
+        switch (opt_type) {
+            case OptType::PIMAPPING: return std::make_shared<DStrategyPIMAPPING>();
+            case OptType::MNSIM:
+            case OptType::HITM:
+            case OptType::SPATEM:
+            default: return std::make_shared<DStrategyDefault>();
+        }
+    }
+    else {
+        static_assert(sizeof(GraphType) == 0, "Unsupported GraphType");
+        return nullptr;
+    }
+}
+
+using CStrategyBase = StrategyBase<CGraph>;
+using TStrategyBase = StrategyBase<TGraph>;
+using HStrategyBase = StrategyBase<HGraph>;
+using DStrategyBase = StrategyBase<DGraph>;
 
 #endif

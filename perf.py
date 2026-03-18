@@ -1721,8 +1721,8 @@ def load_noc_perf(bw, xbar_size):
 
 
 if __name__ == "__main__":
-    bw_list = [1, 2, 4, 8, 16]
-    # bw_list = [1, 2]
+    # bw_list = [1, 2, 4, 8, 16]
+    bw_list = [1]
     xbar_size = (256, 256)
     hw_info = make_hw_info(xbar_size, 8, (0, 0), 1)
 

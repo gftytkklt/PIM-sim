@@ -273,7 +273,8 @@ class HGraph;
 class DGraph;
 
 class CGraph : public BaseGraph<CGraph, CNode, CEdge> {
-    friend class CStrategyBase;
+    // friend class CStrategyBase;
+    friend class StrategyBase<CGraph>;
     friend class TGraph;
 public:
     // acc cnodes group with in a NN kernel
@@ -319,7 +320,8 @@ private:
 };
 
 class TGraph : public BaseGraph<TGraph, TNode, TEdge> {
-    friend class TStrategyBase;
+    // friend class TStrategyBase;
+    friend class StrategyBase<TGraph>;
     friend class HGraph;
     friend class DGraph;
 public:
@@ -356,7 +358,8 @@ private:
 };
 
 class HGraph : public BaseGraph<HGraph, HNode, HEdge> {
-    friend class HStrategyBase;
+    // friend class HStrategyBase;
+    friend class StrategyBase<HGraph>;
     friend class DGraph;
 public:
     HGraph() = default;
@@ -394,7 +397,8 @@ private:
 };
 
 class DGraph : public BaseGraph<DGraph, DNode, DEdge> {
-    friend class DStrategyBase;
+    // friend class DStrategyBase;
+    friend class StrategyBase<DGraph>;
 public:
     DGraph() = default;
     DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, int pipeline_depth, std::shared_ptr<DStrategyBase> strategy);

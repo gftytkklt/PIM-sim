@@ -72,17 +72,17 @@ void test6(const std::vector<NNkernel>& kernels){
     auto cg = std::make_shared<CGraph>(
         kernels, 
         std::make_pair(1152, 256), 
-        createCStrategy(test_opt_type)
+        createStrategy<CGraph>(test_opt_type)
     );
     
-    auto tg_ptr = std::make_shared<TGraph>(cg, 2, createTStrategy(test_opt_type));
+    auto tg_ptr = std::make_shared<TGraph>(cg, 2, createStrategy<TGraph>(test_opt_type));
     
     //add tile_size and strategy
     auto hg_ptr = std::make_shared<HGraph>(
         tg_ptr, 
         cg,
         std::make_pair(3, 3),
-        createHStrategy(test_opt_type)
+        createStrategy<HGraph>(test_opt_type)
     );
     
     auto dg = DGraph(
@@ -90,7 +90,7 @@ void test6(const std::vector<NNkernel>& kernels){
         tg_ptr,
         cg,
         1,  // pipeline_depth
-        createDStrategy(test_opt_type)
+        createStrategy<DGraph>(test_opt_type)
     );
 }
 

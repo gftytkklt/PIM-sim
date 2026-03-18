@@ -22,10 +22,14 @@ static OptType gen_opt_type_from_optinfo(const OptInfo& opt) {
 Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt) {
     opt_type = gen_opt_type_from_optinfo(opt);
     
-    auto cg_strategy = createCStrategy(opt_type);
-    auto tg_strategy = createTStrategy(opt_type);
-    auto hg_strategy = createHStrategy(opt_type);
-    auto dg_strategy = createDStrategy(opt_type);
+    // auto cg_strategy = createCStrategy(opt_type);
+    // auto tg_strategy = createTStrategy(opt_type);
+    // auto hg_strategy = createHStrategy(opt_type);
+    // auto dg_strategy = createDStrategy(opt_type);
+    auto cg_strategy = createStrategy<CGraph>(opt_type);
+    auto tg_strategy = createStrategy<TGraph>(opt_type);
+    auto hg_strategy = createStrategy<HGraph>(opt_type);
+    auto dg_strategy = createStrategy<DGraph>(opt_type);
     
     cg = std::make_shared<CGraph>(kernels, info.xbar_size, cg_strategy);
     tg = std::make_shared<TGraph>(cg, info.xbar_num, tg_strategy);
