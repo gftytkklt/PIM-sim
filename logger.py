@@ -30,13 +30,12 @@ class Logger(object):
 
             def format(self, record):
                 level = record.levelname
-                match level:
-                    case "INFO":
-                        record.levelname = f"{self.GREEN}[INFO   ]{self.RESET}"
-                    case "WARNING":
-                        record.levelname = f"{self.YELLOW}[WARNING]{self.RESET}"
-                    case "ERROR":
-                        record.levelname = f"{self.RED}[ERROR  ]{self.RESET}"
+                if level == "INFO":
+                    record.levelname = f"{self.GREEN}[INFO   ]{self.RESET}"
+                elif level == "WARNING":
+                    record.levelname = f"{self.YELLOW}[WARNING]{self.RESET}"
+                elif level == "ERROR":
+                    record.levelname = f"{self.RED}[ERROR  ]{self.RESET}"
 
                 return super().format(record)
 
