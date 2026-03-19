@@ -94,6 +94,7 @@ enum class OptType {
     HITM,
     SPATEM,
     PIMAPPING,
+    TILE2_0,
 };
 
 // convert OptType to string
@@ -103,6 +104,7 @@ inline std::string opt_type_to_string(OptType opt_type) {
         case OptType::HITM: return "HITM";
         case OptType::SPATEM: return "SPATEM";
         case OptType::PIMAPPING: return "PIMAPPING";
+        case OptType::TILE2_0: return "TILE2_0";
         default: return "UNKNOWN";
     }
 }

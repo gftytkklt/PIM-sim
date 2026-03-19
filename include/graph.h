@@ -293,6 +293,8 @@ public:
 
     CGraph() = default;
     CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, std::shared_ptr<CStrategyBase> strategy);
+    // for tile2.0 optimiaztion
+    CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, int CNode_capacity, std::shared_ptr<CStrategyBase> strategy);
     // CGraph(CGraph&& other) noexcept;
     // CGraph& operator=(CGraph&& other) noexcept;
 
@@ -308,10 +310,12 @@ public:
     void conn_accblk();
     void inter_layer_conn();
     void create_dup_num();
+    void build_graph_subset(); // for tile2.0 optimization
 
 private:
     const std::vector<NNkernel> kernels;
     std::vector<int> dup_num;
+    int cnode_capacity; // max channel num of a cnode, used for tile2.0 optimization
     Graph cg;
     std::pair<int, int> CNode_size; // (W, H) of node
     std::vector<CDep> cdeps; // kernel-wise dep list

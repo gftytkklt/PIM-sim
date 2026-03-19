@@ -17,6 +17,14 @@ void CStrategyMNSIM::analysis(CGraph& graph) {
     graph.inter_layer_conn();
 }
 
+void CStrategyTILE2_0::analysis(CGraph& graph) {
+    graph.build_graph_subset();
+    graph.create_dup_num();
+    graph.create_cnodes();
+    graph.conn_accblk();
+    graph.inter_layer_conn();
+}
+
 // TGraph策略实现
 void TStrategyMNSIM::analysis(TGraph& graph) {
     graph.create_tnodes_MNSIM();
@@ -32,6 +40,12 @@ void TStrategyPIMAPPING::analysis(TGraph& graph) {
 
 void TStrategySPATEM::analysis(TGraph& graph) {
     graph.create_tnodes_SPATEM();
+    graph.create_TDep();
+    graph.inter_tile_conn();
+}
+
+void TStrategyTILE2_0::analysis(TGraph& graph) {
+    graph.create_tnodes_PIMAPPING();
     graph.create_TDep();
     graph.inter_tile_conn();
 }
@@ -63,6 +77,12 @@ void DStrategyDefault::analysis(DGraph& graph) {
 }
 
 void DStrategyPIMAPPING::analysis(DGraph& graph) {
+    graph.set_harbor();
+    graph.set_sdg();
+    graph.bce_routing();
+}
+
+void DStrategyTILE2_0::analysis(DGraph& graph) {
     graph.set_harbor();
     graph.set_sdg();
     graph.bce_routing();

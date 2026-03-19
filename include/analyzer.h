@@ -50,7 +50,7 @@ struct OptInfo {
 class Analyzer {
 public:
     Analyzer() = default;
-    Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt);
+    Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt, bool tile2_0_flag = false);
     AnalysisResult get_analysis_result() const { return result; }
     void generate_analysis_result();
     CommInfo get_comm_info() const { return comm_info; }

@@ -8,6 +8,21 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
     std::cout << "CGraph created" << std::endl;
 }
 
+CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, int CNode_capacity, 
+               std::shared_ptr<CStrategyBase> strategy)
+    : BaseGraph<CGraph, CNode, CEdge>(strategy),
+      kernels{kernels}, CNode_size{CNode_size}, cnode_capacity{CNode_capacity}, cdeps{}, dup_num(kernels.size(), 1) {
+    this->analysis();
+    std::cout << "CGraph created with tile2.0 optimization" << std::endl;
+}
+
+void CGraph::build_graph_subset(){
+    // determine the maximum subset under the cnode_capacity constraint
+    
+
+    // update the dep_info
+}
+
 void CGraph::create_dup_num() {
     // layer-throughput reduction struct
     struct LayerDup {
@@ -305,33 +320,6 @@ void TGraph::create_tnodes() {
 }
 
 void TGraph::create_tnodes_PIMAPPING() {
-    // struct TNodeGroup {
-    //     std::vector<size_t> cnode_id; // cnode id
-    //     struct Ofm{
-    //         int intra_layer = 0; // intra-layer ofm size
-    //         int inter_layer = 0; // inter-layer ofm size
-    //     };
-    //     struct TileData {
-    //         int ifmap_size = 0;
-    //         Ofm ofmap_size = {};
-    //     }; // tile data volume
-    //     TileData inter_tile{}, intra_tile{};
-    // };
-    // const auto& cg = cg_ref->get_graph();
-    // const auto& cdeps = cg_ref->get_cdep();
-    // std::map<size_t, bool> cnode_visited; // cnode visited flag
-    // TNodeGroup tnode_group{}; // current tnode group
-    // for (const auto& cdep: cdeps) {
-    //     // get cnode size
-    //     auto acc_grp = cdep.acc_blks;
-    //     for (const auto& acc_blks: acc_grp) {
-    //         // BL split
-    //         auto col_size = acc_blks.size();
-    //         // WL split
-    //         auto row_size = acc_blks[0].vertex_id.size();
-    //         // 
-    //     }
-    // }
     std::unordered_map<size_t, std::unordered_map<size_t, int>> conn_intensity_map;
     const auto& cg = cg_ref->get_graph();
     // build intensity map by ofm

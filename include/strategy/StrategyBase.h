@@ -19,7 +19,7 @@ public:
     virtual ~StrategyBase() = default;
 };
 
-// 策略类声明（不包含实现）
+
 class CStrategyDefault : public StrategyBase<CGraph> {
 public:
     void analysis(CGraph& graph) override;
@@ -30,7 +30,11 @@ public:
     void analysis(CGraph& graph) override;
 };
 
-// 其他策略类声明类似...
+class CStrategyTILE2_0 : public StrategyBase<CGraph> {
+public:
+    void analysis(CGraph& graph) override;
+};
+
 class TStrategyMNSIM : public StrategyBase<TGraph> {
 public:
     void analysis(TGraph& graph) override;
@@ -42,6 +46,11 @@ public:
 };
 
 class TStrategySPATEM : public StrategyBase<TGraph> {
+public:
+    void analysis(TGraph& graph) override;
+};
+
+class TStrategyTILE2_0 : public StrategyBase<TGraph> {
 public:
     void analysis(TGraph& graph) override;
 };
@@ -71,6 +80,11 @@ public:
     void analysis(DGraph& graph) override;
 };
 
+class DStrategyTILE2_0 : public StrategyBase<DGraph> {
+public:
+    void analysis(DGraph& graph) override;
+};
+
 // 统一创建策略的模板函数
 template<typename GraphType>
 std::shared_ptr<StrategyBase<GraphType>> createStrategy(OptType opt_type) {
@@ -78,6 +92,7 @@ std::shared_ptr<StrategyBase<GraphType>> createStrategy(OptType opt_type) {
     if constexpr (std::is_same_v<GraphType, CGraph>) {
         switch (opt_type) {
             case OptType::MNSIM: return std::make_shared<CStrategyMNSIM>();
+            case OptType::TILE2_0: return std::make_shared<CStrategyTILE2_0>();
             case OptType::HITM:
             case OptType::SPATEM:
             case OptType::PIMAPPING:
@@ -86,8 +101,9 @@ std::shared_ptr<StrategyBase<GraphType>> createStrategy(OptType opt_type) {
     } 
     else if constexpr (std::is_same_v<GraphType, TGraph>) {
         switch (opt_type) {
-            case OptType::SPATEM: return std::make_shared<TStrategySPATEM>();
             case OptType::PIMAPPING: return std::make_shared<TStrategyPIMAPPING>();
+            case OptType::TILE2_0: return std::make_shared<TStrategyTILE2_0>();
+            case OptType::SPATEM: return std::make_shared<TStrategySPATEM>();
             case OptType::MNSIM:
             case OptType::HITM:
             default: return std::make_shared<TStrategyMNSIM>();
@@ -96,6 +112,7 @@ std::shared_ptr<StrategyBase<GraphType>> createStrategy(OptType opt_type) {
     else if constexpr (std::is_same_v<GraphType, HGraph>) {
         switch (opt_type) {
             case OptType::SPATEM: return std::make_shared<HStrategySPATEM>();
+            case OptType::TILE2_0:
             case OptType::PIMAPPING: return std::make_shared<HStrategyPIMAPPING>();
             case OptType::MNSIM:
             case OptType::HITM:
@@ -105,6 +122,7 @@ std::shared_ptr<StrategyBase<GraphType>> createStrategy(OptType opt_type) {
     else if constexpr (std::is_same_v<GraphType, DGraph>) {
         switch (opt_type) {
             case OptType::PIMAPPING: return std::make_shared<DStrategyPIMAPPING>();
+            case OptType::TILE2_0: return std::make_shared<DStrategyTILE2_0>();
             case OptType::MNSIM:
             case OptType::HITM:
             case OptType::SPATEM:

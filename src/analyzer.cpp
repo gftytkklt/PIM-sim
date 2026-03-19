@@ -1,8 +1,13 @@
 #include "analyzer.h"
 #include <iostream>
 
-static OptType gen_opt_type_from_optinfo(const OptInfo& opt) {
+static OptType gen_opt_type_from_optinfo(const OptInfo& opt, const bool tile2_0_flag) {
     OptType opt_type; // default optimization type
+    if (tile2_0_flag) {
+        opt_type = OptType::TILE2_0;
+        std::cout << "Tile 2.0 optimization enabled, overriding other optimization flags." << std::endl;
+        return opt_type;
+    }
     if(opt.mapping_opt && opt.sched_opt){
         opt_type = OptType::PIMAPPING;
     }
@@ -19,19 +24,24 @@ static OptType gen_opt_type_from_optinfo(const OptInfo& opt) {
     return opt_type;
 }
 
-Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt) {
-    opt_type = gen_opt_type_from_optinfo(opt);
-    
-    // auto cg_strategy = createCStrategy(opt_type);
-    // auto tg_strategy = createTStrategy(opt_type);
-    // auto hg_strategy = createHStrategy(opt_type);
-    // auto dg_strategy = createDStrategy(opt_type);
+Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt, bool tile2_0_flag) {
+    opt_type = gen_opt_type_from_optinfo(opt, tile2_0_flag);
+
     auto cg_strategy = createStrategy<CGraph>(opt_type);
     auto tg_strategy = createStrategy<TGraph>(opt_type);
     auto hg_strategy = createStrategy<HGraph>(opt_type);
     auto dg_strategy = createStrategy<DGraph>(opt_type);
-    
-    cg = std::make_shared<CGraph>(kernels, info.xbar_size, cg_strategy);
+    if (!cg_strategy || !tg_strategy || !hg_strategy || !dg_strategy) {
+        throw std::runtime_error("Failed to create strategy for one of the graphs.");
+    }
+    if(tile2_0_flag){
+        std::cout << "Using tile2.0 optimization for CGraph." << std::endl;
+        int cnode_capacity = info.xbar_num * info.tile_size.first * info.tile_size.second;
+        cg = std::make_shared<CGraph>(kernels, info.xbar_size, cnode_capacity, cg_strategy);
+    }
+    else{
+        cg = std::make_shared<CGraph>(kernels, info.xbar_size, cg_strategy);
+    }
     tg = std::make_shared<TGraph>(cg, info.xbar_num, tg_strategy);
     hg = std::make_shared<HGraph>(tg, cg, info.tile_size, hg_strategy);
     dg = std::make_shared<DGraph>(hg, tg, cg, info.pipeline_depth, dg_strategy);
@@ -62,46 +72,7 @@ void Analyzer::generate_analysis_result(){
         // store the result
         result.deploy_info.push_back(DeployInfo{tile_id, cur_layer_paths_map, cnode});
     }
-    // auto hgraph = hg.get_graph();
-    // auto dgraph = dg.get_graph();
-    // traverse tnodes in topo order
-    // std::vector<size_t> topo_order;
-    // try {
-    //     boost::topological_sort(tgraph, std::back_inserter(topo_order));
-    // }
-    // catch(boost::not_a_dag& e) {
-    //     std::cerr << "Not a DAG!" << std::endl;
-    //     return;
-    // }
-    // std::reverse(topo_order.begin(), topo_order.end());
-    // // for (const auto& v : boost::make_iterator_range(boost::vertices(tgraph))) {
-    // for (const auto& v : topo_order) {
-    //     auto tile_id = hg.get_hnode(v);
-    //     auto child_tnodes = tg.get_adjacent_nodes(v, tgraph);
-    //     std::vector<std::pair<int, int>> child_tile;
-    //     child_tile.reserve(child_tnodes.size());
-    //     std::transform(child_tnodes.begin(), child_tnodes.end(), std::back_inserter(child_tile), [&](auto& node){
-    //         return hg.get_hnode(node);
-    //     });
-    //     // get paths
-    //     // std::vector<Path> paths = dg.get_tpath(v);
-    //     auto paths = dg.get_tpath(v);
-    //     // get cnode
-    //     auto cnode_id = tg.get_node_property(v, tgraph).cnode_id;
-    //     // get layer
-    //     auto layer = cg.get_node_property(cnode_id[0], cgraph).layer;
-    //     std::vector<CNode> cnode;
-    //     std::transform(cnode_id.begin(), cnode_id.end(), std::back_inserter(cnode), [&](auto& node){
-    //         const auto& cnode = cg.get_node_property(node, cgraph);
-    //         return cnode;
-    //         // return cg.get_node_property(node, cgraph);
-    //     });
-    //     std::vector<Path> path_vec;
-    //     for (const auto& path : paths) {
-    //         path_vec.push_back(*path);
-    //     }
-    //     result.deploy_info.push_back(DeployInfo{layer, tile_id, child_tile, path_vec, cnode});
-    // }
+
     // create data matrix
     auto [rows, cols] = hg->get_shape();
     auto path_segs = dg->get_path_segs();
