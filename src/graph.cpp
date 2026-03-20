@@ -4,7 +4,11 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
                std::shared_ptr<CStrategyBase> strategy)
     : BaseGraph<CGraph, CNode, CEdge>(strategy),
       kernels{kernels}, CNode_size{CNode_size}, cdeps{}, dup_num(kernels.size(), 1) {
+    build_depth_map();
     this->analysis();
+    create_cnodes();
+    conn_accblk();
+    inter_layer_conn();
     std::cout << "CGraph created" << std::endl;
 }
 
@@ -12,14 +16,17 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
                std::shared_ptr<CStrategyBase> strategy)
     : BaseGraph<CGraph, CNode, CEdge>(strategy),
       kernels{kernels}, CNode_size{CNode_size}, cnode_capacity{CNode_capacity}, cdeps{}, dup_num(kernels.size(), 1) {
+    build_depth_map();
     this->analysis();
+    create_cnodes();
+    conn_accblk();
+    inter_layer_conn();
     std::cout << "CGraph created with tile2.0 optimization" << std::endl;
 }
 
 void CGraph::build_graph_subset(){
     // determine the maximum subset under the cnode_capacity constraint
     
-
     // update the dep_info
 }
 
@@ -77,6 +84,21 @@ void CGraph::create_dup_num() {
     // for (size_t i = 0; i < dup_num.size(); i++) {
     //     std::cout << "Layer " << i << ": " << dup_num[i] << std::endl;
     // }
+}
+
+void CGraph::build_depth_map() {
+    // build depth map for each layer
+    for (const auto& i : kernels) {
+        auto cur_layer = i.layer;
+        const auto& cur_dep = i.depinfo;
+        depth_map.try_emplace(cur_layer, 0);
+        int child_depth = depth_map[cur_layer] + 1;
+        std::for_each(cur_dep.begin(), cur_dep.end(), [&](const Depinfo& dep) {
+            if (dep.dep_layer != -1) { // skip output dep
+                depth_map[dep.dep_layer] = std::max(depth_map[dep.dep_layer], child_depth);
+            }
+        });
+    }
 }
 
 void CGraph::create_cnodes() {
@@ -144,13 +166,13 @@ void CGraph::create_cnodes() {
         }
         cdeps.emplace_back(CDep{accblks_group, cur_l, cur_dep});
         // update depth map
-        depth_map.try_emplace(cur_l, 0);
-        int child_depth = depth_map[cur_l] + 1;
-        std::for_each(cur_dep.begin(), cur_dep.end(), [&](const Depinfo& dep) {
-            if (dep.dep_layer != -1) { // skip output dep
-                depth_map[dep.dep_layer] = std::max(depth_map[dep.dep_layer], child_depth);
-            }
-        });
+        // depth_map.try_emplace(cur_l, 0);
+        // int child_depth = depth_map[cur_l] + 1;
+        // std::for_each(cur_dep.begin(), cur_dep.end(), [&](const Depinfo& dep) {
+        //     if (dep.dep_layer != -1) { // skip output dep
+        //         depth_map[dep.dep_layer] = std::max(depth_map[dep.dep_layer], child_depth);
+        //     }
+        // });
     }
     // print depth_map
     // std::cout << "Depth map:" << std::endl;

@@ -5,24 +5,14 @@
 // CGraph策略实现
 void CStrategyDefault::analysis(CGraph& graph) {
     graph.create_dup_num();
-    graph.create_cnodes();
-    graph.conn_accblk();
-    graph.inter_layer_conn();
 }
 
 void CStrategyMNSIM::analysis(CGraph& graph) {
-    // graph.create_dup_num();
-    graph.create_cnodes();
-    graph.conn_accblk();
-    graph.inter_layer_conn();
 }
 
 void CStrategyTILE2_0::analysis(CGraph& graph) {
     graph.build_graph_subset();
     graph.create_dup_num();
-    graph.create_cnodes();
-    graph.conn_accblk();
-    graph.inter_layer_conn();
 }
 
 // TGraph策略实现

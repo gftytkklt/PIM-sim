@@ -15,7 +15,9 @@ class DGraph;
 template <typename GraphType>
 class StrategyBase {
 public:
-    virtual void analysis(GraphType& graph) = 0;
+    virtual void analysis(GraphType& graph){
+        
+    }
     virtual ~StrategyBase() = default;
 };
 

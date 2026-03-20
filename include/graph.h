@@ -305,15 +305,17 @@ public:
     const auto& get_depth_map() const { return depth_map; }
     void print_graph_info() const;
 
-    // create and connect accblk kernel-wise
+    // common methods for all strategies
+    void build_depth_map();
     void create_cnodes();
     void conn_accblk();
     void inter_layer_conn();
+    // special method added by users
     void create_dup_num();
     void build_graph_subset(); // for tile2.0 optimization
 
 private:
-    const std::vector<NNkernel> kernels;
+    std::vector<NNkernel> kernels;
     std::vector<int> dup_num;
     int cnode_capacity; // max channel num of a cnode, used for tile2.0 optimization
     Graph cg;
