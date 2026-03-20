@@ -287,9 +287,16 @@ int compute_node_num(std::pair<int, int> xbar_size, std::pair<int, int> window_s
     auto [WL, BL] = xbar_size;
     auto [w, h] = window_shape;
     auto [ci, co] = channel_shape;
-    auto in_split = std::max(1, w * h * ci / WL);
-    auto out_split = std::max(1, co / BL);
+    auto in_split = std::max(1, (w * h * ci + WL - 1) / WL);
+    auto out_split = std::max(1, (co + BL - 1) / BL);
     return in_split * out_split;
+}
+
+int get_compute_num(std::pair<int, int> window_shape, std::pair<int, int> channel_shape, std::pair<int, int> fmap_size) {
+    auto [w, h] = window_shape;
+    auto [ci, co] = channel_shape;
+    auto [ofm_w, ofm_h] = fmap_size;
+    return w * h * ci * ofm_w * ofm_h * co;
 }
 
 std::vector<size_t> neighbor_ranking_sort(const std::unordered_map<size_t, std::unordered_map<size_t, int>>& conn_intensity_map) {
@@ -397,6 +404,6 @@ std::vector<size_t> k_group_sort(const std::unordered_map<size_t, std::unordered
             }
         }
     }
-    std::cout << "sorted nodes size: " << sorted_nodes.size() << std::endl;
+    // std::cout << "sorted nodes size: " << sorted_nodes.size() << std::endl;
     return sorted_nodes;
 }

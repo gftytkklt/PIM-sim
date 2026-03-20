@@ -111,4 +111,6 @@ inline std::string opt_type_to_string(OptType opt_type) {
 
 int compute_node_num (std::pair<int, int> xbar_size, std::pair<int, int> window_shape, std::pair<int, int> channel_shape);
 
+int get_compute_num(std::pair<int, int> window_shape, std::pair<int, int> channel_shape, std::pair<int, int> fmap_size);
+
 #endif

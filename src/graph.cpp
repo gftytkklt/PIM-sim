@@ -25,9 +25,88 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
 }
 
 void CGraph::build_graph_subset(){
-    // determine the maximum subset under the cnode_capacity constraint
-    
-    // update the dep_info
+    /*** determine the maximum subset under the cnode_capacity constraint ***/
+    // build vec_id layer map
+    std::map<int, int> layer_id_map;
+    std::map<int, std::vector<int>> depth_id_map;
+    for (size_t i = 0; i < kernels.size(); i++) {
+        auto [_, inserted] = layer_id_map.try_emplace(kernels[i].layer, i);
+        if(!inserted) {
+            throw std::runtime_error("Duplicate layer found");
+        }
+        depth_id_map[depth_map[kernels[i].layer]].push_back(i);
+    }
+    // traverse kernel by depth, build subset by adding kernels until reaching cnode_capacity
+    std::vector<int> qkernel; // kernel traversal order
+    int max_cnode_num = 0;
+    int max_compute_num = 0;
+    std::pair<int, int> best_subset_range{}; // (start, end) kernel id of the maximum subset
+    for (const auto& [depth, ker_ids] : depth_id_map) {
+        qkernel.insert(qkernel.end(), ker_ids.begin(), ker_ids.end());
+    }
+    int qbegin = 0;
+    for (const auto& ker_id : qkernel) {
+        const auto& ker = kernels[ker_id];
+        int node_num = compute_node_num(CNode_size, ker.wsize, ker.channel);
+        // std::cout << "cur cnode num: " << node_num << " for kernel layer " << ker.layer << std::endl;
+        if (node_num > cnode_capacity) {
+            continue;
+        }
+        int cur_node_num = node_num;
+        int compute_num = get_compute_num(ker.wsize, ker.channel, ker.ofmap_size);
+        int qend = qbegin;
+        for (auto succ_id = qbegin + 1; succ_id < kernels.size(); succ_id++) {
+            const auto& succ_ker = kernels[succ_id];
+            int succ_node_num = compute_node_num(CNode_size, succ_ker.wsize, succ_ker.channel);
+            if (cur_node_num + succ_node_num > cnode_capacity) {
+                break;
+            }
+            cur_node_num += succ_node_num;
+            compute_num += get_compute_num(succ_ker.wsize, succ_ker.channel, succ_ker.ofmap_size);
+            qend = succ_id;
+        }
+        // compute num first
+        if (compute_num > max_compute_num) {
+            max_compute_num = compute_num;
+            max_cnode_num = cur_node_num;
+            best_subset_range = {qbegin, qend};
+        }
+        else if (compute_num == max_compute_num && cur_node_num > max_cnode_num) {
+            max_cnode_num = cur_node_num;
+            best_subset_range = {qbegin, qend};
+        }
+        qbegin++;
+    }
+    // std::cout << "capacity constraint: " << cnode_capacity << std::endl;
+    // std::cout << "max cnode num: " << max_cnode_num << ", max compute num: " << max_compute_num << std::endl;
+    if (max_cnode_num == 0) {
+        std::cout << "No valid kernel subset found under the cnode capacity constraint." << std::endl;
+        return;
+    }
+    // keep kernels only in {kernels[qkernel[best_subset_range.first]], ..., kernels[qkernel[best_subset_range.second]]}
+    std::vector<NNkernel> filtered_kernels;
+    std::set<int> selected_layers;
+    for (int i = best_subset_range.first; i <= best_subset_range.second; i++) {
+        const auto& ker = kernels[qkernel[i]];
+        filtered_kernels.push_back(ker);
+        selected_layers.insert(ker.layer);
+    }
+    kernels = filtered_kernels;
+    // erase deps of unselected layers
+    for (auto& ker : kernels) {
+        auto& depinfo = ker.depinfo;
+        depinfo.erase(std::remove_if(depinfo.begin(), depinfo.end(), [&](const Depinfo& dep){
+            return selected_layers.find(dep.dep_layer) == selected_layers.end();
+        }), depinfo.end());
+        if (depinfo.empty()) {
+            depinfo.push_back(Depinfo{-1, {-1, -1}}); // add dummy dep for output layer
+        }
+    }
+    // print the subset result
+    // std::cout << "Selected kernel subset for tile2.0 optimization:" << std::endl;
+    // for (const auto& ker : kernels) {
+    //     std::cout << "Layer " << ker.layer << ": wsize(" << ker.wsize.first << ", " << ker.wsize.second << "), channel(" << ker.channel.first << ", " << ker.channel.second << ")" << std::endl;
+    // }
 }
 
 void CGraph::create_dup_num() {
@@ -57,7 +136,7 @@ void CGraph::create_dup_num() {
         layer_compute_nums[i.layer] = layer_compute_num;
     }
     int available_num = total_node_num; // available extra node
-    std::cout << "Total node num: " << total_node_num << std::endl;
+    // std::cout << "Total node num: " << total_node_num << std::endl;
     // max throughput reduction layer first
     auto it = layer_dup_set.begin();
     while (available_num > 0 && it != layer_dup_set.end()) {
