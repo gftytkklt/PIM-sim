@@ -54,12 +54,10 @@ std::ostream& operator<<(std::ostream& os, const CEdge& cedge);
 
 struct TNode {
     std::vector<size_t> cnode_id; // original cnode id
-    // std::vector<CNode> super_nodes; // merged cnodes info
     std::set<size_t> parent_id; // inter-layer parent tnode id
     TNode() = default;
     TNode(std::vector<size_t> cnode_id)
     : cnode_id(cnode_id), parent_id{} {}
-    // TNode(std::vector<size_t> cnode_id);
 };
 
 std::ostream& operator<<(std::ostream& os, const TNode& tnode);
@@ -273,7 +271,6 @@ class HGraph;
 class DGraph;
 
 class CGraph : public BaseGraph<CGraph, CNode, CEdge> {
-    // friend class CStrategyBase;
     friend class StrategyBase<CGraph>;
     friend class TGraph;
 public:
@@ -285,7 +282,6 @@ public:
 
     // Dep struct for a NN kernel
     struct CDep{
-        // std::vector<AccBlk> acc_blks;
         std::vector<std::vector<AccBlk>> acc_blks; // accblk group
         int layer;
         std::vector<Depinfo> dep_info;
@@ -295,8 +291,6 @@ public:
     CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, std::shared_ptr<CStrategyBase> strategy);
     // for tile2.0 optimiaztion
     CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, int CNode_capacity, std::shared_ptr<CStrategyBase> strategy);
-    // CGraph(CGraph&& other) noexcept;
-    // CGraph& operator=(CGraph&& other) noexcept;
 
     const Graph& get_graph() const { return cg; }
     Graph& get_graph() { return cg; }
@@ -326,7 +320,6 @@ private:
 };
 
 class TGraph : public BaseGraph<TGraph, TNode, TEdge> {
-    // friend class TStrategyBase;
     friend class StrategyBase<TGraph>;
     friend class HGraph;
     friend class DGraph;
@@ -349,7 +342,7 @@ public:
     void create_tnodes(); // old create tnodes method
     void create_tnodes_PIMAPPING();
     void create_tnodes_SPATEM();
-    // void create_tnodes_HitM(); // using zigzag mapping, don't need to implement
+    void create_tnodes_TILE2_0();
     void create_TDep();
     void inter_tile_conn();
     void update_tedges(Node src_t, Node dst_t, CEdge cedge, int src_layer);
@@ -364,7 +357,6 @@ private:
 };
 
 class HGraph : public BaseGraph<HGraph, HNode, HEdge> {
-    // friend class HStrategyBase;
     friend class StrategyBase<HGraph>;
     friend class DGraph;
 public:
@@ -403,7 +395,6 @@ private:
 };
 
 class DGraph : public BaseGraph<DGraph, DNode, DEdge> {
-    // friend class DStrategyBase;
     friend class StrategyBase<DGraph>;
 public:
     DGraph() = default;
@@ -411,13 +402,6 @@ public:
     
     std::pair<int, int> id_to_xy(size_t id) const {return hg_ref->id_to_xy(id);}
     size_t xy_to_id(std::pair<int, int> xy) const {return hg_ref->xy_to_id(xy);}
-    // get path ptr with src tnode id
-    // std::vector<std::shared_ptr<Path>> get_tpath(size_t src) {
-    //     // auto it = paths.find(src);
-    //     auto it = path_map.find(src);
-    //     return it == path_map.end() ? std::vector<std::shared_ptr<Path>>{} : get_pathset(it->second);
-    // }
-    // std::vector<std::vector<Path>> get_path_segs() const {return path_segs;}
     std::vector<std::vector<size_t>> get_path_segs() const {return path_segs;}
     std::vector<std::set<int>> get_layer_segs() const {return layer_segs;}
     std::vector<std::shared_ptr<Path>> get_pathset(std::vector<size_t> path_ids);
@@ -431,7 +415,6 @@ public:
     void print_path_info() const;
     void set_harbor();
     void set_sdg();
-    // void create_DSeg();
     void bce_routing();
     void xy_routing();
     void add_path(const std::shared_ptr<Path> path_ptr);
@@ -441,7 +424,6 @@ private:
     std::pair<int, int> tile_size; // (W, H) of tile array
     OptType opt_type = OptType::PIMAPPING; // scheduling optimization flag, default true
     UGraph sdg; // HCG node and path set
-    // std::vector<std::vector<Path>> path_segs; // path subset of each DSeg
     std::vector<std::vector<size_t>> path_segs; // path subset of each DSeg
     std::vector<std::set<int>> layer_segs; // layer subset of each DSeg
     std::shared_ptr<const HGraph> hg_ref; // HCG for DHCG inference

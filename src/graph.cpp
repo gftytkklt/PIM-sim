@@ -185,7 +185,6 @@ void CGraph::create_cnodes() {
     for (const auto& i: kernels) {
         // determine in/out chan num of a cnode
         int window_size = i.wsize.first * i.wsize.second;
-        // int in_chan = (CNode_size.first + window_size - 1) / window_size;
         int in_chan = CNode_size.first / window_size;
         int out_chan = CNode_size.second;
         // cur layer info
@@ -217,15 +216,12 @@ void CGraph::create_cnodes() {
                     int node_ifm = -1;
                     int node_ofm = -1;
                     // last accblk: generate ofm
-                    // node_ifm = cur_ifm.first * cur_ifm.second / cur_dup * (ci_end - ci_begin);
                     node_ifm = std::max(cur_ifm.first * cur_ifm.second / cur_dup, 1) * (ci_end - ci_begin);
                     if(ci_end == ker_in) {
-                        // node_ofm = cur_ofm.first * cur_ofm.second / cur_dup * (co_end - co_begin);
                         node_ofm = std::max(cur_ofm.first * cur_ofm.second / cur_dup, 1) * (co_end - co_begin);
                     }
                     // other accblk: generate ifm
                     else {
-                        // node_ofm = cur_ifm.first * cur_ifm.second / cur_dup * (co_end - co_begin);
                         node_ofm = std::max(cur_ifm.first * cur_ifm.second / cur_dup, 1) * (co_end - co_begin);
                     }
                     auto cnode = CNode{cur_l, node_ifm, node_ofm, ci_id, co_id};
@@ -240,24 +236,10 @@ void CGraph::create_cnodes() {
                 co_begin = co_end;
             }
             // add accblks group to cdeps
-            // cdeps.emplace_back(CDep{accblks, cur_l, cur_dep});
             accblks_group.emplace_back(accblks);
         }
         cdeps.emplace_back(CDep{accblks_group, cur_l, cur_dep});
-        // update depth map
-        // depth_map.try_emplace(cur_l, 0);
-        // int child_depth = depth_map[cur_l] + 1;
-        // std::for_each(cur_dep.begin(), cur_dep.end(), [&](const Depinfo& dep) {
-        //     if (dep.dep_layer != -1) { // skip output dep
-        //         depth_map[dep.dep_layer] = std::max(depth_map[dep.dep_layer], child_depth);
-        //     }
-        // });
     }
-    // print depth_map
-    // std::cout << "Depth map:" << std::endl;
-    // for (const auto& [layer, depth] : depth_map) {
-    //     std::cout << "Layer " << layer << ": " << depth << std::endl;
-    // }
 }
 
 void CGraph::conn_accblk() {
@@ -295,7 +277,6 @@ void CGraph::inter_layer_conn() {
                 auto src_node = src.vertex_id.back();
                 const auto src_property = get_node_property(src_node,cg);
                 auto cur_datavolume = src_property.ofmap_size;
-                // auto cur_cin_num = src_property.id_cout.second - src_property.id_cout.first + 1;
                 auto co_src = src.cout_id;
                 auto cur_cout_num = co_src.second - co_src.first + 1;
                 // get dst node grp
@@ -305,7 +286,6 @@ void CGraph::inter_layer_conn() {
                     auto dep_dupnum = dup_num[dep.dep_layer];
                     auto conn_id = dup_to_dup(cur_dupnum, dep_dupnum, grp_id);
                     // get dep layer info struct
-                    // for (const auto& dst_layer : cdeps[dep.dep_layer].acc_blks) {
                     for (auto i : conn_id) {
                         const auto& dst_grp = cdeps[dep.dep_layer].acc_blks[i];
                         for (const auto& dst_layer : dst_grp) {
@@ -406,10 +386,8 @@ void TGraph::create_tnodes() {
                 std::vector<size_t> cnode_id{};
                 for(const auto& i : cgroup) {
                     cnode_id.emplace_back(acc_blks[i.second].vertex_id[i.first]);
-                    // mergenode(cnode_id.back());
                 }
                 // clear invalid supernode info
-                // supernode.ofmap_size = 0;
                 auto tnode_id = add_node(TNode{cnode_id}, tg);
                 // build node map, i is unique
                 for (const auto& i : cnode_id) {
@@ -505,6 +483,14 @@ void TGraph::create_tnodes_SPATEM() {
             node_map.emplace(i, tnode_id);
         }
     }
+}
+
+void TGraph::create_tnodes_TILE2_0() {
+    // cdep[i] -> kernel[i]
+    // cdep[i].acc_blks[j] -> dup group j in kernel i
+    // cdep[i].acc_blks[j][k] -> accblk k in dup group j in kernel i
+    // TODO: Traverse first node in each accblk, use get adjacent nodes to get connected nodes
+    // then impl coloring nodes with connection relationship.
 }
 
 void TGraph::create_TDep() {

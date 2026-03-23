@@ -24,67 +24,67 @@ public:
 
 class CStrategyDefault : public StrategyBase<CGraph> {
 public:
-    void analysis(CGraph& graph) override;
+    void analysis(CGraph& graph) final;
 };
 
 class CStrategyMNSIM : public StrategyBase<CGraph> {
 public:
-    void analysis(CGraph& graph) override;
+    void analysis(CGraph& graph) final;
 };
 
 class CStrategyTILE2_0 : public StrategyBase<CGraph> {
 public:
-    void analysis(CGraph& graph) override;
+    void analysis(CGraph& graph) final;
 };
 
 class TStrategyMNSIM : public StrategyBase<TGraph> {
 public:
-    void analysis(TGraph& graph) override;
+    void analysis(TGraph& graph) final;
 };
 
 class TStrategyPIMAPPING : public StrategyBase<TGraph> {
 public:
-    void analysis(TGraph& graph) override;
+    void analysis(TGraph& graph) final;
 };
 
 class TStrategySPATEM : public StrategyBase<TGraph> {
 public:
-    void analysis(TGraph& graph) override;
+    void analysis(TGraph& graph) final;
 };
 
 class TStrategyTILE2_0 : public StrategyBase<TGraph> {
 public:
-    void analysis(TGraph& graph) override;
+    void analysis(TGraph& graph) final;
 };
 
 class HStrategyMNSIM : public StrategyBase<HGraph> {
 public:
-    void analysis(HGraph& graph) override;
+    void analysis(HGraph& graph) final;
 };
 
 class HStrategyPIMAPPING : public StrategyBase<HGraph> {
 public:
-    void analysis(HGraph& graph) override;
+    void analysis(HGraph& graph) final;
 };
 
 class HStrategySPATEM : public StrategyBase<HGraph> {
 public:
-    void analysis(HGraph& graph) override;
+    void analysis(HGraph& graph) final;
 };
 
 class DStrategyDefault : public StrategyBase<DGraph> {
 public:
-    void analysis(DGraph& graph) override;
+    void analysis(DGraph& graph) final;
 };
 
 class DStrategyPIMAPPING : public StrategyBase<DGraph> {
 public:
-    void analysis(DGraph& graph) override;
+    void analysis(DGraph& graph) final;
 };
 
 class DStrategyTILE2_0 : public StrategyBase<DGraph> {
 public:
-    void analysis(DGraph& graph) override;
+    void analysis(DGraph& graph) final;
 };
 
 // 统一创建策略的模板函数

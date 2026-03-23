@@ -36,6 +36,7 @@ void TStrategySPATEM::analysis(TGraph& graph) {
 
 void TStrategyTILE2_0::analysis(TGraph& graph) {
     graph.create_tnodes_PIMAPPING();
+    // graph.create_tnodes_TILE2_0();
     graph.create_TDep();
     graph.inter_tile_conn();
 }
