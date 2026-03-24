@@ -311,7 +311,7 @@ public:
 private:
     std::vector<NNkernel> kernels;
     std::vector<int> dup_num;
-    int cnode_capacity; // max channel num of a cnode, used for tile2.0 optimization
+    int cnode_capacity; // total xbar num on chip, used for tile2.0 optimization
     Graph cg;
     std::pair<int, int> CNode_size; // (W, H) of node
     std::vector<CDep> cdeps; // kernel-wise dep list
@@ -351,6 +351,7 @@ private:
     Graph tg; // T-VDFG
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
     std::unordered_map<Node, Node> node_map; // map from cnode to tnode
+    int tile_num = 0; // number of tiles needed for mapping
     TDep tdeps;
     int tile_xbar_num; // number of xbar in a tile
     OptType opt_type = OptType::PIMAPPING; // mapping optimization flag, default true

@@ -102,10 +102,28 @@ void CGraph::build_graph_subset(){
             depinfo.push_back(Depinfo{-1, {-1, -1}}); // add dummy dep for output layer
         }
     }
+    // rebuild depth_map
+    std::set<int> selected_depth;
+    for (auto i : selected_layers) {
+        // build_depth_map guarantees the existence of depth_map[i]
+        selected_depth.insert(depth_map[i]);
+    }
+
+    std::unordered_map<int, int> depth_remapping;
+    int new_depth = 0;
+    for (const auto& depth : selected_depth) {
+        depth_remapping[depth] = new_depth++;
+    }
+    std::map<int, int> new_depth_map;
+    for (auto layer : selected_layers) {
+        int old_depth = depth_map[layer];
+        new_depth_map[layer] = depth_remapping[old_depth];
+    }
+    depth_map = std::move(new_depth_map);
     // print the subset result
     // std::cout << "Selected kernel subset for tile2.0 optimization:" << std::endl;
     // for (const auto& ker : kernels) {
-    //     std::cout << "Layer " << ker.layer << ": wsize(" << ker.wsize.first << ", " << ker.wsize.second << "), channel(" << ker.channel.first << ", " << ker.channel.second << ")" << std::endl;
+    //     std::cout << "Layer " << ker.layer << ": wsize(" << ker.wsize.first << ", " << ker.wsize.second << "), channel(" << ker.channel.first << ", " << ker.channel.second << "), depth: " << depth_map[ker.layer] << std::endl;
     // }
 }
 
@@ -491,6 +509,15 @@ void TGraph::create_tnodes_TILE2_0() {
     // cdep[i].acc_blks[j][k] -> accblk k in dup group j in kernel i
     // TODO: Traverse first node in each accblk, use get adjacent nodes to get connected nodes
     // then impl coloring nodes with connection relationship.
+
+    /* init hw info and coloring sets */
+    if (tile_num == 0) {
+        tile_num = (boost::num_vertices(cg_ref->get_graph()) + tile_xbar_num - 1) / tile_xbar_num;
+        // tile_num = tile_num * 3 / 2; // over-provision for better mapping result, can be tuned
+        std::cout << "Override tile_num with calculated value: " << tile_num << std::endl;
+    }
+    // partial depth can be get by depth_map too
+
 }
 
 void TGraph::create_TDep() {
