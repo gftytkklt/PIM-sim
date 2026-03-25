@@ -11,8 +11,12 @@ void CStrategyMNSIM::analysis(CGraph& graph) {
 }
 
 void CStrategyTILE2_0::analysis(CGraph& graph) {
+    /* Note: create_dup_num will extend the tile_num for duplication,
+     * which is conflicted with the fixed tile_num constraint hold in build_graph_subset.
+     * Future work is to unify the two methods by modify some exec conditions.
+     */
     graph.build_graph_subset();
-    graph.create_dup_num();
+    // graph.create_dup_num();
 }
 
 // TGraph策略实现
@@ -35,8 +39,8 @@ void TStrategySPATEM::analysis(TGraph& graph) {
 }
 
 void TStrategyTILE2_0::analysis(TGraph& graph) {
-    graph.create_tnodes_PIMAPPING();
-    // graph.create_tnodes_TILE2_0();
+    // graph.create_tnodes_PIMAPPING();
+    graph.create_tnodes_TILE2_0();
     graph.create_TDep();
     graph.inter_tile_conn();
 }

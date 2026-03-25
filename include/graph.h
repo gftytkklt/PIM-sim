@@ -5,6 +5,7 @@
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/topological_sort.hpp>
 #include <iostream>
+#include <numeric>
 #include <vector>
 #include <memory>
 #include <cmath>
@@ -310,6 +311,12 @@ public:
 
 private:
     std::vector<NNkernel> kernels;
+    /* Note: dup_num is not equal to filtered kernel.
+     * However, since dup_num is updated by dup_num[ker.layer]
+     * and filtered kernel is initialized by 1 for duplication,
+     * it's ok to keep some deprecated kernels info in dup_num.
+     * Avoid using i increment to traverse dup_num to prevent filtered info query.
+     */
     std::vector<int> dup_num;
     int cnode_capacity; // total xbar num on chip, used for tile2.0 optimization
     Graph cg;
