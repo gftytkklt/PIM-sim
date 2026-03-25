@@ -504,10 +504,8 @@ void TGraph::create_tnodes_SPATEM() {
 }
 
 void TGraph::create_tnodes_TILE2_0() {
-    /* 核心算法：基于计算图着色和硬件约束的Tile节点生成算法
-     * 对应文档中的Algorithm 4.1 (着色分组) 与 Algorithm 4.2 (分配映射)
-     * 输入: cg_ref (包含所有CNode及依赖图)
-     * 输出: tg (TGraph, 包含TNode), node_map (CNode到TNode的映射)
+    /* CNode allocation based on tile2.0 parallelism model
+     * coloring-based allocation with logical clustering and physical tile assignment
      */
     const auto& cgraph = cg_ref->get_graph();
     const auto& cdeps = cg_ref->get_cdep();
@@ -516,34 +514,34 @@ void TGraph::create_tnodes_TILE2_0() {
 
     std::cout << "[TILE2.0] Creating tnodes for " << num_cnodes << " cnodes, tile_xbar_num = " << tile_xbar_num << std::endl;
 
-    /* ---------- 步骤 1: 初始化数据结构 ---------- */
-    // 数据结构：CNode的颜色信息
+    /* ---------- step1: initialization ---------- */
+    // CNode coloring info struct
     struct CNodeColorInfo {
-        std::unordered_set<int> candidate_colors; // 可选颜色集合
-        int assigned_color = -1;                 // 最终分配的颜色
-        int assigned_tile_id = -1;               // 分配的Tile (TNode) ID
-        int topological_depth = 0;               // 拓扑深度 (可从cdeps和depth_map推导)
+        std::unordered_set<int> candidate_colors; // all possible colors for this CNode
+        int assigned_color = -1;                 // final assigned color
+        int assigned_tile_id = -1;               // final assigned tile ID
+        int topological_depth = 0;               // topological depth from depth_map
     };
     std::vector<CNodeColorInfo> cnode_info(num_cnodes);
 
-    // 数据结构：逻辑并行簇
+    // Logical cluster struct
     struct LogicalCluster {
-        int cluster_id;                         // 簇ID，通常用主导颜色表示
-        std::vector<size_t> member_cnodes;      // 簇内的CNode ID
-        bool is_oversized = false;              // 标记是否超过Tile容量
+        int cluster_id;                         // cluster color id
+        std::vector<size_t> member_cnodes;      // cnodes in this cluster
+        bool is_oversized = false;              // node num overflow flag
     };
     std::vector<LogicalCluster> logical_clusters;
 
-    // 数据结构：物理Tile
+    // Physical tile struct
     struct PhysicalTile {
-        int tile_id;                            // Tile编号，也是TNode的ID
-        std::vector<size_t> assigned_cnodes;    // 分配到此Tile的CNode
-        std::unordered_map<int, int> color_count; // 此Tile上各颜色的节点计数
-        int color_conflict_cost = 0;            // 颜色冲突开销
+        int tile_id;                            // physical tile id
+        std::vector<size_t> assigned_cnodes;    // cnodes assigned to this tile
+        std::unordered_map<int, int> color_count; // color distribution in this tile for conflict cost calculation
+        int color_conflict_cost = 0;            // conflict cost based on color distribution
     };
     std::vector<PhysicalTile> physical_tiles;
     
-    // 辅助：通过CNode ID获取其所属的layer
+    // helper lambda to get layer of a cnode
     auto get_layer_of_cnode = [&](size_t cnode_id) {
         return cg_ref->get_node_property(cnode_id, cgraph).layer;
     };
@@ -605,6 +603,9 @@ void TGraph::create_tnodes_TILE2_0() {
     std::unordered_map<int, std::vector<size_t>> color_to_cnodes; // 临时记录
 
     // 首先，将同一AccBlk内的节点分配相同颜色
+    // 这个方法会导致每个accblk都具有独立颜色，后续的合并需要多思考
+    // 在此基础上的并行簇合并还是层内/层间，按论文来就行了
+    // 后续步骤都以该规约块独立着色为基础进行。
     std::unordered_set<size_t> colored;
     for (const auto& cdep : cdeps) {
         for (const auto& acc_blk_grp : cdep.acc_blks) {
@@ -626,6 +627,13 @@ void TGraph::create_tnodes_TILE2_0() {
 
     // 其次，处理未被着色的节点（理论上应该没有，除非图结构特殊）和Propagation边的着色优化
     // 此处简化：将剩余节点按拓扑深度顺序，分配与已着色邻居相同或新的颜色
+    // 这里应该做颜色集合的添加，仍然是按论文规则来
+    // 当规约维小于并行簇大小，取N个相邻的规约维（此时刚好大于并行簇大小）添加同色机会，如此滑窗
+    // 其次是对于prop的dst节点，将dst的颜色合集添加src的颜色合集里（利用传播性）
+    // 根据后面的思考，如果这么实现，不考虑跨层的连接，跨层着色传播需要的粒度是节点级别，并非规约维级别。
+    // 跨层数据流必须在上层规约维完成计算以后才能开始，所以首层不着dst的色，而是dst着首层的色
+    // dst着src规约维的色的时候，是node-wise的，需要通过src.adjnode里prop节点进行色传播。
+    // 然后，dst再添加自己的颜色合集，传播给下一层的prop节点，如此类推。
     for (size_t cid : cnode_ids_sorted_by_depth) {
         if (colored.count(cid)) continue;
         // 寻找其前驱节点的颜色
@@ -649,7 +657,9 @@ void TGraph::create_tnodes_TILE2_0() {
         colored.insert(cid);
     }
 
-    // 构建初始的逻辑簇列表
+    // 构建初始的逻辑簇列表，应该在这里取每个节点的color.first作为初始逻辑簇的成员。
+    // 需要补充颜色交换规则：启发式地，逐规约维构造物理簇
+    // 最后剩下的节点交换至dep节点的首选颜色里，即使是无关数据流也不影响并行。
     for (const auto& [color, cnodes] : color_to_cnodes) {
         LogicalCluster lc;
         lc.cluster_id = color;
@@ -660,6 +670,7 @@ void TGraph::create_tnodes_TILE2_0() {
 
     /* ---------- 步骤 5: 根据并行性优先原则，将逻辑簇映射到物理Tile ---------- */
     // 假设物理Tile数量为 tile_num。如果未指定，则根据总节点数和单个Tile容量估算一个最小值。
+    // 这一段在别的函数里算过了，删掉就行了
     if (tile_num == 0) {
         // 至少需要能容纳所有节点，且不少于最大逻辑簇的大小（以实现其基本并行度）
         int min_tiles_by_capacity = (num_cnodes + tile_xbar_num - 1) / tile_xbar_num;
@@ -680,6 +691,10 @@ void TGraph::create_tnodes_TILE2_0() {
     std::unordered_map<int, int> tile_dominant_color; // tile_id -> color
 
     // 对逻辑簇按大小排序，优先处理大簇（有利于资源分配）
+    // 这个可以保留下来看一看，和前面的独立着色策略不一样了。这个策略对应同层独立颜色的较好
+    // 实际上是在流水深度内，每个邻接组允许同色
+    // 从论文图考虑，规约维同色的前提其实是所有数据都计算完了
+    // 否则，下一层实际可以开始计算的规约维只是上一层完成计算的节点，所以还是得有channel-wise的着色
     std::vector<LogicalCluster> sorted_clusters = logical_clusters;
     std::sort(sorted_clusters.begin(), sorted_clusters.end(),
             [](const LogicalCluster& a, const LogicalCluster& b) {
@@ -695,6 +710,10 @@ void TGraph::create_tnodes_TILE2_0() {
 
         // 第一阶段：尝试为簇内每个节点找到一个“理想”的Tile。
         // “理想”Tile是指：1. 该Tile尚未被当前颜色占据；2. 该Tile剩余容量充足。
+        // 未必需要重新分配颜色，实际上是尽量把不可能并行的节点放在一起，可能会有同色冲突，但不影响并行度。
+        // 一种是逻辑并行簇刚好分成多个串行物理簇，是受芯片大小限制并行度
+        // 需要避免的是数据依赖acc2与acc0-1分配至同一节点的情况，实际上的串行只有这一种情况。
+        // adjlist可以用来判断这些情况，后面的最优tile选择遵循这个原则就可以了。
         for (size_t cid : members) {
             if (cnode_assigned[cid]) continue; // 可能已被之前的簇分配
 
@@ -754,6 +773,7 @@ void TGraph::create_tnodes_TILE2_0() {
     }
 
     // 第二阶段：处理可能遗漏的节点（理论上不应该有，除非有节点不属于任何逻辑簇）
+    // 这不可能，不需要这一段逻辑，构造逻辑簇的时候是遍历cnode的。
     for (size_t cid = 0; cid < num_cnodes; ++cid) {
         if (cnode_assigned[cid]) continue;
         // 将其分配到颜色冲突最小且容量足够的Tile
