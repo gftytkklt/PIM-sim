@@ -509,7 +509,7 @@ void TGraph::create_tnodes_TILE2_0() {
      */
     const auto& cgraph = cg_ref->get_graph();
     const auto& cdeps = cg_ref->get_cdep();
-    const int num_cnodes = boost::num_vertices(cgraph);
+    const int num_cnodes = cg_ref->num_nodes(cgraph);
     if (num_cnodes == 0) return;
 
     std::cout << "[TILE2.0] Creating tnodes for " << num_cnodes << " cnodes, tile_xbar_num = " << tile_xbar_num << std::endl;
@@ -517,7 +517,7 @@ void TGraph::create_tnodes_TILE2_0() {
     /* ---------- step1: initialization ---------- */
     // CNode coloring info struct
     struct CNodeColorInfo {
-        std::unordered_set<int> candidate_colors; // all possible colors for this CNode
+        std::set<int> candidate_colors; // all possible colors for this CNode
         int assigned_color = -1;                 // final assigned color
         int assigned_tile_id = -1;               // final assigned tile ID
         int topological_depth = 0;               // topological depth from depth_map
@@ -526,304 +526,309 @@ void TGraph::create_tnodes_TILE2_0() {
 
     // Logical cluster struct
     struct LogicalCluster {
-        int cluster_id;                         // cluster color id
-        std::vector<size_t> member_cnodes;      // cnodes in this cluster
-        bool is_oversized = false;              // node num overflow flag
+        std::vector<int> member_cnodes;      // cnodes in this cluster
     };
-    std::vector<LogicalCluster> logical_clusters;
+    std::map<int, LogicalCluster> logical_clusters_map; // [color_id, cluster]
+
+    using PhysicalCluster = std::vector<int>;
 
     // Physical tile struct
     struct PhysicalTile {
-        int tile_id;                            // physical tile id
-        std::vector<size_t> assigned_cnodes;    // cnodes assigned to this tile
+        std::vector<int> assigned_cnodes;    // cnodes assigned to this tile
         std::unordered_map<int, int> color_count; // color distribution in this tile for conflict cost calculation
         int color_conflict_cost = 0;            // conflict cost based on color distribution
     };
     std::vector<PhysicalTile> physical_tiles;
-    
-    // helper lambda to get layer of a cnode
-    auto get_layer_of_cnode = [&](size_t cnode_id) {
-        return cg_ref->get_node_property(cnode_id, cgraph).layer;
-    };
-
-    /* ---------- 步骤 2: 构建CNode连接关系图 ---------- */
-    // 为简化，这里通过遍历原始CGraph的边来构建邻接关系
-    std::vector<std::vector<size_t>> cnode_adj_list(num_cnodes);
-    std::vector<std::vector<std::pair<size_t, DepType>>> cnode_edges_with_type(num_cnodes);
-    
-    for (const auto& cdep : cdeps) {
-        for (const auto& acc_blk_grp : cdep.acc_blks) {
-            for (const auto& acc_blk : acc_blk_grp) {
-                const auto& vertex_ids = acc_blk.vertex_id;
-                // 处理Accumulation边 (层内累加)
-                for (size_t i = 0; i < vertex_ids.size() - 1; ++i) {
-                    size_t src = vertex_ids[i];
-                    size_t dst = vertex_ids[i + 1];
-                    cnode_adj_list[src].push_back(dst);
-                    cnode_edges_with_type[src].emplace_back(dst, DepType::Accum);
-                }
-            }
-        }
-    }
-    // 处理Propagation边 (层间传播) - 通过CGraph的边
-    for (auto [ei, ei_end] = boost::edges(cgraph); ei != ei_end; ++ei) {
-        size_t src = boost::source(*ei, cgraph);
-        size_t dst = boost::target(*ei, cgraph);
-        const auto& edge_prop = cg_ref->get_edge_property(*ei, cgraph);
-        if (edge_prop.c_type == DepType::Prop) {
-            cnode_adj_list[src].push_back(dst);
-            cnode_edges_with_type[src].emplace_back(dst, DepType::Prop);
-        }
+    physical_tiles.reserve(tile_num);
+    for (int i = 0; i < tile_num; i++) {
+        PhysicalTile tile;
+        tile.assigned_cnodes.assign(tile_xbar_num, -1); // initialize with -1 (no cnode assigned)
+        physical_tiles.emplace_back(std::move(tile));
     }
 
-    /* ---------- 步骤 3: 计算CNode的拓扑深度 ---------- */
-    // 简化：直接从CGraph的depth_map中获取layer的深度，并赋给该层的所有CNode
-    const auto& global_depth_map = cg_ref->get_depth_map();
-    for (size_t cid = 0; cid < num_cnodes; ++cid) {
-        int layer = get_layer_of_cnode(cid);
-        auto it = global_depth_map.find(layer);
-        if (it != global_depth_map.end()) {
-            cnode_info[cid].topological_depth = it->second;
-        }
-    }
-
-    /* ---------- 步骤 4: 对CNode进行着色 (对应Algorithm 4.1的着色部分) ---------- */
-    // 着色策略（简化版，需根据PDF规则细化）：
-    // 1. 按拓扑深度排序节点
-    // 2. 同一AccBlk内节点（具有Accum依赖）着相同颜色（强绑定，可并行）
-    // 3. 具有Propagation依赖的节点，如果满足特定规则（如规约维相同），可考虑着相同颜色
-    std::vector<size_t> cnode_ids_sorted_by_depth(num_cnodes);
-    std::iota(cnode_ids_sorted_by_depth.begin(), cnode_ids_sorted_by_depth.end(), 0);
-    std::sort(cnode_ids_sorted_by_depth.begin(), cnode_ids_sorted_by_depth.end(),
+    /* ---------- step2: coloring blks by topological order ---------- */
+    // CDep visitor index order
+    const auto& depth_map = cg_ref->get_depth_map();
+    std::vector<size_t> cdep_visit_order(cdeps.size());
+    std::iota(cdep_visit_order.begin(), cdep_visit_order.end(), 0);
+    std::sort(cdep_visit_order.begin(), cdep_visit_order.end(),
         [&](size_t a, size_t b) {
-            return cnode_info[a].topological_depth < cnode_info[b].topological_depth;
+            return depth_map.at(cdeps[a].layer) < depth_map.at(cdeps[b].layer);
         });
-
     int current_color = 0;
-    std::unordered_map<int, std::vector<size_t>> color_to_cnodes; // 临时记录
-
-    // 首先，将同一AccBlk内的节点分配相同颜色
-    // 这个方法会导致每个accblk都具有独立颜色，后续的合并需要多思考
-    // 在此基础上的并行簇合并还是层内/层间，按论文来就行了
-    // 后续步骤都以该规约块独立着色为基础进行。
-    std::unordered_set<size_t> colored;
-    for (const auto& cdep : cdeps) {
+    // Accblk coloring & depth color range
+    // Note: Correctness relies on the fact that cdep_visit_order is sorted by depth, 
+    // so that we can guarantee all deps of a layer are colored before coloring this layer 
+    // and get correct candidate color range for each layer.
+    std::map<int, int> depth_color_range_map; // [k,v]: [depth, min color id in this depth]
+    for (auto idx: cdep_visit_order) {
+        const auto& cdep = cdeps[idx];
+        auto layer_depth = depth_map.at(cdep.layer);
+        depth_color_range_map.try_emplace(layer_depth, current_color);// only first color will emplace
+        // assign candidate colors for cnodes in this layer based on dep rules
         for (const auto& acc_blk_grp : cdep.acc_blks) {
-            for (const auto& acc_blk : acc_blk_grp) {
-                if (acc_blk.vertex_id.empty()) continue;
-                // 为这个AccBlk分配一个新颜色
-                for (size_t cid : acc_blk.vertex_id) {
-                    cnode_info[cid].candidate_colors.insert(current_color);
-                    cnode_info[cid].assigned_color = current_color; // 先直接分配
-                    colored.insert(cid);
+            for (int start = 0; start < acc_blk_grp.size(); start++) {
+                int colored_cnt = 0;
+                std::vector<int> color_candidate_cnodes;
+                for (int end = start; end < acc_blk_grp.size(); end++) {
+                    const auto& cur_accblk = acc_blk_grp[end];
+                    colored_cnt += cur_accblk.vertex_id.size();
+                    // coloring current acc_blk
+                    for (size_t cid : cur_accblk.vertex_id) {
+                        cnode_info[cid].candidate_colors.insert(current_color);
+                        cnode_info[cid].topological_depth = layer_depth;
+                        color_candidate_cnodes.push_back(cid);
+                    }
+                    if (colored_cnt >= tile_num) {
+                        // logical_clusters.emplace_back(LogicalCluster{current_color, color_candidate_cnodes});
+                        auto [it, inserted] = logical_clusters_map.try_emplace(current_color, LogicalCluster{color_candidate_cnodes});
+                        if(!inserted) {
+                            throw std::runtime_error("Color ID already exists in logical_clusters_map, which should not happen.");
+                        }
+                        break;
+                    }
                 }
-                color_to_cnodes[current_color].insert(color_to_cnodes[current_color].end(),
-                                                    acc_blk.vertex_id.begin(),
-                                                    acc_blk.vertex_id.end());
                 current_color++;
             }
         }
     }
-
-    // 其次，处理未被着色的节点（理论上应该没有，除非图结构特殊）和Propagation边的着色优化
-    // 此处简化：将剩余节点按拓扑深度顺序，分配与已着色邻居相同或新的颜色
-    // 这里应该做颜色集合的添加，仍然是按论文规则来
-    // 当规约维小于并行簇大小，取N个相邻的规约维（此时刚好大于并行簇大小）添加同色机会，如此滑窗
-    // 其次是对于prop的dst节点，将dst的颜色合集添加src的颜色合集里（利用传播性）
-    // 根据后面的思考，如果这么实现，不考虑跨层的连接，跨层着色传播需要的粒度是节点级别，并非规约维级别。
-    // 跨层数据流必须在上层规约维完成计算以后才能开始，所以首层不着dst的色，而是dst着首层的色
-    // dst着src规约维的色的时候，是node-wise的，需要通过src.adjnode里prop节点进行色传播。
-    // 然后，dst再添加自己的颜色合集，传播给下一层的prop节点，如此类推。
-    for (size_t cid : cnode_ids_sorted_by_depth) {
-        if (colored.count(cid)) continue;
-        // 寻找其前驱节点的颜色
-        std::unordered_set<int> neighbor_colors;
-        for (const auto& [neighbor, dep_type] : cnode_edges_with_type[cid]) {
-            if (cnode_info[neighbor].assigned_color != -1) {
-                neighbor_colors.insert(cnode_info[neighbor].assigned_color);
+    // inter layer edge list for prop edge connection
+    // only when pipe depth > 1, color of src will propagete to successor
+    // with in influence range of pipe_depth - 1
+    if (pipe_depth > 1) {
+        std::unordered_map<int, std::vector<int>> inter_layer_edgelist; // [k,v]: [src, dst list]
+        inter_layer_edgelist.reserve(num_cnodes);
+        auto influence_range = pipe_depth - 1;
+        // traverse edges in cgraph
+        for (auto [ei, ei_end] = boost::edges(cgraph); ei != ei_end; ++ei) {
+            const auto& edge_prop = cg_ref->get_edge_property(*ei, cgraph);
+            if (edge_prop.c_type != DepType::Prop) {
+                continue; // skip intra-layer edges
+            }
+            size_t src = boost::source(*ei, cgraph);
+            size_t dst = boost::target(*ei, cgraph);
+            // cnode_adj_list[src].push_back(dst);
+            auto [it, inserted] = inter_layer_edgelist.try_emplace(src);
+            it->second.push_back(dst);
+        }
+        // Prop coloring
+        for (const auto& [src, dsts] : inter_layer_edgelist) {
+            // get src cnode's candidate colors
+            const auto& src_colors = cnode_info[src].candidate_colors;
+            for (const auto& dst : dsts) {
+                auto dst_depth = cnode_info[dst].topological_depth;
+                // upper bound of depth that color can propagate to dst 
+                // to avoid infinite color propagation
+                auto depth_bound = std::max(0, dst_depth - influence_range);
+                // use at to get exception if depth_bound not exist
+                // since depth should be continuous from 0 to max_depth
+                auto min_color_id = depth_color_range_map.at(depth_bound);
+                // add color to dst candidate colors if color id >= min_color_id
+                std::vector<int> valid_src_colors(src_colors.lower_bound(min_color_id), src_colors.end());
+                // add src colors to dst candidate colors
+                cnode_info[dst].candidate_colors.insert(valid_src_colors.begin(), valid_src_colors.end());
+                // add dst to logical cluster of each src color
+                for (const auto& color : valid_src_colors) {
+                    auto it = logical_clusters_map.find(color);
+                    if (it != logical_clusters_map.end()) {
+                        it->second.member_cnodes.push_back(dst);
+                    }
+                }
             }
         }
-        if (!neighbor_colors.empty()) {
-            // 取第一个邻居的颜色（应优化为选择最优颜色）
-            int chosen_color = *neighbor_colors.begin();
-            cnode_info[cid].assigned_color = chosen_color;
-            color_to_cnodes[chosen_color].push_back(cid);
-        } else {
-            // 孤立节点，分配新颜色
-            cnode_info[cid].assigned_color = current_color;
-            color_to_cnodes[current_color].push_back(cid);
-            current_color++;
-        }
-        colored.insert(cid);
+    }
+    // DEBUG: pring coloring result and logical clusters
+    // std::cout << "[TILE2.0] Coloring result:" << std::endl;
+    // for (size_t i = 0; i < cnode_info.size(); i++) {
+    //     std::cout << "CNode " << i << ": candidate colors = {";
+    //     for (const auto& color : cnode_info[i].candidate_colors) {
+    //         std::cout << color << " ";
+    //     }
+    //     std::cout << "}" << std::endl;
+    // }
+    // std::cout << "[TILE2.0] Logical clusters:" << std::endl;
+    // for (const auto& [color, cluster] : logical_clusters_map) {
+    //     std::cout << "Color " << color << ": member cnodes = {";
+    //     for (const auto& cid : cluster.member_cnodes) {
+    //         std::cout << cid << " ";
+    //     }
+    //     std::cout << "}" << std::endl;
+    // }
+
+    /* ---------- step3: Physical cluster construction and mapping ---------- */
+    std::vector<PhysicalCluster> physical_clusters; // physical cluster list
+    physical_clusters.reserve((num_cnodes) / tile_xbar_num + 1);
+    // For each logical cluster, we create one or more physical clusters
+    //  based on tile capacity and parallelism requirements.
+    for (const auto& [color, logical_cluster] : logical_clusters_map) {
+        auto unmapped_cnodes = logical_cluster.member_cnodes;
+        // get unmapped cnodes in this logical cluster
+        unmapped_cnodes.erase(std::remove_if(unmapped_cnodes.begin(), unmapped_cnodes.end(),
+            [&](int cid) {
+                return cnode_info[cid].assigned_color != -1; // already assigned
+            }), unmapped_cnodes.end());
+        // map tile_num cnodes each time first
+        // assign tile_num cnodes to physical cluster
+
     }
 
-    // 构建初始的逻辑簇列表，应该在这里取每个节点的color.first作为初始逻辑簇的成员。
-    // 需要补充颜色交换规则：启发式地，逐规约维构造物理簇
-    // 最后剩下的节点交换至dep节点的首选颜色里，即使是无关数据流也不影响并行。
-    for (const auto& [color, cnodes] : color_to_cnodes) {
-        LogicalCluster lc;
-        lc.cluster_id = color;
-        lc.member_cnodes = cnodes;
-        lc.is_oversized = (cnodes.size() > tile_xbar_num);
-        logical_clusters.push_back(lc);
-    }
 
     /* ---------- 步骤 5: 根据并行性优先原则，将逻辑簇映射到物理Tile ---------- */
     // 假设物理Tile数量为 tile_num。如果未指定，则根据总节点数和单个Tile容量估算一个最小值。
     // 这一段在别的函数里算过了，删掉就行了
-    if (tile_num == 0) {
-        // 至少需要能容纳所有节点，且不少于最大逻辑簇的大小（以实现其基本并行度）
-        int min_tiles_by_capacity = (num_cnodes + tile_xbar_num - 1) / tile_xbar_num;
-        int min_tiles_by_parallelism = 0;
-        for (const auto& lc : logical_clusters) {
-            min_tiles_by_parallelism = std::max(min_tiles_by_parallelism, (int)lc.member_cnodes.size());
-        }
-        tile_num = std::max(min_tiles_by_capacity, min_tiles_by_parallelism);
-        std::cout << "[TILE2.0] Auto-computed tile_num = " << tile_num << std::endl;
-    }
-    physical_tiles.resize(tile_num);
-    for (int i = 0; i < tile_num; ++i) {
-        physical_tiles[i].tile_id = i;
-    }
+    // if (tile_num == 0) {
+    //     // 至少需要能容纳所有节点，且不少于最大逻辑簇的大小（以实现其基本并行度）
+    //     int min_tiles_by_capacity = (num_cnodes + tile_xbar_num - 1) / tile_xbar_num;
+    //     int min_tiles_by_parallelism = 0;
+    //     for (const auto& lc : logical_clusters) {
+    //         min_tiles_by_parallelism = std::max(min_tiles_by_parallelism, (int)lc.member_cnodes.size());
+    //     }
+    //     tile_num = std::max(min_tiles_by_capacity, min_tiles_by_parallelism);
+    //     std::cout << "[TILE2.0] Auto-computed tile_num = " << tile_num << std::endl;
+    // }
+    // physical_tiles.resize(tile_num);
+    // for (int i = 0; i < tile_num; ++i) {
+    //     physical_tiles[i].tile_id = i;
+    // }
 
     // 首先，为每个逻辑簇分配一个独立的Tile集合，力求让簇内节点分散到不同Tile。
     // 使用一个从Tile ID到其“当前主要颜色”的映射来辅助决策。
-    std::unordered_map<int, int> tile_dominant_color; // tile_id -> color
+    // std::unordered_map<int, int> tile_dominant_color; // tile_id -> color
 
     // 对逻辑簇按大小排序，优先处理大簇（有利于资源分配）
     // 这个可以保留下来看一看，和前面的独立着色策略不一样了。这个策略对应同层独立颜色的较好
     // 实际上是在流水深度内，每个邻接组允许同色
     // 从论文图考虑，规约维同色的前提其实是所有数据都计算完了
     // 否则，下一层实际可以开始计算的规约维只是上一层完成计算的节点，所以还是得有channel-wise的着色
-    std::vector<LogicalCluster> sorted_clusters = logical_clusters;
-    std::sort(sorted_clusters.begin(), sorted_clusters.end(),
-            [](const LogicalCluster& a, const LogicalCluster& b) {
-                return a.member_cnodes.size() > b.member_cnodes.size(); // 降序
-            });
+    // std::vector<LogicalCluster> sorted_clusters = logical_clusters;
+    // std::sort(sorted_clusters.begin(), sorted_clusters.end(),
+    //         [](const LogicalCluster& a, const LogicalCluster& b) {
+    //             return a.member_cnodes.size() > b.member_cnodes.size(); // 降序
+    //         });
 
     // 分配标记
-    std::unordered_map<size_t, bool> cnode_assigned; // cnode_id -> bool
+    // std::unordered_map<size_t, bool> cnode_assigned; // cnode_id -> bool
 
-    for (const auto& lc : sorted_clusters) {
-        int cluster_color = lc.cluster_id;
-        const auto& members = lc.member_cnodes;
+    // for (const auto& lc : sorted_clusters) {
+    //     int cluster_color = lc.cluster_id;
+    //     const auto& members = lc.member_cnodes;
 
-        // 第一阶段：尝试为簇内每个节点找到一个“理想”的Tile。
-        // “理想”Tile是指：1. 该Tile尚未被当前颜色占据；2. 该Tile剩余容量充足。
-        // 未必需要重新分配颜色，实际上是尽量把不可能并行的节点放在一起，可能会有同色冲突，但不影响并行度。
-        // 一种是逻辑并行簇刚好分成多个串行物理簇，是受芯片大小限制并行度
-        // 需要避免的是数据依赖acc2与acc0-1分配至同一节点的情况，实际上的串行只有这一种情况。
-        // adjlist可以用来判断这些情况，后面的最优tile选择遵循这个原则就可以了。
-        for (size_t cid : members) {
-            if (cnode_assigned[cid]) continue; // 可能已被之前的簇分配
+    //     // 第一阶段：尝试为簇内每个节点找到一个“理想”的Tile。
+    //     // “理想”Tile是指：1. 该Tile尚未被当前颜色占据；2. 该Tile剩余容量充足。
+    //     // 未必需要重新分配颜色，实际上是尽量把不可能并行的节点放在一起，可能会有同色冲突，但不影响并行度。
+    //     // 一种是逻辑并行簇刚好分成多个串行物理簇，是受芯片大小限制并行度
+    //     // 需要避免的是数据依赖acc2与acc0-1分配至同一节点的情况，实际上的串行只有这一种情况。
+    //     // adjlist可以用来判断这些情况，后面的最优tile选择遵循这个原则就可以了。
+    //     for (size_t cid : members) {
+    //         if (cnode_assigned[cid]) continue; // 可能已被之前的簇分配
 
-            int best_tile = -1;
-            // 策略1: 寻找未被当前颜色占据且容量足够的Tile
-            for (int tid = 0; tid < tile_num; ++tid) {
-                if (physical_tiles[tid].assigned_cnodes.size() >= tile_xbar_num) continue; // 容量满
-                auto it = tile_dominant_color.find(tid);
-                if (it != tile_dominant_color.end() && it->second == cluster_color) {
-                    continue; // 此Tile已被当前颜色占据，避免同色节点聚集
-                }
-                best_tile = tid;
-                break;
-            }
-            // 策略2: 如果找不到，则寻找容量足够且同色节点最少的Tile（最小化冲突）
-            if (best_tile == -1) {
-                int min_same_color_count = INT_MAX;
-                for (int tid = 0; tid < tile_num; ++tid) {
-                    if (physical_tiles[tid].assigned_cnodes.size() >= tile_xbar_num) continue;
-                    int same_color_cnt = physical_tiles[tid].color_count[cluster_color];
-                    if (same_color_cnt < min_same_color_count) {
-                        min_same_color_count = same_color_cnt;
-                        best_tile = tid;
-                    }
-                }
-            }
-            // 策略3: 如果还找不到（所有Tile容量都紧张），则必须放入一个已满或冲突较高的Tile（需拆分或报错，这里简化放入第一个有容量的）
-            if (best_tile == -1) {
-                for (int tid = 0; tid < tile_num; ++tid) {
-                    if (physical_tiles[tid].assigned_cnodes.size() < tile_xbar_num) {
-                        best_tile = tid;
-                        break;
-                    }
-                }
-                if (best_tile == -1) {
-                    // 硬件资源不足，需要增加Tile或报错
-                    std::cerr << "[TILE2.0] Error: Insufficient tile resources for mapping." << std::endl;
-                    // 此处简化处理：创建新Tile
-                    PhysicalTile new_tile;
-                    new_tile.tile_id = physical_tiles.size();
-                    physical_tiles.push_back(new_tile);
-                    best_tile = new_tile.tile_id;
-                }
-            }
+    //         int best_tile = -1;
+    //         // 策略1: 寻找未被当前颜色占据且容量足够的Tile
+    //         for (int tid = 0; tid < tile_num; ++tid) {
+    //             if (physical_tiles[tid].assigned_cnodes.size() >= tile_xbar_num) continue; // 容量满
+    //             auto it = tile_dominant_color.find(tid);
+    //             if (it != tile_dominant_color.end() && it->second == cluster_color) {
+    //                 continue; // 此Tile已被当前颜色占据，避免同色节点聚集
+    //             }
+    //             best_tile = tid;
+    //             break;
+    //         }
+    //         // 策略2: 如果找不到，则寻找容量足够且同色节点最少的Tile（最小化冲突）
+    //         if (best_tile == -1) {
+    //             int min_same_color_count = INT_MAX;
+    //             for (int tid = 0; tid < tile_num; ++tid) {
+    //                 if (physical_tiles[tid].assigned_cnodes.size() >= tile_xbar_num) continue;
+    //                 int same_color_cnt = physical_tiles[tid].color_count[cluster_color];
+    //                 if (same_color_cnt < min_same_color_count) {
+    //                     min_same_color_count = same_color_cnt;
+    //                     best_tile = tid;
+    //                 }
+    //             }
+    //         }
+    //         // 策略3: 如果还找不到（所有Tile容量都紧张），则必须放入一个已满或冲突较高的Tile（需拆分或报错，这里简化放入第一个有容量的）
+    //         if (best_tile == -1) {
+    //             for (int tid = 0; tid < tile_num; ++tid) {
+    //                 if (physical_tiles[tid].assigned_cnodes.size() < tile_xbar_num) {
+    //                     best_tile = tid;
+    //                     break;
+    //                 }
+    //             }
+    //             if (best_tile == -1) {
+    //                 // 硬件资源不足，需要增加Tile或报错
+    //                 std::cerr << "[TILE2.0] Error: Insufficient tile resources for mapping." << std::endl;
+    //                 // 此处简化处理：创建新Tile
+    //                 PhysicalTile new_tile;
+    //                 new_tile.tile_id = physical_tiles.size();
+    //                 physical_tiles.push_back(new_tile);
+    //                 best_tile = new_tile.tile_id;
+    //             }
+    //         }
 
-            // 执行分配
-            physical_tiles[best_tile].assigned_cnodes.push_back(cid);
-            cnode_info[cid].assigned_tile_id = best_tile;
-            cnode_assigned[cid] = true;
-            // 更新Tile的颜色统计和主导颜色
-            physical_tiles[best_tile].color_count[cluster_color]++;
-            if (tile_dominant_color.find(best_tile) == tile_dominant_color.end() ||
-                physical_tiles[best_tile].color_count[cluster_color] > physical_tiles[best_tile].color_count[tile_dominant_color[best_tile]]) {
-                tile_dominant_color[best_tile] = cluster_color;
-            }
-        }
-    }
+    //         // 执行分配
+    //         physical_tiles[best_tile].assigned_cnodes.push_back(cid);
+    //         cnode_info[cid].assigned_tile_id = best_tile;
+    //         cnode_assigned[cid] = true;
+    //         // 更新Tile的颜色统计和主导颜色
+    //         physical_tiles[best_tile].color_count[cluster_color]++;
+    //         if (tile_dominant_color.find(best_tile) == tile_dominant_color.end() ||
+    //             physical_tiles[best_tile].color_count[cluster_color] > physical_tiles[best_tile].color_count[tile_dominant_color[best_tile]]) {
+    //             tile_dominant_color[best_tile] = cluster_color;
+    //         }
+    //     }
+    // }
 
-    // 第二阶段：处理可能遗漏的节点（理论上不应该有，除非有节点不属于任何逻辑簇）
-    // 这不可能，不需要这一段逻辑，构造逻辑簇的时候是遍历cnode的。
-    for (size_t cid = 0; cid < num_cnodes; ++cid) {
-        if (cnode_assigned[cid]) continue;
-        // 将其分配到颜色冲突最小且容量足够的Tile
-        int best_tile = -1;
-        int min_total_conflict = INT_MAX;
-        int node_color = cnode_info[cid].assigned_color;
-        for (int tid = 0; tid < tile_num; ++tid) {
-            if (physical_tiles[tid].assigned_cnodes.size() >= tile_xbar_num) continue;
-            int conflict_cost = physical_tiles[tid].color_count[node_color]; // 与此节点同色的数量
-            if (conflict_cost < min_total_conflict) {
-                min_total_conflict = conflict_cost;
-                best_tile = tid;
-            }
-        }
-        if (best_tile == -1) {
-            // 简化处理：放入第一个Tile
-            best_tile = 0;
-        }
-        physical_tiles[best_tile].assigned_cnodes.push_back(cid);
-        cnode_info[cid].assigned_tile_id = best_tile;
-        physical_tiles[best_tile].color_count[node_color]++;
-    }
+    // // 第二阶段：处理可能遗漏的节点（理论上不应该有，除非有节点不属于任何逻辑簇）
+    // // 这不可能，不需要这一段逻辑，构造逻辑簇的时候是遍历cnode的。
+    // for (size_t cid = 0; cid < num_cnodes; ++cid) {
+    //     if (cnode_assigned[cid]) continue;
+    //     // 将其分配到颜色冲突最小且容量足够的Tile
+    //     int best_tile = -1;
+    //     int min_total_conflict = INT_MAX;
+    //     int node_color = cnode_info[cid].assigned_color;
+    //     for (int tid = 0; tid < tile_num; ++tid) {
+    //         if (physical_tiles[tid].assigned_cnodes.size() >= tile_xbar_num) continue;
+    //         int conflict_cost = physical_tiles[tid].color_count[node_color]; // 与此节点同色的数量
+    //         if (conflict_cost < min_total_conflict) {
+    //             min_total_conflict = conflict_cost;
+    //             best_tile = tid;
+    //         }
+    //     }
+    //     if (best_tile == -1) {
+    //         // 简化处理：放入第一个Tile
+    //         best_tile = 0;
+    //     }
+    //     physical_tiles[best_tile].assigned_cnodes.push_back(cid);
+    //     cnode_info[cid].assigned_tile_id = best_tile;
+    //     physical_tiles[best_tile].color_count[node_color]++;
+    // }
 
-    /* ---------- 步骤 6: 创建TNode并填充node_map ---------- */
-    tg.clear(); // 清空现有图（如果存在）
-    node_map.clear();
+    // /* ---------- 步骤 6: 创建TNode并填充node_map ---------- */
+    // tg.clear(); // 清空现有图（如果存在）
+    // node_map.clear();
 
-    for (const auto& ptile : physical_tiles) {
-        if (ptile.assigned_cnodes.empty()) continue;
+    // for (const auto& ptile : physical_tiles) {
+    //     if (ptile.assigned_cnodes.empty()) continue;
 
-        // 创建TNode属性
-        TNode tnode_property;
-        tnode_property.cnode_id = ptile.assigned_cnodes; // 分配到此Tile的CNode ID列表
-        // 注意：parent_id 需要在后续 inter_tile_conn 中填充
+    //     // 创建TNode属性
+    //     TNode tnode_property;
+    //     tnode_property.cnode_id = ptile.assigned_cnodes; // 分配到此Tile的CNode ID列表
+    //     // 注意：parent_id 需要在后续 inter_tile_conn 中填充
 
-        // 在TGraph中添加节点
-        auto tnode_id = add_node(tnode_property, tg);
+    //     // 在TGraph中添加节点
+    //     auto tnode_id = add_node(tnode_property, tg);
 
-        // 建立CNode到TNode的映射
-        for (size_t cid : ptile.assigned_cnodes) {
-            node_map[cid] = tnode_id;
-        }
+    //     // 建立CNode到TNode的映射
+    //     for (size_t cid : ptile.assigned_cnodes) {
+    //         node_map[cid] = tnode_id;
+    //     }
 
-        // 可选：打印调试信息
-        std::cout << "[TILE2.0] Created TNode " << tnode_id
-                  << " with " << ptile.assigned_cnodes.size() << " cnodes "
-                  << "(Color Conflict Cost: " << ptile.color_conflict_cost << ")" << std::endl;
-    }
+    //     // 可选：打印调试信息
+    //     std::cout << "[TILE2.0] Created TNode " << tnode_id
+    //               << " with " << ptile.assigned_cnodes.size() << " cnodes "
+    //               << "(Color Conflict Cost: " << ptile.color_conflict_cost << ")" << std::endl;
+    // }
 
-    std::cout << "[TILE2.0] Total tnodes created: " << boost::num_vertices(tg) << std::endl;
+    // std::cout << "[TILE2.0] Total tnodes created: " << boost::num_vertices(tg) << std::endl;
 }
 
 void TGraph::create_TDep() {

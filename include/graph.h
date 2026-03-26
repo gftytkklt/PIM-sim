@@ -359,6 +359,7 @@ private:
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for T-VDFG inference
     std::unordered_map<Node, Node> node_map; // map from cnode to tnode
     int tile_num = 0; // number of tiles needed for mapping
+    int pipe_depth = 1; // for N topo depth kernel analysis simutaneously, = dg.pipeline_depth
     TDep tdeps;
     int tile_xbar_num; // number of xbar in a tile
     OptType opt_type = OptType::PIMAPPING; // mapping optimization flag, default true
