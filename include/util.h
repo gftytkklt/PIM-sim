@@ -113,4 +113,39 @@ int compute_node_num (std::pair<int, int> xbar_size, std::pair<int, int> window_
 
 int get_compute_num(std::pair<int, int> window_shape, std::pair<int, int> channel_shape, std::pair<int, int> fmap_size);
 
+template <typename T>
+std::vector<std::vector<T>> chunk_vector(const std::vector<T>& vec, size_t chunk_size) {
+    std::vector<std::vector<T>> chunks;
+    for (size_t i = 0; i < vec.size(); i += chunk_size) {
+        chunks.emplace_back(vec.begin() + i, vec.begin() + std::min(vec.size(), i + chunk_size));
+    }
+    return chunks;
+}
+
+template<typename T>
+void splitAndAppend(const std::vector<T>& source,
+                            std::vector<std::vector<T>>& dest,
+                            std::size_t chunkSize) {
+    if (source.empty() || chunkSize == 0) throw std::invalid_argument("Source vector cannot be empty and chunk size must be greater than 0.");
+    
+    std::size_t numChunks = (source.size() + chunkSize - 1) / chunkSize;
+    dest.reserve(dest.size() + numChunks);
+    
+    auto it = source.begin();
+    auto end = source.end();
+    // std::cout << "Splitting " << source.size() << " elements into chunks of size " << chunkSize 
+    //           << " resulting in " << numChunks << " chunks." << std::endl;
+    
+    while (it != end) {
+        auto next = std::distance(it, end) > chunkSize 
+                   ? std::next(it, chunkSize) 
+                   : end;
+        
+        // inplace ctor
+        dest.emplace_back(it, next);
+        it = next;
+    }
+    // std::cout << "Finished splitting. Total chunks created: " << dest.size() << std::endl;
+}
+
 #endif

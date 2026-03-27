@@ -38,8 +38,9 @@ Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt
         std::cout << "Using tile2.0 optimization for CGraph." << std::endl;
     }
     int cnode_capacity = info.xbar_num * info.tile_size.first * info.tile_size.second;
+    int tile_num = tile2_0_flag ? info.tile_size.first * info.tile_size.second : 0;
     cg = std::make_shared<CGraph>(kernels, info.xbar_size, cnode_capacity, cg_strategy);
-    tg = std::make_shared<TGraph>(cg, info.xbar_num, tg_strategy);
+    tg = std::make_shared<TGraph>(cg, info.xbar_num, tg_strategy, tile_num);
     hg = std::make_shared<HGraph>(tg, cg, info.tile_size, hg_strategy);
     dg = std::make_shared<DGraph>(hg, tg, cg, info.pipeline_depth, dg_strategy);
 }

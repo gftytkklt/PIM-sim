@@ -334,7 +334,8 @@ public:
     using TDep = std::vector<std::set<Node>>; // TNode acctile info
     TGraph() = default;
     TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, std::shared_ptr<TStrategyBase> strategy);
-
+    // for tile2.0 optimization
+    TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, std::shared_ptr<TStrategyBase> strategy, int tile_num);
     const Graph& get_graph() const { return tg; }
     Graph& get_graph() { return tg; }
     const TDep& get_tdep() const { return tdeps; }

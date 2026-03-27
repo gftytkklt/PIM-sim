@@ -121,10 +121,10 @@ void CGraph::build_graph_subset(){
     }
     depth_map = std::move(new_depth_map);
     // print the subset result
-    // std::cout << "Selected kernel subset for tile2.0 optimization:" << std::endl;
-    // for (const auto& ker : kernels) {
-    //     std::cout << "Layer " << ker.layer << ": wsize(" << ker.wsize.first << ", " << ker.wsize.second << "), channel(" << ker.channel.first << ", " << ker.channel.second << "), depth: " << depth_map[ker.layer] << std::endl;
-    // }
+    std::cout << "[CG] Selected kernel subset for tile2.0 optimization:" << std::endl;
+    for (const auto& ker : kernels) {
+        std::cout << "[CG] Layer " << ker.layer << ": wsize(" << ker.wsize.first << ", " << ker.wsize.second << "), channel(" << ker.channel.first << ", " << ker.channel.second << "), depth: " << depth_map[ker.layer] << std::endl;
+    }
 }
 
 void CGraph::create_dup_num() {
@@ -353,6 +353,16 @@ TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num,
     this->analysis();
 }
 
+TGraph::TGraph(std::shared_ptr<const CGraph> cg, int tile_xbar_num, 
+               std::shared_ptr<TStrategyBase> strategy, int tile_num)
+    : BaseGraph<TGraph, TNode, TEdge>(strategy),
+      tg{}, cg_ref{cg}, node_map{}, tdeps{}, tile_xbar_num{tile_xbar_num}, tile_num{tile_num} {
+    auto cnode_num = cg_ref->num_nodes(cg_ref->get_graph());
+    std::cout << "cnode num: " << cnode_num << " tile xbar num: " << tile_xbar_num << " tile num: " << tile_num << std::endl;
+    this->analysis();
+    this->print_graph_info();
+}
+
 void TGraph::create_tnodes_MNSIM() {
     // merge cnodes sequentially & layer-wise
     std::vector<size_t> cnode_id{};
@@ -511,6 +521,10 @@ void TGraph::create_tnodes_TILE2_0() {
     const auto& cdeps = cg_ref->get_cdep();
     const int num_cnodes = cg_ref->num_nodes(cgraph);
     if (num_cnodes == 0) return;
+    if (tile_num == 0) {
+        tile_num = (num_cnodes + tile_xbar_num - 1) / tile_xbar_num;
+        std::cout << "[TILE2.0] Tile num not provided, calculated tile_num = " << tile_num << " based on cnode num and tile_xbar_num." << std::endl;
+    }
 
     std::cout << "[TILE2.0] Creating tnodes for " << num_cnodes << " cnodes, tile_xbar_num = " << tile_xbar_num << std::endl;
 
@@ -519,7 +533,7 @@ void TGraph::create_tnodes_TILE2_0() {
     struct CNodeColorInfo {
         std::set<int> candidate_colors; // all possible colors for this CNode
         int assigned_color = -1;                 // final assigned color
-        int assigned_tile_id = -1;               // final assigned tile ID
+        bool pcluster_assigned = false;          // whether assigned to a physical cluster
         int topological_depth = 0;               // topological depth from depth_map
     };
     std::vector<CNodeColorInfo> cnode_info(num_cnodes);
@@ -534,7 +548,7 @@ void TGraph::create_tnodes_TILE2_0() {
 
     // Physical tile struct
     struct PhysicalTile {
-        std::vector<int> assigned_cnodes;    // cnodes assigned to this tile
+        std::vector<size_t> assigned_cnodes;    // cnodes assigned to this tile
         std::unordered_map<int, int> color_count; // color distribution in this tile for conflict cost calculation
         int color_conflict_cost = 0;            // conflict cost based on color distribution
     };
@@ -542,7 +556,7 @@ void TGraph::create_tnodes_TILE2_0() {
     physical_tiles.reserve(tile_num);
     for (int i = 0; i < tile_num; i++) {
         PhysicalTile tile;
-        tile.assigned_cnodes.assign(tile_xbar_num, -1); // initialize with -1 (no cnode assigned)
+        tile.assigned_cnodes.reserve(tile_xbar_num); // initialize with -1 (no cnode assigned)
         physical_tiles.emplace_back(std::move(tile));
     }
 
@@ -637,8 +651,8 @@ void TGraph::create_tnodes_TILE2_0() {
             }
         }
     }
-    // DEBUG: pring coloring result and logical clusters
-    // std::cout << "[TILE2.0] Coloring result:" << std::endl;
+    // DEBUG: print coloring result and logical clusters
+    // std::cout << "[TG] Coloring result:" << std::endl;
     // for (size_t i = 0; i < cnode_info.size(); i++) {
     //     std::cout << "CNode " << i << ": candidate colors = {";
     //     for (const auto& color : cnode_info[i].candidate_colors) {
@@ -646,7 +660,7 @@ void TGraph::create_tnodes_TILE2_0() {
     //     }
     //     std::cout << "}" << std::endl;
     // }
-    // std::cout << "[TILE2.0] Logical clusters:" << std::endl;
+    // std::cout << "[TG] Logical clusters:" << std::endl;
     // for (const auto& [color, cluster] : logical_clusters_map) {
     //     std::cout << "Color " << color << ": member cnodes = {";
     //     for (const auto& cid : cluster.member_cnodes) {
@@ -657,7 +671,6 @@ void TGraph::create_tnodes_TILE2_0() {
 
     /* ---------- step3: Physical cluster construction and mapping ---------- */
     std::vector<PhysicalCluster> physical_clusters; // physical cluster list
-    physical_clusters.reserve((num_cnodes) / tile_xbar_num + 1);
     // For each logical cluster, we create one or more physical clusters
     //  based on tile capacity and parallelism requirements.
     for (const auto& [color, logical_cluster] : logical_clusters_map) {
@@ -665,142 +678,91 @@ void TGraph::create_tnodes_TILE2_0() {
         // get unmapped cnodes in this logical cluster
         unmapped_cnodes.erase(std::remove_if(unmapped_cnodes.begin(), unmapped_cnodes.end(),
             [&](int cid) {
-                return cnode_info[cid].assigned_color != -1; // already assigned
+                return cnode_info[cid].pcluster_assigned == true; // already assigned
             }), unmapped_cnodes.end());
-        // map tile_num cnodes each time first
-        // assign tile_num cnodes to physical cluster
+        // std::cout << "[TG] Unmapped node num " << unmapped_cnodes.size() << std::endl;
+        splitAndAppend(unmapped_cnodes, physical_clusters, tile_num);
+        // update passigned flag
+        for (const auto& cid: unmapped_cnodes) {
+            cnode_info[cid].pcluster_assigned = true;
+        }
+    }
+    // DEBUG: print physical clusters
+    if (physical_clusters.empty()) {
+        throw std::invalid_argument("No physical clusters created, which should not happen.");
+    }
+    // std::cout << "[TG] Physical clusters after splitting logical clusters:" << std::endl;
+    // for (size_t i = 0; i < physical_clusters.size(); i++) {
+    //     std::cout << "Physical Cluster " << i << ": cnodes = {";
+    //     for (const auto& cid : physical_clusters[i]) {
+    //         std::cout << cid << " ";
+    //     }        std::cout << "}" << std::endl;
+    // }
+    // Traverse physical clusters and assign them to tiles, 
+    // while trying to minimize color conflicts on each tile.
+    class TileAssignment {
+    private:
+        std::vector<PhysicalTile>& physical_tiles;
+        int tile_xbar_num;
+        struct Compare {
+            const std::vector<PhysicalTile>& physical_tiles;
+            Compare(const std::vector<PhysicalTile>& tiles) : physical_tiles(tiles) {}
+            bool operator()(int a, int b) const {
+                if (physical_tiles[a].assigned_cnodes.size() == physical_tiles[b].assigned_cnodes.size()) {
+                    return a < b; // tie-breaker: smaller tile ID first
+                }
+                return physical_tiles[a].assigned_cnodes.size() < physical_tiles[b].assigned_cnodes.size();
+            }
+        };
+        std::set<int, Compare> tile_queue; // sorted by assigned cnode count
+    public:
+        TileAssignment(std::vector<PhysicalTile>& tiles, int xbar_num) : 
+        physical_tiles(tiles), tile_xbar_num(xbar_num), tile_queue(Compare(tiles)) {
+            for (size_t i = 0; i < physical_tiles.size(); i++) {
+                tile_queue.insert(i);
+            }
+        }
 
+        std::vector<int> assignTile(const PhysicalCluster& cluster) {
+            std::vector<int> result;
+            int n = cluster.size();
+            if (n <= 0 || n > tile_queue.size()) {
+                throw std::invalid_argument("Invalid number of tiles to assign, should not happen.");
+            }
+            auto it = tile_queue.begin();
+            // get n tiles with least assigned cnodes
+            for (int i = 0; i < n; i++) {
+                result.push_back(*it);
+                it = tile_queue.erase(it); // remove from queue
+            }
+            // update tile info and re-insert into queue
+            int idx = 0;
+            for (int tile_id : result) {
+                auto& tile = physical_tiles[tile_id];
+                tile.assigned_cnodes.push_back(cluster[idx]); // assign cnode to tile
+                // tile.assigned_node_num += 1; // update assigned node num
+                tile_queue.insert(tile_id); // re-insert after assignment
+            }
+            return result;
+        }
+    };
+
+    TileAssignment tile_assigner(physical_tiles, tile_xbar_num);
+    for (const auto& physical_cluster : physical_clusters) {
+        tile_assigner.assignTile(physical_cluster);
     }
 
-
-    /* ---------- 步骤 5: 根据并行性优先原则，将逻辑簇映射到物理Tile ---------- */
-    // 假设物理Tile数量为 tile_num。如果未指定，则根据总节点数和单个Tile容量估算一个最小值。
-    // 这一段在别的函数里算过了，删掉就行了
-    // if (tile_num == 0) {
-    //     // 至少需要能容纳所有节点，且不少于最大逻辑簇的大小（以实现其基本并行度）
-    //     int min_tiles_by_capacity = (num_cnodes + tile_xbar_num - 1) / tile_xbar_num;
-    //     int min_tiles_by_parallelism = 0;
-    //     for (const auto& lc : logical_clusters) {
-    //         min_tiles_by_parallelism = std::max(min_tiles_by_parallelism, (int)lc.member_cnodes.size());
-    //     }
-    //     tile_num = std::max(min_tiles_by_capacity, min_tiles_by_parallelism);
-    //     std::cout << "[TILE2.0] Auto-computed tile_num = " << tile_num << std::endl;
-    // }
-    // physical_tiles.resize(tile_num);
-    // for (int i = 0; i < tile_num; ++i) {
-    //     physical_tiles[i].tile_id = i;
-    // }
-
-    // 首先，为每个逻辑簇分配一个独立的Tile集合，力求让簇内节点分散到不同Tile。
-    // 使用一个从Tile ID到其“当前主要颜色”的映射来辅助决策。
-    // std::unordered_map<int, int> tile_dominant_color; // tile_id -> color
-
-    // 对逻辑簇按大小排序，优先处理大簇（有利于资源分配）
-    // 这个可以保留下来看一看，和前面的独立着色策略不一样了。这个策略对应同层独立颜色的较好
-    // 实际上是在流水深度内，每个邻接组允许同色
-    // 从论文图考虑，规约维同色的前提其实是所有数据都计算完了
-    // 否则，下一层实际可以开始计算的规约维只是上一层完成计算的节点，所以还是得有channel-wise的着色
-    // std::vector<LogicalCluster> sorted_clusters = logical_clusters;
-    // std::sort(sorted_clusters.begin(), sorted_clusters.end(),
-    //         [](const LogicalCluster& a, const LogicalCluster& b) {
-    //             return a.member_cnodes.size() > b.member_cnodes.size(); // 降序
-    //         });
-
-    // 分配标记
-    // std::unordered_map<size_t, bool> cnode_assigned; // cnode_id -> bool
-
-    // for (const auto& lc : sorted_clusters) {
-    //     int cluster_color = lc.cluster_id;
-    //     const auto& members = lc.member_cnodes;
-
-    //     // 第一阶段：尝试为簇内每个节点找到一个“理想”的Tile。
-    //     // “理想”Tile是指：1. 该Tile尚未被当前颜色占据；2. 该Tile剩余容量充足。
-    //     // 未必需要重新分配颜色，实际上是尽量把不可能并行的节点放在一起，可能会有同色冲突，但不影响并行度。
-    //     // 一种是逻辑并行簇刚好分成多个串行物理簇，是受芯片大小限制并行度
-    //     // 需要避免的是数据依赖acc2与acc0-1分配至同一节点的情况，实际上的串行只有这一种情况。
-    //     // adjlist可以用来判断这些情况，后面的最优tile选择遵循这个原则就可以了。
-    //     for (size_t cid : members) {
-    //         if (cnode_assigned[cid]) continue; // 可能已被之前的簇分配
-
-    //         int best_tile = -1;
-    //         // 策略1: 寻找未被当前颜色占据且容量足够的Tile
-    //         for (int tid = 0; tid < tile_num; ++tid) {
-    //             if (physical_tiles[tid].assigned_cnodes.size() >= tile_xbar_num) continue; // 容量满
-    //             auto it = tile_dominant_color.find(tid);
-    //             if (it != tile_dominant_color.end() && it->second == cluster_color) {
-    //                 continue; // 此Tile已被当前颜色占据，避免同色节点聚集
-    //             }
-    //             best_tile = tid;
-    //             break;
-    //         }
-    //         // 策略2: 如果找不到，则寻找容量足够且同色节点最少的Tile（最小化冲突）
-    //         if (best_tile == -1) {
-    //             int min_same_color_count = INT_MAX;
-    //             for (int tid = 0; tid < tile_num; ++tid) {
-    //                 if (physical_tiles[tid].assigned_cnodes.size() >= tile_xbar_num) continue;
-    //                 int same_color_cnt = physical_tiles[tid].color_count[cluster_color];
-    //                 if (same_color_cnt < min_same_color_count) {
-    //                     min_same_color_count = same_color_cnt;
-    //                     best_tile = tid;
-    //                 }
-    //             }
-    //         }
-    //         // 策略3: 如果还找不到（所有Tile容量都紧张），则必须放入一个已满或冲突较高的Tile（需拆分或报错，这里简化放入第一个有容量的）
-    //         if (best_tile == -1) {
-    //             for (int tid = 0; tid < tile_num; ++tid) {
-    //                 if (physical_tiles[tid].assigned_cnodes.size() < tile_xbar_num) {
-    //                     best_tile = tid;
-    //                     break;
-    //                 }
-    //             }
-    //             if (best_tile == -1) {
-    //                 // 硬件资源不足，需要增加Tile或报错
-    //                 std::cerr << "[TILE2.0] Error: Insufficient tile resources for mapping." << std::endl;
-    //                 // 此处简化处理：创建新Tile
-    //                 PhysicalTile new_tile;
-    //                 new_tile.tile_id = physical_tiles.size();
-    //                 physical_tiles.push_back(new_tile);
-    //                 best_tile = new_tile.tile_id;
-    //             }
-    //         }
-
-    //         // 执行分配
-    //         physical_tiles[best_tile].assigned_cnodes.push_back(cid);
-    //         cnode_info[cid].assigned_tile_id = best_tile;
-    //         cnode_assigned[cid] = true;
-    //         // 更新Tile的颜色统计和主导颜色
-    //         physical_tiles[best_tile].color_count[cluster_color]++;
-    //         if (tile_dominant_color.find(best_tile) == tile_dominant_color.end() ||
-    //             physical_tiles[best_tile].color_count[cluster_color] > physical_tiles[best_tile].color_count[tile_dominant_color[best_tile]]) {
-    //             tile_dominant_color[best_tile] = cluster_color;
-    //         }
-    //     }
-    // }
-
-    // // 第二阶段：处理可能遗漏的节点（理论上不应该有，除非有节点不属于任何逻辑簇）
-    // // 这不可能，不需要这一段逻辑，构造逻辑簇的时候是遍历cnode的。
-    // for (size_t cid = 0; cid < num_cnodes; ++cid) {
-    //     if (cnode_assigned[cid]) continue;
-    //     // 将其分配到颜色冲突最小且容量足够的Tile
-    //     int best_tile = -1;
-    //     int min_total_conflict = INT_MAX;
-    //     int node_color = cnode_info[cid].assigned_color;
-    //     for (int tid = 0; tid < tile_num; ++tid) {
-    //         if (physical_tiles[tid].assigned_cnodes.size() >= tile_xbar_num) continue;
-    //         int conflict_cost = physical_tiles[tid].color_count[node_color]; // 与此节点同色的数量
-    //         if (conflict_cost < min_total_conflict) {
-    //             min_total_conflict = conflict_cost;
-    //             best_tile = tid;
-    //         }
-    //     }
-    //     if (best_tile == -1) {
-    //         // 简化处理：放入第一个Tile
-    //         best_tile = 0;
-    //     }
-    //     physical_tiles[best_tile].assigned_cnodes.push_back(cid);
-    //     cnode_info[cid].assigned_tile_id = best_tile;
-    //     physical_tiles[best_tile].color_count[node_color]++;
-    // }
+    /* ---------- 步骤 4: TNode & node_map ctor ---------- */
+    for (const auto& tile: physical_tiles){
+        if(tile.assigned_cnodes.size() > this->tile_xbar_num) {
+            throw std::runtime_error("Tile capacity exceeded, should not happen.");
+        }
+        auto tnode_id = add_node(TNode{tile.assigned_cnodes}, tg);
+        for (const auto& cid : tile.assigned_cnodes) {
+            node_map.emplace(cid, tnode_id);
+        }
+         // 可选：打印调试信息
+    }
 
     // /* ---------- 步骤 6: 创建TNode并填充node_map ---------- */
     // tg.clear(); // 清空现有图（如果存在）
@@ -931,7 +893,7 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
       hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, paths{}, mapper{} {
     
     auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
-    std::cout << "num tile: " << num_tile << std::endl;
+    std::cout << "[HG]: num tile: " << num_tile << std::endl;
     
     if (tile_size.first * tile_size.second < num_tile) {
         auto tile_x = static_cast<int>(std::ceil(std::sqrt(num_tile)));
