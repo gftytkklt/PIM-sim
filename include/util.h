@@ -126,7 +126,8 @@ template<typename T>
 void splitAndAppend(const std::vector<T>& source,
                             std::vector<std::vector<T>>& dest,
                             std::size_t chunkSize) {
-    if (source.empty() || chunkSize == 0) throw std::invalid_argument("Source vector cannot be empty and chunk size must be greater than 0.");
+    if (chunkSize == 0) throw std::invalid_argument("chunk size must be greater than 0.");
+    else if(source.empty()) return; // no elements to split, just return
     
     std::size_t numChunks = (source.size() + chunkSize - 1) / chunkSize;
     dest.reserve(dest.size() + numChunks);

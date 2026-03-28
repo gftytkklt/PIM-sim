@@ -593,14 +593,14 @@ void TGraph::create_tnodes_TILE2_0() {
                         cnode_info[cid].topological_depth = layer_depth;
                         color_candidate_cnodes.push_back(cid);
                     }
+                    // form logical cluster and move to next color if reaching tile capacity
                     if (colored_cnt >= tile_num) {
-                        // logical_clusters.emplace_back(LogicalCluster{current_color, color_candidate_cnodes});
-                        auto [it, inserted] = logical_clusters_map.try_emplace(current_color, LogicalCluster{color_candidate_cnodes});
-                        if(!inserted) {
-                            throw std::runtime_error("Color ID already exists in logical_clusters_map, which should not happen.");
-                        }
                         break;
                     }
+                }
+                auto [it, inserted] = logical_clusters_map.try_emplace(current_color, LogicalCluster{color_candidate_cnodes});
+                if(!inserted) {
+                    throw std::runtime_error("Color ID already exists in logical_clusters_map, which should not happen.");
                 }
                 current_color++;
             }
@@ -742,6 +742,7 @@ void TGraph::create_tnodes_TILE2_0() {
                 tile.assigned_cnodes.push_back(cluster[idx]); // assign cnode to tile
                 // tile.assigned_node_num += 1; // update assigned node num
                 tile_queue.insert(tile_id); // re-insert after assignment
+                idx++;
             }
             return result;
         }
