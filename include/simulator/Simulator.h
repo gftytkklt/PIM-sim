@@ -152,4 +152,76 @@ public:
     bool is_simulation_done() const { return simulation_done_; }
 };
 
+// 模板方法实现
+// template<typename ModuleType>
+// std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(const std::string& id, int topological_depth) {
+//     auto module = std::make_shared<ModuleType>(id);
+//     module->set_topological_depth(topological_depth);
+    
+//     modules_.push_back(module);
+//     module_map_[id] = module;
+    
+//     // 按拓扑深度排序
+//     std::sort(modules_.begin(), modules_.end(),
+//         [](const std::shared_ptr<ISimulatable>& a, 
+//            const std::shared_ptr<ISimulatable>& b) {
+//             return a->get_topological_depth() > b->get_topological_depth(); // 降序
+//         });
+    
+//     return module;
+// }
+
+template<typename ModuleType>
+std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
+    const std::string& id, int topological_depth) {
+    
+    auto module = std::make_shared<ModuleType>(id);
+    module->set_topological_depth(topological_depth);
+    
+    // 设置信号更新回调
+    auto weak_this = std::weak_ptr<CycleAccurateSimulator>(
+        std::static_pointer_cast<CycleAccurateSimulator>(shared_from_this())
+    );
+    
+    module->set_schedule_callback([weak_this, module](
+        uint64_t valid_cycle, 
+        std::weak_ptr<ISimulatable> source_module,
+        const std::string& signal_name,
+        const std::any& value) {
+        
+        if (auto sim = weak_this.lock()) {
+            // 将信号更新事件加入队列
+            SignalUpdateEvent event;
+            event.cycle = valid_cycle;
+            event.module = source_module;
+            event.signal_name = signal_name;
+            event.value = value;
+            
+            sim->signal_event_queue_.push(event);
+        }
+    });
+    
+    modules_.push_back(module);
+    module_map_[id] = module;
+    
+    // 按拓扑深度排序
+    std::sort(modules_.begin(), modules_.end(),
+        [](const std::shared_ptr<ISimulatable>& a, 
+           const std::shared_ptr<ISimulatable>& b) {
+            return a->get_topological_depth() > b->get_topological_depth(); // 降序
+        });
+    
+    return module;
+}
+
+template<typename ModuleType>
+std::shared_ptr<ModuleType> CycleAccurateSimulator::get_module(const std::string& id) {
+    auto it = module_map_.find(id);
+    if (it != module_map_.end() && 
+        it->second->get_module_type() == typeid(ModuleType)) {
+        return std::static_pointer_cast<ModuleType>(it->second);
+    }
+    return nullptr;
+}
+
 #endif // SIMULATOR_H

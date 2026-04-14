@@ -107,8 +107,9 @@ public:
         return {};
     }
 
-    // 修改set_signal_value实现
-    void set_signal_value(const std::string& name, 
+    // 这是将setter函数延迟到对应周期的接口
+    // 当模块产生输出的时候，不直接修改信号的值，通过该接口提交一个信号更新事件。
+    void submit_signal_value(const std::string& name, 
                          const std::any& value, 
                          uint64_t valid_cycle) override {
         auto it = signals_.find(name);
@@ -131,22 +132,17 @@ public:
         }
     }
     
-    // void set_signal_value(const std::string& name, 
-    //                      const std::any& value, 
-    //                      uint64_t valid_cycle) override {
-    //     auto it = signals_.find(name);
-    //     if (it != signals_.end()) {
-    //         it->second.value = value;
-    //         it->second.valid = true;
-    //         it->second.valid_cycle = valid_cycle;
-            
-    //         // 记录信号更新事件
-    //         performance_stats_["signal_updates"]++;
-
-    //         // 提交信号更新事件到模拟器队列
-    //         schedule_signal_update(name, value, valid_cycle);
-    //     }
-    // }
+    // setter函数
+    void set_signal_value(const std::string& name, 
+                         const std::any& value, 
+                         uint64_t valid_cycle) override {
+        auto it = signals_.find(name);
+        if (it != signals_.end()) {
+            it->second.value = value;
+            it->second.valid = true;
+            it->second.valid_cycle = valid_cycle;
+        }
+    }
 
     // void schedule_signal_update(const std::string& signal_name,
     //                            const std::any& value,
@@ -176,7 +172,7 @@ public:
     }
     
     // 这里直接调用
-    void evaluate(uint64_t current_cycle) override {
+    virtual void evaluate(uint64_t current_cycle) override {
         stats_["total_evaluations"]++;
         process_manager_->drive_state_transitions(current_cycle);
     }
@@ -268,7 +264,9 @@ protected:
     const ProcessManager* get_process_manager() const { return process_manager_.get(); }
     // 具体模块需要实现的接口
     virtual void register_processes() = 0; // 由派生类实现，注册自己的进程类型和条件函数
-    virtual std::unordered_map<std::string, uint64_t> get_module_specific_stats() const = 0;
+    virtual std::unordered_map<std::string, uint64_t> get_module_specific_stats() const override {
+         return {};
+     }
 };
 
 #endif // MODULEBASE_H
