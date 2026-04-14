@@ -6,6 +6,129 @@
 CycleAccurateSimulator::CycleAccurateSimulator(uint64_t max_cycles) 
     : max_cycles_(max_cycles) {}
 
+void CycleAccurateSimulator::process_signal_events(uint64_t current_cycle) {
+    // 处理当前周期到期的所有信号事件
+    while (!signal_event_queue_.empty() && 
+           signal_event_queue_.top().cycle <= current_cycle) {
+        auto event = signal_event_queue_.top();
+        signal_event_queue_.pop();
+        
+        // 如果事件还未到生效周期，放回队列
+        if (event.cycle < current_cycle) {
+            // 理论上不应该发生，但安全处理
+            throw std::runtime_error("Signal event in the past detected!");
+        }
+        
+        // 传播信号到所有连接的目标
+        if (auto source_module = event.module.lock()) {
+            propagate_signal_to_targets(
+                source_module,
+                event.signal_name,
+                event.value,
+                current_cycle
+            );
+        }
+    }
+}
+
+void CycleAccurateSimulator::propagate_signal_to_targets(
+    std::shared_ptr<ISimulatable> source_module,
+    const std::string& source_signal,
+    const std::any& value,
+    uint64_t valid_cycle) {
+    
+    // 查找该信号的所有连接
+    ConnectionKey key = {source_module, source_signal};
+    auto it = connections_map_.find(key);
+    if (it == connections_map_.end()) {
+        throw std::runtime_error("No connections found for signal: " + source_signal);
+        return;  // 没有连接
+    }
+    
+    // 更新所有目标模块的信号
+    for (const auto& conn_info : it->second) {
+        if (auto target = conn_info.target_module.lock()) {
+            target->set_signal_value(
+                conn_info.target_signal,
+                value,
+                valid_cycle
+            );
+        }
+    }
+}
+
+// 模板方法实现
+// template<typename ModuleType>
+// std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(const std::string& id, int topological_depth) {
+//     auto module = std::make_shared<ModuleType>(id);
+//     module->set_topological_depth(topological_depth);
+    
+//     modules_.push_back(module);
+//     module_map_[id] = module;
+    
+//     // 按拓扑深度排序
+//     std::sort(modules_.begin(), modules_.end(),
+//         [](const std::shared_ptr<ISimulatable>& a, 
+//            const std::shared_ptr<ISimulatable>& b) {
+//             return a->get_topological_depth() > b->get_topological_depth(); // 降序
+//         });
+    
+//     return module;
+// }
+
+template<typename ModuleType>
+std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
+    const std::string& id, int topological_depth) {
+    
+    auto module = std::make_shared<ModuleType>(id);
+    module->set_topological_depth(topological_depth);
+    
+    // 设置信号更新回调
+    auto weak_this = std::weak_ptr<CycleAccurateSimulator>(
+        std::static_pointer_cast<CycleAccurateSimulator>(shared_from_this())
+    );
+    
+    module->set_schedule_callback([weak_this, module](
+        uint64_t valid_cycle, 
+        std::weak_ptr<ISimulatable> source_module,
+        const std::string& signal_name,
+        const std::any& value) {
+        
+        if (auto sim = weak_this.lock()) {
+            // 将信号更新事件加入队列
+            SignalUpdateEvent event;
+            event.cycle = valid_cycle;
+            event.module = source_module;
+            event.signal_name = signal_name;
+            event.value = value;
+            
+            sim->signal_event_queue_.push(event);
+        }
+    });
+    
+    modules_.push_back(module);
+    module_map_[id] = module;
+    
+    // 按拓扑深度排序
+    std::sort(modules_.begin(), modules_.end(),
+        [](const std::shared_ptr<ISimulatable>& a, 
+           const std::shared_ptr<ISimulatable>& b) {
+            return a->get_topological_depth() > b->get_topological_depth(); // 降序
+        });
+    
+    return module;
+}
+
+template<typename ModuleType>
+std::shared_ptr<ModuleType> CycleAccurateSimulator::get_module(const std::string& id) {
+    auto it = module_map_.find(id);
+    if (it != module_map_.end() && 
+        it->second->get_module_type() == typeid(ModuleType)) {
+        return std::static_pointer_cast<ModuleType>(it->second);
+    }
+    return nullptr;
+}
+
 void CycleAccurateSimulator::run() {
     std::cout << "=== Starting Cycle-Accurate Simulation ===" << std::endl;
     std::cout << "Total modules: " << modules_.size() << std::endl;
@@ -27,6 +150,20 @@ void CycleAccurateSimulator::run() {
     print_statistics();
 }
 
+// void CycleAccurateSimulator::connect_modules(const std::string& src_id, 
+//                                             const std::string& src_signal,
+//                                             const std::string& dst_id, 
+//                                             const std::string& dst_signal) {
+//     auto src_it = module_map_.find(src_id);
+//     auto dst_it = module_map_.find(dst_id);
+    
+//     if (src_it != module_map_.end() && dst_it != module_map_.end()) {
+//         src_it->second->connect_to(src_signal, dst_it->second, dst_signal);
+//     } else {
+//         std::cerr << "Warning: Failed to connect modules. Source or target not found." << std::endl;
+//     }
+// }
+
 void CycleAccurateSimulator::connect_modules(const std::string& src_id, 
                                             const std::string& src_signal,
                                             const std::string& dst_id, 
@@ -35,7 +172,14 @@ void CycleAccurateSimulator::connect_modules(const std::string& src_id,
     auto dst_it = module_map_.find(dst_id);
     
     if (src_it != module_map_.end() && dst_it != module_map_.end()) {
+        // 1. 在模块层面建立连接
         src_it->second->connect_to(src_signal, dst_it->second, dst_signal);
+        
+        // 2. 在模拟器层面记录连接关系
+        ConnectionKey key = {src_it->second, src_signal};
+        connections_map_[key].push_back({
+            dst_it->second, dst_signal
+        });
     } else {
         std::cerr << "Warning: Failed to connect modules. Source or target not found." << std::endl;
     }
@@ -47,46 +191,27 @@ const std::vector<std::shared_ptr<ISimulatable>>& CycleAccurateSimulator::get_al
 
 void CycleAccurateSimulator::initialize_simulation() {
     // 创建初始激励事件
-    auto init_event = std::make_shared<Event>();
-    init_event->trigger_cycle = 0;
-    init_event->exec_cycle = 0;
-    init_event->finish_cycle = 0;
-    init_event->end_cycle = 0;
-    init_event->state = Event::State::EXECUTING;
-    init_event->type = Event::Type::MODULE_EVALUATE;
-    init_event->action = [this]() {
-        std::cout << "[0] Simulation initialized" << std::endl;
-        
-        // 设置初始输入信号
-        for (auto& module : modules_) {
-            if (module->get_id() == "input_buffer") {
-                module->set_signal_value("data_out", std::any(100), 0);
-                module->set_signal_value("valid", std::any(true), 0);
-            }
-        }
-    };
-    
-    event_queue_.push(init_event);
+    std::cerr << "Initializing simulation with initial events..." << std::endl;
 }
 
 void CycleAccurateSimulator::simulate_cycle() {
+    process_signal_events(current_cycle_);
+
     // 步骤1: 处理组合逻辑事件（最高优先级）
     process_combinational_logic();
     
     // 步骤2: 按拓扑深度降序评估所有模块
     stats_.modules_processed = 0;
     for (auto& module : modules_) {
-        if (module->evaluate(current_cycle_, event_queue_)) {
+        if (module->evaluate(current_cycle_)) {
             stats_.modules_processed++;
         }
     }
-    
-    // 步骤3: 处理当前周期所有到期事件
-    process_events_at_cycle(current_cycle_);
+
+    // 步骤3: 处理对外输出的事件，多核仿真用
     
     // 步骤4: 更新统计
     stats_.total_cycles = current_cycle_;
-    stats_.total_events = event_queue_.get_total_events_processed();
     
     // 检查结束条件
     check_simulation_complete();
@@ -95,60 +220,15 @@ void CycleAccurateSimulator::simulate_cycle() {
 void CycleAccurateSimulator::process_combinational_logic() {
     // 处理延迟为0的组合逻辑模块
     for (auto& module : combinational_modules_) {
-        module->evaluate(current_cycle_, event_queue_);
-    }
-}
-
-void CycleAccurateSimulator::process_events_at_cycle(uint64_t cycle) {
-    std::vector<EventPtr> events_to_process;
-    
-    // 收集所有在此时刻需要执行的事件
-    while (!event_queue_.empty()) {
-        auto next_event = event_queue_.peek();
-        if (next_event && next_event->exec_cycle == cycle) {
-            events_to_process.push_back(event_queue_.pop());
-        } else {
-            break;
-        }
-    }
-    
-    // 执行事件
-    for (auto& event : events_to_process) {
-        if (event->state == Event::State::PENDING) {
-            event->state = Event::State::EXECUTING;
-            
-            // 执行事件动作
-            if (event->action) {
-                event->action();
-            }
-            
-            // 更新事件状态
-            if (event->type == Event::Type::MODULE_EVALUATE) {
-                // 模块评估事件会在完成时由模块自己处理
-            } else {
-                event->state = Event::State::ENDED;
-            }
-            
-            // 记录事件处理
-            stats_.total_events++;
-        }
+        module->evaluate(current_cycle_);
     }
 }
 
 void CycleAccurateSimulator::check_simulation_complete() {
     // 简单结束条件：事件队列为空
-    if (event_queue_.empty()) {
-        bool all_modules_idle = true;
-        for (auto& module : modules_) {
-            if (!module->is_available()) {
-                all_modules_idle = false;
-                break;
-            }
-        }
-        
-        if (all_modules_idle) {
-            simulation_done_ = true;
-            std::cout << "[" << current_cycle_ << "] All modules idle, simulation complete." << std::endl;
+    for (const auto& module : modules_) {
+        if (!module->get_active_processes().empty()) {
+            return; // 还有活跃事件，继续模拟
         }
     }
 }

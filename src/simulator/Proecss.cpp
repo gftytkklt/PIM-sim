@@ -81,6 +81,7 @@ std::unordered_map<std::string, uint64_t> ProcessEvent::get_timing_stats() const
     return stats;
 }
 
+// 利用这些函数驱动状态转换的同时，用于更新模块输出参数和值传递，反正这些函数都是模块自带的，可以查看内部变量。
 ProcessType::ProcessType(const std::string& name, 
                          TriggerCondition trigger_cond,
                          ExecCondition exec_cond,
@@ -94,7 +95,6 @@ ProcessType::ProcessType(const std::string& name,
     , end_condition_(end_cond)
     , latency_(latency) {
 }
-
 
 bool ProcessType::check_trigger() const {
     if (trigger_condition_) {
@@ -160,7 +160,7 @@ ProcessTypePtr ProcessManager::get_process_type(const std::string& name) const {
     return nullptr;
 }
 
-ProcessEventPtr ProcessManager::create_event_instance(const std::string& process_type) {
+ProcessEventPtr ProcessManager::create_active_event(const std::string& process_type, uint64_t current_cycle) {
     if (process_types_.find(process_type) == process_types_.end()) {
         std::cerr << "Error: Process type '" << process_type << "' not registered." << std::endl;
         return nullptr;
@@ -168,6 +168,7 @@ ProcessEventPtr ProcessManager::create_event_instance(const std::string& process
     
     uint64_t instance_id = next_instance_id_++;
     auto event = std::make_shared<ProcessEvent>(process_type, instance_id);
+    event->set_triggered(current_cycle);
     active_events_.push_back(event);
     
     return event;
@@ -205,28 +206,67 @@ bool ProcessManager::has_active_event_of_type(const std::string& process_type) c
     return false;
 }
 
-void ProcessManager::update_event_states(uint64_t current_cycle) {
-    // 这个函数主要更新事件的状态，但具体的状态转换逻辑
-    // 应该由使用ProcessManager的模块在check_triggers中实现
-    // 这里只提供基础的时间检查
-    
+void ProcessManager::drive_state_transitions(uint64_t current_cycle) {
+    // 首先判断是否有新的活跃事件触发
+    for (const auto& [name, process_type] : process_types_) {
+        if (!has_active_event_of_type(name) && process_type->check_trigger()) {
+            // 如果触发条件满足，创建一个新的事件实例
+            create_active_event(name, current_cycle);
+        }
+    }
     for (auto& event : active_events_) {
         auto process_type = get_process_type(event->get_process_type());
-        if (!process_type) continue;
-        
-        // 对于执行中的事件，可以检查是否应该完成
-        if (event->is_executing()) {
-            uint64_t exec_time = event->get_exec_time();
-            uint64_t latency = process_type->get_latency();
-            
-            // 如果经过了足够的延迟，标记为可完成
-            // 注意：实际的finish状态转换应该在模块的check_finish条件中判断
-            if (current_cycle >= exec_time + latency) {
-                // 这里不直接调用event->set_finished，因为完成条件
-                // 可能还需要其他信号条件满足
+        if (!process_type) {
+            // 事件对应的类型未注册，可能是错误，跳过
+            continue;
+        }
+
+        // 根据事件的当前状态，检查相应的条件并进行转换
+        // 使用while循环，允许一个周期内满足条件时连续转换多个状态（如从IDLE直接到EXECUTING）
+        bool state_changed = true;
+        while (state_changed) {
+            state_changed = false;
+            switch (event->get_state()) {
+                // 所有活跃事件都是TRIGGERED或更后续状态。
+                case ProcessEvent::State::TRIGGERED:
+                    if (process_type->check_exec()) {
+                        event->set_executing(current_cycle);
+                        state_changed = true;
+                    }
+                    break;
+                    
+                case ProcessEvent::State::EXECUTING:
+                    // 选择1: 基于条件函数
+                    if (process_type->check_finish()) {
+                        event->set_finished(current_cycle);
+                        state_changed = true;
+                    }
+                    // 选择2: 或基于固定延迟 (保留现有逻辑)
+                    // uint64_t exec_time = event->get_exec_time();
+                    // uint64_t latency = process_type->get_latency();
+                    // if (current_cycle >= exec_time + latency) {
+                    //     event->set_finished(current_cycle);
+                    //     state_changed = true;
+                    // }
+                    break;
+                    
+                case ProcessEvent::State::FINISHED:
+                    if (process_type->check_end()) {
+                        event->set_ended(current_cycle);
+                        state_changed = true;
+                    }
+                    break;
+                    
+                case ProcessEvent::State::ENDED:
+                    // ENDED 是终态，不再转换
+                default:
+                    break;
             }
         }
     }
+    
+    // 可选：在状态驱动的最后，清理已结束的事件
+    cleanup_ended_events();
 }
 
 void ProcessManager::cleanup_ended_events() {

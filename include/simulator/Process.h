@@ -146,7 +146,7 @@ public:
     ProcessTypePtr get_process_type(const std::string& name) const;
     
     // 创建事件实例
-    ProcessEventPtr create_event_instance(const std::string& process_type);
+    ProcessEventPtr create_active_event(const std::string& process_type, uint64_t current_cycle);
     
     // 获取活跃事件
     const std::vector<ProcessEventPtr>& get_active_events() const { return active_events_; }
@@ -154,9 +154,8 @@ public:
     
     // 检查是否已存在某类事件
     bool has_active_event_of_type(const std::string& process_type) const;
-    
-    // 更新事件状态
-    void update_event_states(uint64_t current_cycle);
+
+    void drive_state_transitions(uint64_t current_cycle);
     
     // 移除已完成事件
     void cleanup_ended_events();
