@@ -42,7 +42,7 @@ struct SignalUpdateEvent {
     }
 };
 
-class CycleAccurateSimulator {
+class CycleAccurateSimulator : public std::enable_shared_from_this<CycleAccurateSimulator> {
 private:
     // 优先队列，最小堆，按周期排序
     using EventQueue = std::priority_queue<
@@ -127,6 +127,7 @@ public:
     CycleAccurateSimulator(const CycleAccurateSimulator&) = delete;
     CycleAccurateSimulator& operator=(const CycleAccurateSimulator&) = delete;
     
+
     // 注册模块
     template<typename ModuleType>
     std::shared_ptr<ModuleType> register_module(const std::string& id, int topological_depth);

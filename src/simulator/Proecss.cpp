@@ -1,4 +1,4 @@
-#include "Process.h"
+#include "simulator/Process.h"
 #include <iostream>
 
 ProcessEvent::ProcessEvent(const std::string& process_type, uint64_t instance_id) {
@@ -218,7 +218,7 @@ void ProcessManager::drive_state_transitions(uint64_t current_cycle) {
         auto process_type = get_process_type(event->get_process_type());
         if (!process_type) {
             // 事件对应的类型未注册，可能是错误，跳过
-            continue;
+            throw std::runtime_error("Event has unregistered process type: " + event->get_process_type());
         }
 
         // 根据事件的当前状态，检查相应的条件并进行转换

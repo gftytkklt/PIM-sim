@@ -1,6 +1,4 @@
-#include "Simulator.h"
-#include "simulator/modules/ProcessingUnit.h"
-#include "simulator/modules/MemoryUnit.h"
+#include "simulator/Simulator.h"
 #include <iostream>
 
 CycleAccurateSimulator::CycleAccurateSimulator(uint64_t max_cycles) 
@@ -109,7 +107,8 @@ void CycleAccurateSimulator::connect_modules(const std::string& src_id,
             dst_it->second, dst_signal
         });
     } else {
-        std::cerr << "Warning: Failed to connect modules. Source or target not found." << std::endl;
+        throw std::runtime_error("Failed to connect modules. Source or target not found: " + src_id + " -> " + dst_id);
+        // std::cerr << "Warning: Failed to connect modules. Source or target not found." << std::endl;
     }
 }
 
@@ -131,9 +130,8 @@ void CycleAccurateSimulator::simulate_cycle() {
     // 步骤2: 按拓扑深度降序评估所有模块
     stats_.modules_processed = 0;
     for (auto& module : modules_) {
-        if (module->evaluate(current_cycle_)) {
-            stats_.modules_processed++;
-        }
+        module->evaluate(current_cycle_);
+        stats_.modules_processed++;
     }
 
     // 步骤3: 处理对外输出的事件，多核仿真用
@@ -147,6 +145,7 @@ void CycleAccurateSimulator::simulate_cycle() {
 
 void CycleAccurateSimulator::process_combinational_logic() {
     // 处理延迟为0的组合逻辑模块
+    // 组合逻辑模块先可以直接调用set_signal_value吧。
     for (auto& module : combinational_modules_) {
         module->evaluate(current_cycle_);
     }

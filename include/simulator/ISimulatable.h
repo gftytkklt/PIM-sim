@@ -7,6 +7,8 @@
 #include <any>
 #include <typeindex>
 #include <unordered_map>
+#include <vector>
+#include "Process.h"
 
 /**
  * 模拟模块抽象接口
@@ -21,7 +23,7 @@ public:
     virtual std::type_index get_module_type() const = 0;
     
     // 事件驱动接口 (对应算法5.2)
-    virtual bool evaluate(uint64_t current_cycle) = 0;
+    virtual void evaluate(uint64_t current_cycle) = 0;
     virtual const std::vector<ProcessEventPtr>& get_active_processes() const = 0;
     
     // 拓扑属性
