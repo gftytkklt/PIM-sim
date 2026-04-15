@@ -6,6 +6,7 @@
 #include <vector>
 #include <any>
 #include <memory>
+#include <iostream>
 #include "ISimulatable.h"
 #include "Process.h"
 
@@ -114,9 +115,9 @@ public:
                          uint64_t valid_cycle) {
         auto it = signals_.find(name);
         if (it != signals_.end()) {
-            it->second.value = value;
-            it->second.valid = true;
-            it->second.valid_cycle = valid_cycle;
+            // it->second.value = value;
+            // it->second.valid = true;
+            // it->second.valid_cycle = valid_cycle; // 经多少周期以后信号生效。
             
             performance_stats_["signal_updates"]++;
             
@@ -130,6 +131,9 @@ public:
                 );
             }
         }
+        // std::cout << "Module " << id_ << " submitted signal update: " 
+        //           << name << " = " << value.type().name() 
+        //           << " (valid after cycle " << valid_cycle << ")" << std::endl;
     }
     
     // setter函数
@@ -143,27 +147,6 @@ public:
             it->second.valid_cycle = valid_cycle;
         }
     }
-
-    // void schedule_signal_update(const std::string& signal_name,
-    //                            const std::any& value,
-    //                            uint64_t valid_cycle) override {
-    //     if (auto simulator = simulator_.lock()) {
-    //         // 获取这个信号的所有连接
-    //         auto connections = get_output_connections(signal_name);
-            
-    //         for (const auto& [target_id, target_signal] : connections) {
-    //             // 创建信号更新事件
-    //             SignalUpdateEvent event;
-    //             event.cycle = valid_cycle;
-    //             event.source_module = this->shared_from_this();
-    //             event.source_signal = signal_name;
-                
-    //             // 这里需要从模拟器获取目标模块
-    //             // 实际实现中，ModuleBase可能需要知道如何获取目标模块
-    //             // 为了简化，我们可以在set_signal_value时就创建所有目标事件
-    //         }
-    //     }
-    // }
     
     void connect_to(const std::string& local_signal,
                    std::shared_ptr<ISimulatable> target_module,

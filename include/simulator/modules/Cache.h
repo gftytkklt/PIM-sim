@@ -74,7 +74,7 @@ private:
     
     // 内存延迟
     const uint64_t hit_latency_{1};
-    const uint64_t miss_latency_{10};
+    const uint64_t miss_latency_{4};
     
     // 统计信息
     uint64_t read_hits_{0};
@@ -105,13 +105,14 @@ public:
         add_signal(Signal("we_in", Signal::Direction::INPUT));
         
         add_signal(Signal("data_out", Signal::Direction::OUTPUT));
-        add_signal(Signal("data_valid", Signal::Direction::OUTPUT));
+        add_signal(Signal("data_valid", Signal::Direction::OUTPUT, false));
         add_signal(Signal("ready", Signal::Direction::OUTPUT));
         
-        add_signal(Signal("mem_addr", Signal::Direction::OUTPUT));
-        add_signal(Signal("mem_data", Signal::Direction::OUTPUT));
-        add_signal(Signal("mem_req", Signal::Direction::OUTPUT));
-        add_signal(Signal("mem_we", Signal::Direction::OUTPUT));
+        add_signal(Signal("mem_addr", Signal::Direction::INTERNAL));
+        add_signal(Signal("mem_data", Signal::Direction::INTERNAL));
+        add_signal(Signal("mem_req", Signal::Direction::INTERNAL));
+        add_signal(Signal("mem_we", Signal::Direction::INTERNAL));
+        add_signal(Signal("mem_valid", Signal::Direction::INTERNAL));
         
         // 绑定信号到进程
         bind_signal_to_process("clk", "cache_access");
@@ -180,10 +181,18 @@ public:
     
 private:
     // ========== 进程条件函数 ==========
-    
     bool check_cache_access_trigger() {
         auto clk = get_signal_value("clk");
         auto req = get_signal_value("req_in");
+        auto data_valid = get_signal_value("data_valid");
+
+        std::cout << "Checking cache access trigger: clk=" 
+                  << (clk.has_value() ? std::any_cast<bool>(clk) : false) 
+                  << ", req_in=" 
+                  << (req.has_value() ? std::any_cast<bool>(req) : false) 
+                  << ", data_valid="
+                  << (data_valid.has_value() ? std::any_cast<bool>(data_valid) : false)
+                  << std::endl;
         
         if (clk.has_value() && req.has_value()) {
             try {
@@ -198,10 +207,7 @@ private:
     }
     
     bool check_cache_access_exec() {
-        return true;
-    }
-    
-    bool check_cache_access_finish() {
+        // 应该return ready信号的值。当前假设触发就可以立刻执行
         // 获取输入信号
         auto addr_val = get_signal_value("addr_in");
         auto data_val = get_signal_value("data_in");
@@ -317,27 +323,35 @@ private:
         } catch (const std::bad_any_cast& e) {
             std::cerr << "Cache: Bad any_cast in cache access: " << e.what() << std::endl;
         }
+        return true;
+    }
+    
+    bool check_cache_access_finish() {
+        
         
         return true;
     }
     
     bool check_cache_access_end() {
+        // 实际返回valid和下级ready的握手情况
         return true;
     }
     
     bool check_memory_response_trigger() {
         // 模拟内存响应（简化：固定延迟后触发）
-        if (!pending_requests_.empty()) {
-            uint64_t current_cycle = get_process_manager()->get_performance_stats()["total_completed_events"];
-            const auto& req = pending_requests_.front();
+        // if (!pending_requests_.empty()) {
+        //     uint64_t current_cycle = get_process_manager()->get_performance_stats()["total_completed_events"];
+        //     const auto& req = pending_requests_.front();
             
-            // 检查是否到达内存延迟
-            return (current_cycle - req.issue_cycle) >= miss_latency_;
-        }
-        return false;
+        //     // 检查是否到达内存延迟
+        //     return (current_cycle - req.issue_cycle) >= miss_latency_;
+        // }
+        // return false;
+        return !pending_requests_.empty();
     }
     
     bool check_memory_response_exec() {
+        // 实际应该返回主存和cache请求的握手，此处简化
         return true;
     }
     
@@ -362,18 +376,26 @@ private:
                         break;
                     }
                 }
-                
+                auto data_valid = get_signal_value("data_valid");
+                std::cout << "Checking memory response finish0: data_valid=" 
+                        << (data_valid.has_value() ? std::any_cast<bool>(data_valid) : false) 
+                        << std::endl;
                 // 发送数据响应
-                submit_signal_value("data_out", simulated_data, 1);
-                submit_signal_value("data_valid", true, 1);
+                submit_signal_value("data_out", simulated_data, miss_latency_);
+                submit_signal_value("data_valid", true, miss_latency_);
             }
             
             // 请求完成
             submit_signal_value("ready", true, 1);
             pending_requests_.pop();
         }
+        auto data_valid = get_signal_value("data_valid");
+        std::cout << "Checking memory response finish: data_valid=" 
+                  << (data_valid.has_value() ? std::any_cast<bool>(data_valid) : false) 
+                  << std::endl;
+        return data_valid.has_value() && std::any_cast<bool>(data_valid);
         
-        return true;
+        // return true;
     }
     
     bool check_memory_response_end() {

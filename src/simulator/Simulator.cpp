@@ -34,12 +34,16 @@ void CycleAccurateSimulator::propagate_signal_to_targets(
     const std::string& source_signal,
     const std::any& value,
     uint64_t valid_cycle) {
+    // 更新源模块信号值
+    source_module->set_signal_value(source_signal, value, valid_cycle);
     
     // 查找该信号的所有连接
     ConnectionKey key = {source_module, source_signal};
     auto it = connections_map_.find(key);
     if (it == connections_map_.end()) {
-        throw std::runtime_error("No connections found for signal: " + source_signal);
+        // throw std::runtime_error("No connections found for signal: " + source_signal);
+        // std::cout << "No connections found for signal: " << source_signal 
+        //           << " from module: " << source_module->get_id() << std::endl;
         return;  // 没有连接
     }
     
@@ -51,6 +55,13 @@ void CycleAccurateSimulator::propagate_signal_to_targets(
                 value,
                 valid_cycle
             );
+            // std::cout << "Propagated signal '" << source_signal 
+            //           << "' from module '" << source_module->get_id() 
+            //           << "' to module '" << target->get_id() 
+            //           << "' as '" << conn_info.target_signal 
+            //           << "' with value type: " << value.type().name() 
+            //           << " (valid at cycle " << valid_cycle << ")" 
+            //           << std::endl;
         }
     }
 }
@@ -65,6 +76,7 @@ void CycleAccurateSimulator::run() {
     
     // 主模拟循环
     while (current_cycle_ < max_cycles_ && !simulation_done_) {
+        std::cout << "\n--- Cycle " << current_cycle_ << " ---" << std::endl;
         simulate_cycle();
         current_cycle_++;
     }
@@ -145,19 +157,23 @@ void CycleAccurateSimulator::simulate_cycle() {
 
 void CycleAccurateSimulator::process_combinational_logic() {
     // 处理延迟为0的组合逻辑模块
-    // 组合逻辑模块先可以直接调用set_signal_value吧。
     for (auto& module : combinational_modules_) {
         module->evaluate(current_cycle_);
     }
 }
 
 void CycleAccurateSimulator::check_simulation_complete() {
-    // 简单结束条件：事件队列为空
+    // 简单结束条件：事件队列为空，且无信号传输事件
+    if (!signal_event_queue_.empty()) {
+        return; // 还有事件待处理，继续模拟
+    }
     for (const auto& module : modules_) {
         if (!module->get_active_processes().empty()) {
             return; // 还有活跃事件，继续模拟
         }
     }
+    std::cout << "No active events remaining. Ending simulation at cycle " << current_cycle_ << "." << std::endl;
+    simulation_done_ = true;
 }
 
 void CycleAccurateSimulator::print_statistics() const {

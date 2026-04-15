@@ -134,6 +134,11 @@ void ProcessType::update_conditions(TriggerCondition trigger_cond,
     end_condition_ = end_cond;
 }
 
+
+// 为了保证事件只执行一次，应该将功能函数放在check_exec里，如果检测到合法的握手信号，就执行对应的功能函数，并返回true
+// check_finish检查是否返回了执行完成的握手信号，当前使用相关信号的值判断是否完成
+// 后续优化可以考虑根据延迟触发finish事件，而不是一直等待
+// check_end根据握手判断是否真正结束。
 bool ProcessManager::register_process_type(const std::string& name,
                                           ProcessType::TriggerCondition trigger_cond,
                                           ProcessType::ExecCondition exec_cond,
@@ -209,8 +214,10 @@ bool ProcessManager::has_active_event_of_type(const std::string& process_type) c
 void ProcessManager::drive_state_transitions(uint64_t current_cycle) {
     // 首先判断是否有新的活跃事件触发
     for (const auto& [name, process_type] : process_types_) {
+        // std::cout << "Checking trigger condition for process type: " << name << std::endl;
         if (!has_active_event_of_type(name) && process_type->check_trigger()) {
             // 如果触发条件满足，创建一个新的事件实例
+            std::cout << "Triggering new event of type: " << name << " at cycle " << current_cycle << std::endl;
             create_active_event(name, current_cycle);
         }
     }
@@ -230,6 +237,8 @@ void ProcessManager::drive_state_transitions(uint64_t current_cycle) {
                 // 所有活跃事件都是TRIGGERED或更后续状态。
                 case ProcessEvent::State::TRIGGERED:
                     if (process_type->check_exec()) {
+                        std::cout << "Event " << event->get_id().process_type << ":" << event->get_id().instance_id 
+                                  << " transitioning to EXECUTING at cycle " << current_cycle << std::endl;
                         event->set_executing(current_cycle);
                         state_changed = true;
                     }
@@ -238,6 +247,8 @@ void ProcessManager::drive_state_transitions(uint64_t current_cycle) {
                 case ProcessEvent::State::EXECUTING:
                     // 选择1: 基于条件函数
                     if (process_type->check_finish()) {
+                        std::cout << "Event " << event->get_id().process_type << ":" << event->get_id().instance_id 
+                                  << " transitioning to FINISHED at cycle " << current_cycle << std::endl;
                         event->set_finished(current_cycle);
                         state_changed = true;
                     }
@@ -252,6 +263,8 @@ void ProcessManager::drive_state_transitions(uint64_t current_cycle) {
                     
                 case ProcessEvent::State::FINISHED:
                     if (process_type->check_end()) {
+                        std::cout << "Event " << event->get_id().process_type << ":" << event->get_id().instance_id 
+                                  << " transitioning to ENDED at cycle " << current_cycle << std::endl;
                         event->set_ended(current_cycle);
                         state_changed = true;
                     }

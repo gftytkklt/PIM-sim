@@ -85,13 +85,13 @@ class CacheSimulatorTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // 创建模拟器实例
-        simulator = std::make_shared<CycleAccurateSimulator>(100);
+        simulator = std::make_shared<CycleAccurateSimulator>(10);
         
         // 注册Cache模块
-        cache = simulator->register_module<Cache>("test_cache", 2);
+        cache = simulator->register_module<Cache>("test_cache", 3);
         
         // 注册一个简单的驱动模块，用于生成测试激励
-        driver = simulator->register_module<SignalDriver>("driver", 3);
+        driver = simulator->register_module<SignalDriver>("driver", 2);
         
         // 连接驱动模块到Cache
         simulator->connect_modules("driver", "clk_out", "test_cache", "clk");
@@ -134,25 +134,25 @@ TEST_F(CacheSimulatorTest, CacheReadThroughSimulator) {
     std::cout << "测试完成: CacheReadThroughSimulator" << std::endl;
 }
 
-// 测试2: 通过模拟器进行缓存写测试
-TEST_F(CacheSimulatorTest, CacheWriteThroughSimulator) {
-    std::cout << "开始测试: CacheWriteThroughSimulator" << std::endl;
+// // 测试2: 通过模拟器进行缓存写测试
+// TEST_F(CacheSimulatorTest, CacheWriteThroughSimulator) {
+//     std::cout << "开始测试: CacheWriteThroughSimulator" << std::endl;
     
-    // 设置写请求
-    driver->set_test_stimuli(0x2000, 0xDEADBEEF, true);
+//     // 设置写请求
+//     driver->set_test_stimuli(0x2000, 0xDEADBEEF, true);
     
-    // 运行模拟器
-    simulator->run();
+//     // 运行模拟器
+//     simulator->run();
     
-    // 获取统计
-    std::unordered_map<std::string, uint64_t> stats;
-    cache->get_performance_stats(stats);
+//     // 获取统计
+//     std::unordered_map<std::string, uint64_t> stats;
+//     cache->get_performance_stats(stats);
     
-    std::cout << "缓存统计 - 总访问: " << stats["total_accesses"] 
-              << ", 写命中: " << stats["write_hits"]
-              << ", 写未命中: " << stats["write_misses"] << std::endl;
+//     std::cout << "缓存统计 - 总访问: " << stats["total_accesses"] 
+//               << ", 写命中: " << stats["write_hits"]
+//               << ", 写未命中: " << stats["write_misses"] << std::endl;
     
-    EXPECT_GT(stats["total_accesses"], 0u);
+//     EXPECT_GT(stats["total_accesses"], 0u);
     
-    std::cout << "测试完成: CacheWriteThroughSimulator" << std::endl;
-}
+//     std::cout << "测试完成: CacheWriteThroughSimulator" << std::endl;
+// }

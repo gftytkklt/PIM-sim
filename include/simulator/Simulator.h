@@ -185,7 +185,7 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
     );
     
     module->set_schedule_callback([weak_this, module](
-        uint64_t valid_cycle, 
+        uint64_t valid_cycle, // latency after current cycle
         std::weak_ptr<ISimulatable> source_module,
         const std::string& signal_name,
         const std::any& value) {
@@ -193,7 +193,7 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
         if (auto sim = weak_this.lock()) {
             // 将信号更新事件加入队列
             SignalUpdateEvent event;
-            event.cycle = valid_cycle;
+            event.cycle = valid_cycle + sim->get_current_cycle();
             event.module = source_module;
             event.signal_name = signal_name;
             event.value = value;
@@ -201,6 +201,8 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
             sim->signal_event_queue_.push(event);
         }
     });
+
+    module->register_processes();
     
     modules_.push_back(module);
     module_map_[id] = module;
