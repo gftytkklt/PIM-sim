@@ -131,6 +131,7 @@ const std::vector<std::shared_ptr<ISimulatable>>& CycleAccurateSimulator::get_al
 void CycleAccurateSimulator::initialize_simulation() {
     // 创建初始激励事件
     std::cerr << "Initializing simulation with initial events..." << std::endl;
+    // 可以在这里执行每个模块的初始化事件。
 }
 
 void CycleAccurateSimulator::simulate_cycle() {

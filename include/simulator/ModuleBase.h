@@ -108,6 +108,16 @@ public:
         return {};
     }
 
+    void clear_signal(const std::string& name) {
+        auto it = signals_.find(name);
+        if (it != signals_.end()) {
+            it->second.valid = false;
+            it->second.value.reset();
+            // keep previous valid_cycle info
+            // it->second.valid_cycle = 0;
+        }
+    }
+
     // 这是将setter函数延迟到对应周期的接口
     // 当模块产生输出的时候，不直接修改信号的值，通过该接口提交一个信号更新事件。
     void submit_signal_value(const std::string& name, 
@@ -131,9 +141,22 @@ public:
                 );
             }
         }
+        else {
+            throw std::runtime_error("Attempting to submit value for non-existent signal: " + name);
+        }
         // std::cout << "Module " << id_ << " submitted signal update: " 
         //           << name << " = " << value.type().name() 
         //           << " (valid after cycle " << valid_cycle << ")" << std::endl;
+    }
+
+    void invalidate_signal(const std::string& name) {
+        auto it = signals_.find(name);
+        if (it != signals_.end()) {
+            it->second.valid = false;
+            it->second.value.reset();
+            // keep previous valid_cycle info
+            // it->second.valid_cycle = 0;
+        }
     }
     
     // setter函数

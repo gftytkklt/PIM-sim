@@ -1,5 +1,5 @@
 // test_cache.cpp
-#include "simulator/modules/Cache.h"
+#include "simulator/demo/Cache.h"
 #include "simulator/ModuleBase.h"
 #include "simulator/Simulator.h"
 #include <gtest/gtest.h>

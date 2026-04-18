@@ -123,6 +123,14 @@ public:
     }
     
     void register_processes() override {
+        // 注册内存响应进程
+        register_process("memory_response",
+            [this]() { return check_memory_response_trigger(); },
+            [this]() { return check_memory_response_exec(); },
+            [this]() { return check_memory_response_finish(); },
+            [this]() { return check_memory_response_end(); },
+            1
+        );
         // 注册缓存访问进程
         register_process("cache_access",
             [this]() { return check_cache_access_trigger(); },
@@ -132,14 +140,6 @@ public:
             1
         );
         
-        // 注册内存响应进程
-        register_process("memory_response",
-            [this]() { return check_memory_response_trigger(); },
-            [this]() { return check_memory_response_exec(); },
-            [this]() { return check_memory_response_finish(); },
-            [this]() { return check_memory_response_end(); },
-            1
-        );
     }
     
     std::unordered_map<std::string, uint64_t> get_module_specific_stats() const override {
@@ -317,7 +317,8 @@ private:
                 }
                 
                 // 设置未命中延迟
-                submit_signal_value("ready", false, miss_latency_);
+                // submit_signal_value("ready", false, miss_latency_);
+                // submit_signal_value("mem_valid", true, miss_latency_); // 等待内存响应
             }
             
         } catch (const std::bad_any_cast& e) {
@@ -327,13 +328,15 @@ private:
     }
     
     bool check_cache_access_finish() {
-        
-        
-        return true;
+        auto data_valid = get_signal_value("data_valid");
+        // 
+        return data_valid.has_value() && std::any_cast<bool>(data_valid);
     }
     
     bool check_cache_access_end() {
         // 实际返回valid和下级ready的握手情况
+        submit_signal_value("ready", true, 1); // 访问完成后重置ready信号
+        submit_signal_value("data_valid", false, 1); // 重置数据有效信号
         return true;
     }
     
@@ -352,53 +355,48 @@ private:
     
     bool check_memory_response_exec() {
         // 实际应该返回主存和cache请求的握手，此处简化
+        auto& req = pending_requests_.front();
+        
+        // 处理内存响应
+        if (req.type == RequestType::READ) {
+            // 模拟从内存读取数据（简化：返回地址作为数据）
+            uint32_t simulated_data = static_cast<uint32_t>(req.addr & 0xFFFFFFFF);
+            
+            // 更新缓存行数据
+            uint64_t set_index = (req.addr / line_size_) % num_sets_;
+            uint64_t tag = req.addr / (line_size_ * num_sets_);
+            uint64_t line_offset = (req.addr % line_size_) / 4;
+            
+            for (auto& line : sets_[set_index].ways) {
+                if (line.valid && line.tag == tag) {
+                    line.data[line_offset] = simulated_data;
+                    line.lru_counter = ++global_lru_counter_;
+                    break;
+                }
+            }
+            // 发送数据响应
+            submit_signal_value("mem_data", simulated_data, miss_latency_);
+            submit_signal_value("mem_valid", true, miss_latency_);
+            submit_signal_value("data_valid", true, miss_latency_);
+        }
+        
+        // 请求完成
+        submit_signal_value("ready", true, 1);
+        pending_requests_.pop();
         return true;
     }
     
     bool check_memory_response_finish() {
-        if (!pending_requests_.empty()) {
-            auto& req = pending_requests_.front();
-            
-            // 处理内存响应
-            if (req.type == RequestType::READ) {
-                // 模拟从内存读取数据（简化：返回地址作为数据）
-                uint32_t simulated_data = static_cast<uint32_t>(req.addr & 0xFFFFFFFF);
-                
-                // 更新缓存行数据
-                uint64_t set_index = (req.addr / line_size_) % num_sets_;
-                uint64_t tag = req.addr / (line_size_ * num_sets_);
-                uint64_t line_offset = (req.addr % line_size_) / 4;
-                
-                for (auto& line : sets_[set_index].ways) {
-                    if (line.valid && line.tag == tag) {
-                        line.data[line_offset] = simulated_data;
-                        line.lru_counter = ++global_lru_counter_;
-                        break;
-                    }
-                }
-                auto data_valid = get_signal_value("data_valid");
-                std::cout << "Checking memory response finish0: data_valid=" 
-                        << (data_valid.has_value() ? std::any_cast<bool>(data_valid) : false) 
-                        << std::endl;
-                // 发送数据响应
-                submit_signal_value("data_out", simulated_data, miss_latency_);
-                submit_signal_value("data_valid", true, miss_latency_);
-            }
-            
-            // 请求完成
-            submit_signal_value("ready", true, 1);
-            pending_requests_.pop();
-        }
-        auto data_valid = get_signal_value("data_valid");
-        std::cout << "Checking memory response finish: data_valid=" 
-                  << (data_valid.has_value() ? std::any_cast<bool>(data_valid) : false) 
-                  << std::endl;
-        return data_valid.has_value() && std::any_cast<bool>(data_valid);
+        auto mem_valid = get_signal_value("mem_valid");
+        return mem_valid.has_value() && std::any_cast<bool>(mem_valid);
+        // return true;
         
         // return true;
     }
     
     bool check_memory_response_end() {
+        // 重置内存响应信号
+        submit_signal_value("mem_valid", false, 1);
         return true;
     }
 };
