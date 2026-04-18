@@ -8,9 +8,9 @@ Crossbar::Crossbar(const std::string& id, const std::vector<ComputeTask>& tasks)
     add_signal(Signal("switching_trigger", Signal::Direction::INPUT)); // int
     add_signal(Signal("computation_done", Signal::Direction::OUTPUT)); // int, output channel num
     add_signal(Signal("switching_done", Signal::Direction::OUTPUT, false)); // bool
-    add_signal(Signal("computation_process", Signal::Direction::INTERNAL, 0)); // bool
+    add_signal(Signal("computation_process", Signal::Direction::INTERNAL, false)); // bool
     add_signal(Signal("switching_process", Signal::Direction::INTERNAL, false)); // bool
-    add_signal(Signal("Pooling_enabled", Signal::Direction::OUTPUT, false)); // bool
+    // add_signal(Signal("Pooling_enabled", Signal::Direction::OUTPUT, false)); // bool
 }
 
 bool Crossbar::check_computation_trigger() {
@@ -24,10 +24,11 @@ bool Crossbar::check_computation_exec() {
         return false; // 如果正在切换，计算不能执行
     }
     submit_signal_value("computation_process", true, 1); // 提交当前计算任务索引
-    submit_signal_value("computation_done", get_current_xbar_task().task.bl_num, compute_latency_); // 重置计算完成信号
-    if (xbar_tasks_[cur_task_index_].task.pooling) {
-        submit_signal_value("Pooling_enabled", true, 1); // 如果当前任务需要pooling，设置pooling使能信号
-    }
+    submit_signal_value("computation_done", XBAR_BL, compute_latency_); // 提交计算完成信号，携带当前任务的bl_num信息
+    // submit_signal_value("computation_done", get_current_xbar_task().task.bl_num, compute_latency_); // 重置计算完成信号
+    // if (xbar_tasks_[cur_task_index_].task.pooling) {
+    //     submit_signal_value("Pooling_enabled", true, 1); // 如果当前任务需要pooling，设置pooling使能信号
+    // }
     increment_current_task_counter();
     return true; // 简化：只要触发了就执行
 }
@@ -42,7 +43,7 @@ bool Crossbar::check_computation_finish() {
 bool Crossbar::check_computation_end() {
     submit_signal_value("computation_process", {}, 1); // 重置计算进程信号
     submit_signal_value("computation_done", {}, 1); // 重置计算完成信号
-    submit_signal_value("Pooling_enabled", {}, 1); // 重置pooling使能信号
+    // submit_signal_value("Pooling_enabled", {}, 1); // 重置pooling使能信号
     return true;
 }
 

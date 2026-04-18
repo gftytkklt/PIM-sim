@@ -35,7 +35,6 @@ bool SIMD::check_computation_exec() {
         submit_signal_value("SIMD_data_valid", true, compute_latency_); // 计算完成后数据有效
         return true;
     }
-    
     return false;
 }
 

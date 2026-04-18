@@ -16,8 +16,8 @@ TaskScheduler::TaskScheduler(const std::string& id, const std::array<FmapTask, L
     add_signal(Signal("xbar_computation_trigger", Signal::Direction::OUTPUT)); // bool
     add_signal(Signal("xbar_switching_trigger", Signal::Direction::OUTPUT)); // int, target xbar id
     add_signal(Signal("xbar_switching_done", Signal::Direction::INPUT, false)); // bool
-    add_signal(Signal("pooling_enabled", Signal::Direction::OUTPUT, false)); // bool
     // SIMD接口，当前通过TS等待SIMD的计算完成再发送下一次来实现控制依赖，不对ready建模
+    add_signal(Signal("pooling_enabled", Signal::Direction::OUTPUT, false)); // bool
     add_signal(Signal("SIMD_computation_done", Signal::Direction::INPUT)); // int, output channel num
     // 内部信号
     add_signal(Signal("current_task_id", Signal::Direction::INTERNAL)); // int, 当前执行的任务ID
@@ -29,9 +29,11 @@ TaskScheduler::TaskScheduler(const std::string& id, const std::array<FmapTask, L
         // 初始化各bank完成标志，如果没有任务，默认完成
         task_finish_flags_[i] = (task_list_[i].block_num == 0); // 如果任务块数为0，表示没有任务，默认完成
         continue;
-        task_counters_[i] = {0, 0}; // 读写任务
+        // task_counters_[i] = {0, 0}; // 读写任务
+        task_counters_[i] = {0, 0, 0, 0}; // 读写任务的pt和batch计数
         // 根据fmap_task信息初始化batch_data_info，两列的总点数除以16
         int batch_pts = 2 * task_list_[i].row * task_list_[i].channel_num; // 每批次的容量(Bytes)
+        task_counters_[i].batch_num = batch_pts;
         // 一个batch占多少行SRAM，向上取整
         int batch_lines = (batch_pts + L1C_SRAM_LINE_BYTES - 1) / L1C_SRAM_LINE_BYTES;
         batch_data_info[i].batch_lines = batch_lines;
@@ -108,11 +110,55 @@ bool TaskScheduler::check_rtask_trigger() {
 }
 // 这里读任务只是开启一批读数据，但具体的读操作还是要分批读取，在MVM kernel计算完成以后才允许读下一批数据。
 bool TaskScheduler::check_rtask_exec() {
-    int bank_id = pending_tasks_.front();
-    auto batch_lines_val = batch_data_info[bank_id].batch_lines;
-    int batch_required = (task_counters_[bank_id].batch_cnt == 0) ? 2 : 1;
+    current_task_id_ = pending_tasks_.front();
     // 提交读任务执行，读任务的长度由当前有效数据量决定
-    submit_signal_value("cache_read_trigger", bank_id, 1); // 触发读任务
-    submit_signal_value("cache_read_len", batch_lines_val * batch_required, 1); // 读任务长度
+    return true;
+}
+// 握手
+bool TaskScheduler::check_rtask_finish() {
+    switch (current_task_status_) {
+        // 没有正在进行的读任务，触发读任务。
+        case TaskStatus::IDLE: {
+            int rd_pts = task_counters_[current_task_id_].pt_cnt == 0 ? 9 : 3;
+            int pt_channel = task_list_[current_task_id_].channel_num; // 每个batch的通道数
+            int pt_lines = (rd_pts * pt_channel + L1C_SRAM_LINE_BYTES - 1) / L1C_SRAM_LINE_BYTES;
+            raise_sram_rd_req(current_task_id_, pt_lines); // 触发读任务
+            current_task_status_ = TaskStatus::READ_DATA;
+            return false; // 还未完成
+        }
+        // SRAM在检测到done信号的周期完成，并移出活跃事件队列当中，下一个周期done信号重置
+        // 在TS逻辑里，在检测到done信号的周期进入计算，并且在下一个周期重置读请求
+        // 因此下一个周期检测trigger条件的时候不会被触发，符合握手语义
+        case TaskStatus::READ_DATA: {
+            auto read_valid_val = get_signal_value("cache_read_valid");
+            if (read_valid_val.has_value() && std::any_cast<bool>(read_valid_val)) {
+                // 读数据准备好了，触发计算
+                // submit_signal_value("xbar_computation_trigger", true, 1); // 触发计算
+                raise_xbar_computation_trigger();
+                invalidate_sram_rd_req(); // 读请求完成，重置读请求信号
+                current_task_status_ = TaskStatus::COMPUTE;
+            }
+            return false; // 还未完成
+        }
+        // 这里同理，SIMD状态机在valid拉高的周期变成finish出栈，下一个周期重置计算完成信号，并判断是否触发
+        // 但与此同时，本周期完成了计算信号的拉低，防止下一个周期被错误触发，因此符合握手语义
+        case TaskStatus::COMPUTE: {
+            auto compute_done_val = get_signal_value("SIMD_computation_done");
+            if (compute_done_val.has_value() && std::any_cast<bool>(compute_done_val)) {
+                // 计算完成，任务完成
+                invalidate_xbar_computation_trigger(); // 重置计算触发信号
+                current_task_status_ = TaskStatus::IDLE;
+                return task_counters_[current_task_id_].step(); // 更新任务计数器，并判断是否完成
+            }
+            return false; // 还未完成
+        }
+        default:
+            throw std::runtime_error("Invalid task status");
+    }
+}
+// 释放资源
+bool TaskScheduler::check_rtask_end() {
+    batch_data_info[current_task_id_].valid_batch_num -= 1; // 读出一个batch的数据
+    pending_tasks_.pop(); // 移除已完成的任务
     return true;
 }

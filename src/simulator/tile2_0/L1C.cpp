@@ -35,7 +35,7 @@ bool L1C::check_cache_read_exec() {
     }
     throw std::runtime_error("Invalid signal value for cache_read_trigger or cache_read_len");
 }
-
+// 这里的逻辑相当于，在检测到done信号以后，跳转至finish，并在一个周期以后重置。
 bool L1C::check_cache_read_finish() {
     auto process_val = get_signal_value("cache_read_done");
     return process_val.has_value() && std::any_cast<bool>(process_val);
