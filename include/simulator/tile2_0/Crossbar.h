@@ -17,6 +17,7 @@ struct LogicalXbar{
 
 class Crossbar : public ModuleBase<Crossbar> {
 public:
+    Crossbar(const std::string& id);
     // add and init signal
     Crossbar(const std::string& id, const std::vector<ComputeTask>& tasks);
     void register_processes() override final {

@@ -8,8 +8,8 @@
 #include <string>
 #include <queue>
 
-#define XBAR_COMPUTE_LATENCY 40
-#define XBAR_SWITCH_LATENCY 200
+#define XBAR_COMPUTE_LATENCY 4
+#define XBAR_SWITCH_LATENCY 10
 #define XBAR_NUM 4
 #define XBAR_WL 1152
 #define XBAR_BL 256
@@ -17,7 +17,7 @@
 #define SIMD_QUANT_LATENCY 1
 #define SIMD_ACTIVATE_LATENCY 1
 #define SIMD_POOLING_LATENCY 1
-#define SIMD_NUM 16
+#define SIMD_NUM 256
 
 #define L1C_SIZE_KB 48
 #define L1C_BANK 4

@@ -129,8 +129,8 @@ public:
     
 
     // 注册模块
-    template<typename ModuleType>
-    std::shared_ptr<ModuleType> register_module(const std::string& id, int topological_depth);
+    template<typename ModuleType, typename... Args>
+    std::shared_ptr<ModuleType> register_module(const std::string& id, int topological_depth, Args... args);
     
     // 连接模块
     void connect_modules(const std::string& src_id, const std::string& src_signal,
@@ -172,11 +172,11 @@ public:
 //     return module;
 // }
 
-template<typename ModuleType>
+template<typename ModuleType, typename... Args>
 std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
-    const std::string& id, int topological_depth) {
+    const std::string& id, int topological_depth, Args... args) {
     
-    auto module = std::make_shared<ModuleType>(id);
+    auto module = std::make_shared<ModuleType>(id, std::forward<Args>(args)...);
     module->set_topological_depth(topological_depth);
     
     // 设置信号更新回调

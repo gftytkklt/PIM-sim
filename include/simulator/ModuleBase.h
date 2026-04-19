@@ -19,9 +19,19 @@ struct Signal {
     bool valid{false};
     uint64_t valid_cycle{0};
     std::any value;
+
+    template<typename T>
+    Signal(const std::string& n, Signal::Direction d, T&& v)
+        : name(n), direction(d), value(std::forward<T>(v)) {
+            std::cout << "Initialized signal '" << name << "' with value of type " 
+                      << value.type().name() << std::endl;
+        }
+
+    Signal(const std::string& n, Signal::Direction d)
+        : name(n), direction(d) {}
     
-    Signal(const std::string& n, Signal::Direction d, const std::any& v = {})
-        : name(n), direction(d), value(v) {}
+    // Signal(const std::string& n, Signal::Direction d, const std::any& v = {})
+    //     : name(n), direction(d), value(v) {}
     
     Signal() = default;
 };

@@ -12,6 +12,8 @@ struct TaskCounter {
     int batch_cnt;
     // 当计数完成返回true，表明完成了该批次两列计算
     bool step() {
+        std::cout << "batch_num=" << batch_num << ", pt_num=" << pt_num << std::endl;
+        std::cout << "TaskCounter step: batch_cnt=" << batch_cnt << ", pt_cnt=" << pt_cnt << std::endl;
         pt_cnt++;
         if (pt_cnt == pt_num) {
             pt_cnt = 0;
@@ -121,6 +123,14 @@ private:
     // bool check_switch_task_finish();
     // bool check_switch_task_end();
 
+    // 简化写入的计算任务初始化建模
+    // 第一次是两个batch，后面都是1个
+    void init_pending_tasks(int bank_id, int batch_num) {
+        for (int i = 0; i < batch_num - 1; ++i) {
+            pending_tasks_.push(bank_id);
+        }
+    }
+
     // 根据当前进程任务计数判断是否满足taskqueue调度条件，返回批次
     void update_pending_tasks(int bank_id = -1) {
         auto bank_task_counter = task_counters_[bank_id];
@@ -128,6 +138,16 @@ private:
         if(batch_data_info[bank_id].valid_batch_num >= batch_required) {
             pending_tasks_.push(bank_id);
         }
+    }
+
+    void raise_sram_wr_req(int bank_id, int lines) {
+        submit_signal_value("cache_write_trigger", bank_id, 1); // 触发写任务
+        submit_signal_value("cache_write_len", lines, 1); // 写任务长度
+    }
+
+    void invalidate_sram_wr_req() {
+        submit_signal_value("cache_write_trigger", {}, 1); // 重置写任务触发信号
+        submit_signal_value("cache_write_len", {}, 1); // 重置写任务长度
     }
 
     void raise_sram_rd_req(int bank_id, int lines) {
@@ -150,6 +170,16 @@ private:
         submit_signal_value("pooling_enabled", {}, 1); // 重置pooling使能信号
     }
 
+    void raise_switch_task_trigger() {
+        submit_signal_value("xbar_switching_trigger", current_task_id_, 1); // 触发任务切换
+        submit_signal_value("switching_process", true, 1); // 设置切换中标志
+    }
+
+    void invalidate_switch_task_trigger() {
+        submit_signal_value("xbar_switching_trigger", {}, 1); // 重置任务切换触发信号
+        submit_signal_value("switching_process", {}, 1); // 重置切换中标志
+    }
+
     // 每个xbar维护自己当前的任务计数器
     std::array<TaskCounter, L1C_BANK> task_counters_; // 任务计数器，记录每个bank当前执行的任务状态
     std::array<FmapTask, L1C_BANK> task_list_; // 整体任务信息
@@ -159,6 +189,7 @@ private:
     // 通过ID和当前任务计数器的状态，判断task执行的读操作参数
     std::queue<int> pending_tasks_; // 存储待调度的任务，元素可以是任务ID或者其他标识信息
     int current_task_id_ = -1; // 当前正在执行的任务ID
+    int last_executed_task_id_ = -1; // 上一个执行的任务ID
     TaskStatus current_task_status_ = TaskStatus::IDLE; // 当前任务状态
 };
 

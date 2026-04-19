@@ -28,14 +28,28 @@ TaskScheduler::TaskScheduler(const std::string& id, const std::array<FmapTask, L
     for (int i = 0; i < L1C_BANK; i++) {
         // 初始化各bank完成标志，如果没有任务，默认完成
         task_finish_flags_[i] = (task_list_[i].block_num == 0); // 如果任务块数为0，表示没有任务，默认完成
-        continue;
+        if (task_list_[i].block_num > 0) {
+            std::cout << "Initialized TaskScheduler for bank " << i 
+                      << ": block_num=" << task_list_[i].block_num 
+                      << ", row=" << task_list_[i].row 
+                      << ", col=" << task_list_[i].col 
+                      << ", channel_num=" << task_list_[i].channel_num 
+                      << ", pooling=" << task_list_[i].pooling 
+                      << std::endl;
+        }
+        else {
+            continue;
+        }
         // task_counters_[i] = {0, 0}; // 读写任务
         task_counters_[i] = {0, 0, 0, 0}; // 读写任务的pt和batch计数
         // 根据fmap_task信息初始化batch_data_info，两列的总点数除以16
-        int batch_pts = 2 * task_list_[i].row * task_list_[i].channel_num; // 每批次的容量(Bytes)
-        task_counters_[i].batch_num = batch_pts;
+        int batch_pts = 2 * task_list_[i].row; // 每批次的容量(Bytes)
+        task_counters_[i].pt_num = batch_pts;
+        int batch_num = (task_list_[i].col + 1) / 2; // 每个bank的批次数，向上取整
+        task_counters_[i].batch_num = batch_num;
+        int batch_bytes = batch_pts * task_list_[i].channel_num; // 每批次的容量(Bytes)
         // 一个batch占多少行SRAM，向上取整
-        int batch_lines = (batch_pts + L1C_SRAM_LINE_BYTES - 1) / L1C_SRAM_LINE_BYTES;
+        int batch_lines = (batch_bytes + L1C_SRAM_LINE_BYTES - 1) / L1C_SRAM_LINE_BYTES;
         batch_data_info[i].batch_lines = batch_lines;
         // batch容量=SRAM深度除以每个batch占的行数，向下取整，乘以每个bank3个SRAM
         batch_data_info[i].max_batch_capacity = L1C_SRAM_DEPTH / batch_lines * 3;
@@ -48,7 +62,11 @@ TaskScheduler::TaskScheduler(const std::string& id, const std::array<FmapTask, L
         }
         // 简化读写条件的情况下，可以设置初始有一个分块的数据量。
         // 通过外部给吧。对应地，TS的queue也要相应初始化任务。
-        batch_data_info[i].valid_batch_num = 0; // 初始没有有效数据
+        // batch_data_info[i].valid_batch_num = 0; // 初始没有有效数据
+        // 根据初始有效数据量更新待调度任务
+        batch_data_info[i].valid_batch_num = batch_num; // 初始有一个batch的有效数据，简化建模实现
+        init_pending_tasks(i, batch_num);
+        // print 
     }
 }
 
@@ -77,8 +95,9 @@ bool TaskScheduler::check_wtask_exec() {
     int bank_id = std::any_cast<int>(batch_wr_bank_val);
     auto batch_lines_val = batch_data_info[bank_id].batch_lines;
     // 提交写任务执行，写任务的长度由当前有效数据量决定
-    submit_signal_value("cache_write_trigger", bank_id, 1); // 触发写任务
-    submit_signal_value("cache_write_len", batch_lines_val, 1); // 写任务长度
+    raise_sram_wr_req(bank_id, batch_lines_val); // 触发写任务
+    // submit_signal_value("cache_write_trigger", bank_id, 1); // 触发写任务
+    // submit_signal_value("cache_write_len", batch_lines_val, 1); // 写任务长度
     return true;
 }
 
@@ -98,8 +117,9 @@ bool TaskScheduler::check_wtask_finish() {
 }
 
 bool TaskScheduler::check_wtask_end() {
-    submit_signal_value("cache_write_trigger", {}, 1); // 重置写任务触发信号
-    submit_signal_value("cache_write_len", {}, 1); // 重置写任务长度
+    invalidate_sram_wr_req(); // 重置写请求信号
+    // submit_signal_value("cache_write_trigger", {}, 1); // 重置写任务触发信号
+    // submit_signal_value("cache_write_len", {}, 1); // 重置写任务长度
     return true;
 }
 
@@ -109,8 +129,25 @@ bool TaskScheduler::check_rtask_trigger() {
     return !pending_tasks_.empty();
 }
 // 这里读任务只是开启一批读数据，但具体的读操作还是要分批读取，在MVM kernel计算完成以后才允许读下一批数据。
+// 在这里判断是否需要触发切换
 bool TaskScheduler::check_rtask_exec() {
     current_task_id_ = pending_tasks_.front();
+    if (current_task_id_ != last_executed_task_id_) {
+        // 触发切换任务
+        raise_switch_task_trigger();
+        last_executed_task_id_ = current_task_id_;
+        return false; // 切换任务优先级高于读任务，先执行切换任务
+    }
+    // 如果当前处在切换状态中，则等待切换完成后再执行读任务
+    auto switching_process_val = get_signal_value("switching_process");
+    if (switching_process_val.has_value() && std::any_cast<bool>(switching_process_val)) {
+        auto switch_done_val = get_signal_value("xbar_switching_done");
+        if (switch_done_val.has_value() && std::any_cast<bool>(switch_done_val)) {
+            invalidate_switch_task_trigger(); // 切换完成，重置切换触发信号
+            return true; // 切换完成，可以执行读任务
+        }
+        return false; // 等待切换完成
+    }
     // 提交读任务执行，读任务的长度由当前有效数据量决定
     return true;
 }
@@ -140,15 +177,19 @@ bool TaskScheduler::check_rtask_finish() {
             }
             return false; // 还未完成
         }
-        // 这里同理，SIMD状态机在valid拉高的周期变成finish出栈，下一个周期重置计算完成信号，并判断是否触发
-        // 但与此同时，本周期完成了计算信号的拉低，防止下一个周期被错误触发，因此符合握手语义
+        // 但是这里有所区别，由于crossbar的计算和这里的等待是并行的，且不存在握手信号
+        // 并且这里等待的是和SIMD的握手，因此信号到来会和xbar的计算完成不同步，会产生问题
+        // 最保险的建模方法是握手以后就拉低请求，对无阻塞的计算触发信号应当立刻拉低
         case TaskStatus::COMPUTE: {
+            invalidate_xbar_computation_trigger(); // 重置计算触发信号
             auto compute_done_val = get_signal_value("SIMD_computation_done");
             if (compute_done_val.has_value() && std::any_cast<bool>(compute_done_val)) {
                 // 计算完成，任务完成
-                invalidate_xbar_computation_trigger(); // 重置计算触发信号
+                
                 current_task_status_ = TaskStatus::IDLE;
-                return task_counters_[current_task_id_].step(); // 更新任务计数器，并判断是否完成
+                bool task_finished = task_counters_[current_task_id_].step(); // 更新任务计数器，并判断是否完成
+                task_finish_flags_[current_task_id_] = task_finished; // 更新任务完成标志
+                return task_finished; // 返回任务是否完成
             }
             return false; // 还未完成
         }

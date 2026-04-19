@@ -1,5 +1,15 @@
 #include "simulator/tile2_0/Crossbar.h"
 
+Crossbar::Crossbar(const std::string& id) : ModuleBase(id) {
+    add_signal(Signal("computation_trigger", Signal::Direction::INPUT)); // bool
+    add_signal(Signal("switching_trigger", Signal::Direction::INPUT)); // int
+    add_signal(Signal("computation_done", Signal::Direction::OUTPUT)); // int, output channel num
+    add_signal(Signal("switching_done", Signal::Direction::OUTPUT, false)); // bool
+    add_signal(Signal("computation_process", Signal::Direction::INTERNAL, false)); // bool
+    add_signal(Signal("switching_process", Signal::Direction::INTERNAL, false)); // bool
+    // add_signal(Signal("Pooling_enabled", Signal::Direction::OUTPUT, false)); // bool
+}
+
 Crossbar::Crossbar(const std::string& id, const std::vector<ComputeTask>& tasks) : ModuleBase(id) {
     for (const auto& task : tasks) {
         add_xbar_task(task);

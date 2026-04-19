@@ -38,6 +38,24 @@ private:
     bool check_cache_write_finish();
     bool check_cache_write_end();
 
+    void raise_sram_rd_process(int valid_lines) {
+        // submit_signal_value("cache_read_process", true, 1); // 提交读进程信号
+        submit_signal_value("cache_read_done", true, valid_lines); // 提交读完成信号，携带访问的行数信息
+    }
+
+    void invalidate_sram_rd_process() {
+        // submit_signal_value("cache_read_process", {}, 1); // 重置读进程信号
+        submit_signal_value("cache_read_done", {}, 1); // 重置读完成信号
+    }
+
+    void raise_sram_wresp(int valid_lines) {
+        submit_signal_value("cache_write_done", true, valid_lines); // 提交写完成信号，携带写入的行数信息
+    }
+
+    void invalidate_sram_wresp() {
+        submit_signal_value("cache_write_done", {}, 1); // 重置写完成信号
+    }
+
     // SRAM组织形式
     std::array<SRAM, L1C_SRAM_NUM> srams_;
 
