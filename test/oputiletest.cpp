@@ -11,12 +11,12 @@ protected:
     void SetUp() override {
         // 创建模拟器实例
         const std::array<FmapTask, L1C_BANK> task_list = {{
-            {1, 1, 4, 128, true}, // Bank 0
+            {1, 8, 8, 128, true}, // Bank 0
             {0, 0, 0, 0, 0}, // Bank 1
             {0, 0, 0, 0, 0}, // Bank 2
             {0, 0, 0, 0, 0}  // Bank 3
         }};
-        simulator = std::make_shared<CycleAccurateSimulator>(2000);
+        simulator = std::make_shared<CycleAccurateSimulator>(200000);
         simulator->register_module<SIMD>("simd", 4);
         simulator->register_module<Crossbar>("crossbar", 3);
         simulator->register_module<TaskScheduler>("task_scheduler", 2, task_list);

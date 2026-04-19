@@ -76,14 +76,14 @@ void CycleAccurateSimulator::run() {
     
     // 主模拟循环
     while (current_cycle_ < max_cycles_ && !simulation_done_) {
-        std::cout << "\n--- Cycle " << current_cycle_ << " ---" << std::endl;
+        // std::cout << "\n--- Cycle " << current_cycle_ << " ---" << std::endl;
         simulate_cycle();
         current_cycle_++;
     }
     
     std::cout << "\n=== Simulation Complete ===" << std::endl;
     std::cout << "Final cycle: " << current_cycle_ << std::endl;
-    std::cout << "Total events processed: " << stats_.total_events << std::endl;
+    // std::cout << "Total events processed: " << stats_.total_events << std::endl;
     
     print_statistics();
 }

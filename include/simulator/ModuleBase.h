@@ -23,8 +23,8 @@ struct Signal {
     template<typename T>
     Signal(const std::string& n, Signal::Direction d, T&& v)
         : name(n), direction(d), value(std::forward<T>(v)) {
-            std::cout << "Initialized signal '" << name << "' with value of type " 
-                      << value.type().name() << std::endl;
+            // std::cout << "Initialized signal '" << name << "' with value of type " 
+            //           << value.type().name() << std::endl;
         }
 
     Signal(const std::string& n, Signal::Direction d)
@@ -73,9 +73,9 @@ protected:
 public:
     ModuleBase(const std::string& id) : id_(id) {
         // 初始化默认性能统计
-        performance_stats_["total_cycles"] = 0;
-        performance_stats_["events_processed"] = 0;
-        performance_stats_["busy_cycles"] = 0;
+        // performance_stats_["total_cycles"] = 0; // 相当于total_evaluations
+        // performance_stats_["events_processed"] = 0; // 相当于total_complete_events
+        // performance_stats_["busy_cycles"] = 0; 这个放到进程计数器里做。
         // 私有模块要在这里注册进程类型。也就是派生类必须要调用register_process来注册自己的进程类型
         process_manager_ = std::make_unique<ProcessManager>();
     }
@@ -206,7 +206,8 @@ public:
         
         // 添加模块特定统计
         auto derived = static_cast<const DerivedModule*>(this);
-        auto module_stats = derived->get_module_specific_stats();
+        // auto module_stats = derived->get_module_specific_stats();
+        auto module_stats = derived->get_process_stats();
         stats.insert(module_stats.begin(), module_stats.end());
     }
 
@@ -242,23 +243,6 @@ public:
     std::unordered_map<std::string, uint64_t> get_process_stats() const {
         return process_manager_->get_performance_stats();
     }
-
-    // std::vector<std::pair<std::string, std::string>> 
-    // get_output_connections(const std::string& signal_name) const override {
-    //     std::vector<std::pair<std::string, std::string>> result;
-        
-    //     for (const auto& conn : connections_) {
-    //         if (conn.local_signal == signal_name) {
-    //             if (auto target = conn.target_module.lock()) {
-    //                 result.emplace_back(target->get_id(), conn.target_signal);
-    //             }
-    //         }
-    //     }
-    //     return result;
-    // }
-    
-    
-    
 protected:
     
     // 添加信号

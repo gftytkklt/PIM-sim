@@ -12,8 +12,8 @@ SIMD::SIMD(const std::string& id) : ModuleBase(id) {
 
 bool SIMD::check_computation_trigger() {
     auto channel_batch_val = get_signal_value("SIMD_channel_batch");
-    auto channel_batch = channel_batch_val.has_value() ? std::any_cast<int>(channel_batch_val) : 0;
-    std::cout << "channel batch = " << channel_batch << std::endl;
+    // auto channel_batch = channel_batch_val.has_value() ? std::any_cast<int>(channel_batch_val) : 0;
+    // std::cout << "channel batch = " << channel_batch << std::endl;
     return channel_batch_val.has_value() && std::any_cast<int>(channel_batch_val) > 0;
 }
 
@@ -36,8 +36,8 @@ bool SIMD::check_computation_exec() {
         else {
             compute_latency_ = stage_num * (quant_latency_ + activate_latency_ + pooling_latency_); // 不启用流水线时，计算总延迟为每个阶段的延迟乘以阶段数
         }
-        std::cout << "computation latency set to " << compute_latency_ << " cycles for channel batch " << std::any_cast<int>(channel_batch_val) 
-                  << " with pooling " << pooling_enable << std::endl;
+        // std::cout << "computation latency set to " << compute_latency_ << " cycles for channel batch " << std::any_cast<int>(channel_batch_val) 
+        //           << " with pooling " << pooling_enable << std::endl;
         submit_signal_value("SIMD_data_valid", true, compute_latency_); // 计算完成后数据有效
         return true;
     }

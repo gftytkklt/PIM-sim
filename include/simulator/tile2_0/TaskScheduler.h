@@ -12,16 +12,16 @@ struct TaskCounter {
     int batch_cnt;
     // 当计数完成返回true，表明完成了该批次两列计算
     bool step() {
-        std::cout << "batch_num=" << batch_num << ", pt_num=" << pt_num << std::endl;
-        std::cout << "TaskCounter step: batch_cnt=" << batch_cnt << ", pt_cnt=" << pt_cnt << std::endl;
+        // std::cout << "batch_num=" << batch_num << ", batch_cnt=" << batch_cnt << ", pt_cnt=" << pt_cnt << std::endl;
         pt_cnt++;
         if (pt_cnt == pt_num) {
             pt_cnt = 0;
             batch_cnt++;
             if (batch_cnt == batch_num) {
                 batch_cnt = 0;
-                return true; // 任务完成
+                // std::cout << "Task batch completed!" << std::endl;
             }
+            return true; // 完成了一个batch的计算
         }
         return false; // 任务未完成
     }
@@ -126,9 +126,10 @@ private:
     // 简化写入的计算任务初始化建模
     // 第一次是两个batch，后面都是1个
     void init_pending_tasks(int bank_id, int batch_num) {
-        for (int i = 0; i < batch_num - 1; ++i) {
+        for (int i = 0; i < batch_num; ++i) {
             pending_tasks_.push(bank_id);
         }
+        // std::cout << "task num =" << pending_tasks_.size() << std::endl;
     }
 
     // 根据当前进程任务计数判断是否满足taskqueue调度条件，返回批次

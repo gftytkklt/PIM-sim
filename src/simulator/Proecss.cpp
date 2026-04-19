@@ -217,7 +217,7 @@ void ProcessManager::drive_state_transitions(uint64_t current_cycle) {
         // std::cout << "Checking trigger condition for process type: " << name << std::endl;
         if (!has_active_event_of_type(name) && process_type->check_trigger()) {
             // 如果触发条件满足，创建一个新的事件实例
-            std::cout << "Triggering new event of type: " << name << " at cycle " << current_cycle << std::endl;
+            // std::cout << "Triggering new event of type: " << name << " at cycle " << current_cycle << std::endl;
             create_active_event(name, current_cycle);
         }
     }
@@ -237,8 +237,8 @@ void ProcessManager::drive_state_transitions(uint64_t current_cycle) {
                 // 所有活跃事件都是TRIGGERED或更后续状态。
                 case ProcessEvent::State::TRIGGERED:
                     if (process_type->check_exec()) {
-                        std::cout << "Event " << event->get_id().process_type << ":" << event->get_id().instance_id 
-                                  << " transitioning to EXECUTING at cycle " << current_cycle << std::endl;
+                        // std::cout << "Event " << event->get_id().process_type << ":" << event->get_id().instance_id 
+                        //           << " transitioning to EXECUTING at cycle " << current_cycle << std::endl;
                         event->set_executing(current_cycle);
                         state_changed = true;
                     }
@@ -247,8 +247,8 @@ void ProcessManager::drive_state_transitions(uint64_t current_cycle) {
                 case ProcessEvent::State::EXECUTING:
                     // 选择1: 基于条件函数
                     if (process_type->check_finish()) {
-                        std::cout << "Event " << event->get_id().process_type << ":" << event->get_id().instance_id 
-                                  << " transitioning to FINISHED at cycle " << current_cycle << std::endl;
+                        // std::cout << "Event " << event->get_id().process_type << ":" << event->get_id().instance_id 
+                        //           << " transitioning to FINISHED at cycle " << current_cycle << std::endl;
                         event->set_finished(current_cycle);
                         state_changed = true;
                     }
@@ -263,8 +263,8 @@ void ProcessManager::drive_state_transitions(uint64_t current_cycle) {
                     
                 case ProcessEvent::State::FINISHED:
                     if (process_type->check_end()) {
-                        std::cout << "Event " << event->get_id().process_type << ":" << event->get_id().instance_id 
-                                  << " transitioning to ENDED at cycle " << current_cycle << std::endl;
+                        // std::cout << "Event " << event->get_id().process_type << ":" << event->get_id().instance_id 
+                        //           << " transitioning to ENDED at cycle " << current_cycle << std::endl;
                         event->set_ended(current_cycle);
                         state_changed = true;
                     }
@@ -301,41 +301,40 @@ std::unordered_map<std::string, uint64_t> ProcessManager::get_performance_stats(
     
     // 统计已结束的事件
     stats["total_completed_events"] = completed_events_.size();
+    // std::cout << "Total completed events: " << stats["total_completed_events"] << std::endl;
     
     if (!completed_events_.empty()) {
         uint64_t total_latency = 0;
         uint64_t min_latency = UINT64_MAX;
         uint64_t max_latency = 0;
+        uint64_t busy_time = 0;
         
         for (const auto& event : completed_events_) {
+            auto event_id = event->get_id();
+            // std::cout << "process name: " << event_id.process_type << std::endl;
             auto event_stats = event->get_timing_stats();
             if (event_stats.find("total_latency") != event_stats.end()) {
                 uint64_t latency = event_stats.at("total_latency");
+                uint64_t exec_time = event_stats.at("exec_to_finish_latency");
                 total_latency += latency;
                 min_latency = std::min(min_latency, latency);
                 max_latency = std::max(max_latency, latency);
+                busy_time += exec_time;
             }
+            std::cout << "Event " << event_id.process_type << ":" << event_id.instance_id 
+                      << " - Trigger: " << event_stats["trigger_time"] 
+                    //   << ", Exec: " << event_stats["exec_time"] 
+                    //   << ", Finish: " << event_stats["finish_time"] 
+                      << ", End: " << event_stats["end_time"] 
+                    //   << ", Total Latency: " << event_stats["total_latency"] 
+                      << std::endl;
         }
-        
+        stats["total_latency"] = total_latency;
         stats["avg_latency"] = total_latency / completed_events_.size();
+        stats["busy_time"] = busy_time;
         stats["min_latency"] = min_latency;
         stats["max_latency"] = max_latency;
     }
-    
-    // 统计活跃事件
-    stats["active_events_count"] = active_events_.size();
-    
-    // 按状态统计活跃事件
-    std::unordered_map<ProcessEvent::State, uint64_t> state_counts;
-    for (const auto& event : active_events_) {
-        state_counts[event->get_state()]++;
-    }
-    
-    stats["active_idle"] = state_counts[ProcessEvent::State::IDLE];
-    stats["active_triggered"] = state_counts[ProcessEvent::State::TRIGGERED];
-    stats["active_executing"] = state_counts[ProcessEvent::State::EXECUTING];
-    stats["active_finished"] = state_counts[ProcessEvent::State::FINISHED];
-    
     return stats;
 }
 

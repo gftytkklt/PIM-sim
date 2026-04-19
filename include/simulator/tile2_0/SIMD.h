@@ -22,7 +22,7 @@ private:
     bool check_computation_finish();
     bool check_computation_end();
 
-    bool enable_pipeline_ = false;
+    bool enable_pipeline_ = true;
     int compute_latency_;
     int channel_num_ = SIMD_NUM;
     const int quant_latency_ = SIMD_QUANT_LATENCY;

@@ -189,6 +189,9 @@ bool TaskScheduler::check_rtask_finish() {
                 current_task_status_ = TaskStatus::IDLE;
                 bool task_finished = task_counters_[current_task_id_].step(); // 更新任务计数器，并判断是否完成
                 task_finish_flags_[current_task_id_] = task_finished; // 更新任务完成标志
+                // if (task_finished) {
+                //     std::cout << "Task " << current_task_id_ << " completed!" << std::endl;
+                // }
                 return task_finished; // 返回任务是否完成
             }
             return false; // 还未完成
