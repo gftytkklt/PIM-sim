@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <vector>
 #include "Process.h"
+#include "MessageBase.h"
 
 /**
  * 模拟模块抽象接口
@@ -25,6 +26,9 @@ public:
     // 事件驱动接口 (对应算法5.2)
     virtual void evaluate(uint64_t current_cycle) = 0;
     virtual const std::vector<ProcessEventPtr>& get_active_processes() const = 0;
+
+    // 消息传递接口
+    virtual void handle_message(const GenericMessage& msg) = 0;
     
     // 拓扑属性
     virtual int get_topological_depth() const = 0;

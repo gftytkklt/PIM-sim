@@ -94,22 +94,13 @@ protected:
     // 性能统计
     mutable std::unordered_map<std::string, uint64_t> performance_stats_;
 
-    // 消息接口
-    using MessageCallback = std::function<void(
-        uint64_t delay_cycles,
-        MessageHeader header,
-        std::any payload
-    )>;
-
-    MessageCallback message_callback_;
+    // MessageCallback message_callback_;
+    using MessageSubmitCallback = std::function<void(const GenericMessage&)>;
+    
+    MessageSubmitCallback submit_message_callback_;
     
 public:
     ModuleBase(const std::string& id) : id_(id) {
-        // 初始化默认性能统计
-        // performance_stats_["total_cycles"] = 0; // 相当于total_evaluations
-        // performance_stats_["events_processed"] = 0; // 相当于total_complete_events
-        // performance_stats_["busy_cycles"] = 0; 这个放到进程计数器里做。
-        // 私有模块要在这里注册进程类型。也就是派生类必须要调用register_process来注册自己的进程类型
         process_manager_ = std::make_unique<ProcessManager>();
     }
 
@@ -120,16 +111,14 @@ public:
     }
 
     // 设置信息发送回调
-    void set_message_callback(MessageCallback callback) {
-        message_callback_ = callback;
+    void set_message_submit_callback(MessageSubmitCallback callback) {
+        submit_message_callback_ = std::move(callback);
     }
 
     virtual void handle_message(const GenericMessage& msg) {
         // 默认实现：打印消息内容
-        std::cout << "Module '" << id_ << "' received message of type: " 
-                //   << static_cast<int>(msg.header().type) 
-                //   << " with body type: " << msg.body_().type().name() 
-                  << std::endl;
+        std::cout << "Module '" << id_ << "' received message with body type: " 
+                  << msg.body.type().name() << std::endl;
     }
     
     virtual ~ModuleBase() = default;
@@ -205,27 +194,19 @@ public:
         //           << " (valid after cycle " << valid_cycle << ")" << std::endl;
     }
 
-    // 当前可以把delay cycle视为0，也就是传输以后立刻更新消息表项
-    // 如果需要模拟传输延迟，可以在simulator里维护key为valid cycle的队列来检查
-    // 消息队列可以不主动触发行为，只用来更新状态。
-    // 在当前用例里，消息队列的来源是SIMD计算完成，每计算完成一次或四次，就更新消息表项
-    // 目前消息表项可以直接触发写事件，
-    template<typename... Args>
-    void send_message(MessageHeader header, Args&&... args) {
-        if (message_callback_) {
-            // 这里直接调用回调函数，消息的发送和处理都是在当前周期进行的。
-            auto body = MessageBody<std::decay_t<Args>...>(
-                std::forward<Args>(args)...
-            );
-            // 调用回调函数
-            schedule_message_callback_(
-                header.delay_cycles,
-                std::move(header),
-                std::make_any<MessageBody<std::decay_t<Args>...>>(std::move(body))
-            );
-            } else {
-                throw std::runtime_error("Message callback not set for module: " + id_);
-            }
+    // 提交GenericMessage
+    // task_id在simulator中注册，对应处理函数
+    // delay cycle跟body是一样的，传值的东西
+    void submit_message(const GenericMessage& msg) {
+        if (submit_message_callback_) {
+            submit_message_callback_(msg);
+        } else {
+            throw std::runtime_error("Message submit callback not set for module: " + id_);
+        }
+    }
+
+    void submit_message(const std::string& task_id, const std::any& body, uint64_t delay_cycles = 0) {
+        submit_message(GenericMessage(task_id, body, delay_cycles));
     }
 
     void invalidate_signal(const std::string& name) {

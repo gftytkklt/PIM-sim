@@ -4,6 +4,33 @@
 CycleAccurateSimulator::CycleAccurateSimulator(uint64_t max_cycles) 
     : max_cycles_(max_cycles) {}
 
+    // 处理消息事件的实现
+void CycleAccurateSimulator::process_message_events(uint64_t current_cycle) {
+    while (!message_queue_.empty() && 
+            message_queue_.top().trigger_cycle <= current_cycle) {
+        
+        auto event = message_queue_.top();
+        message_queue_.pop();
+        
+        if (event.trigger_cycle < current_cycle) {
+            throw std::runtime_error("Message event in the past detected!");
+        }
+        
+        // 根据task_id查找处理函数
+        auto handler_it = task_handlers_.find(event.message.task_id);
+        if (handler_it != task_handlers_.end()) {
+            // 直接调用注册的处理函数
+            handler_it->second(event.message);
+        } else {
+            // std::cerr << "Warning: No handler registered for task: " 
+            //             << event.message.task_id << std::endl;
+            throw std::runtime_error("No handler registered for task: " + event.message.task_id);
+        }
+        
+        stats_.total_events++;
+    }
+}
+
 void CycleAccurateSimulator::process_signal_events(uint64_t current_cycle) {
     // 处理当前周期到期的所有信号事件
     while (!signal_event_queue_.empty() && 
@@ -120,19 +147,21 @@ void CycleAccurateSimulator::initialize_simulation() {
 }
 
 void CycleAccurateSimulator::simulate_cycle() {
+    // 1. 处理到期的消息事件
+    process_message_events(current_cycle_);
+
+    // 2. 处理到期的信号事件
     process_signal_events(current_cycle_);
 
-    // 步骤1: 处理组合逻辑事件（最高优先级）
+    // 处理组合逻辑模块（如果有的话）
     process_combinational_logic();
     
-    // 步骤2: 按拓扑深度降序评估所有模块
+    // 评估所有模块的活跃事件
     stats_.modules_processed = 0;
     for (auto& module : modules_) {
         module->evaluate(current_cycle_);
         stats_.modules_processed++;
     }
-
-    // 步骤3: 处理对外输出的事件，多核仿真用
     
     // 步骤4: 更新统计
     stats_.total_cycles = current_cycle_;

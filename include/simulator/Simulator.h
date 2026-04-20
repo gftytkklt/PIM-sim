@@ -25,14 +25,19 @@ struct SignalUpdateEvent {
     }
 };
 
+// 消息事件
 struct MessageEvent {
-    uint64_t trigger_cycle;  // 触发周期
-    GenericMessage message;   // 消息内容
+    uint64_t trigger_cycle;
+    std::string source_core_id;
+    GenericMessage message;
     
     bool operator>(const MessageEvent& other) const {
         return trigger_cycle > other.trigger_cycle;
     }
 };
+
+// 任务处理器类型
+using TaskHandler = std::function<void(const GenericMessage&)>;
 
 class CycleAccurateSimulator : public std::enable_shared_from_this<CycleAccurateSimulator> {
 private:
@@ -77,6 +82,22 @@ private:
         ConnectionKeyHash,
         ConnectionKeyEqual
     > connections_map_;
+
+    // 消息队列
+    std::priority_queue<
+        MessageEvent,
+        std::vector<MessageEvent>,
+        std::greater<MessageEvent>
+    > message_queue_;
+    
+    // 任务ID到处理函数的映射
+    std::unordered_map<std::string, TaskHandler> task_handlers_;
+    
+    // 模块消息处理器映射
+    // std::unordered_map<std::string, std::shared_ptr<ModuleBase<void>>> core_handlers_;
+
+    // 私有方法
+    void process_message_events(uint64_t current_cycle);
     
     // 私有方法
     void process_signal_events(uint64_t current_cycle);
@@ -108,10 +129,6 @@ private:
     void print_statistics() const;
     
 public:
-    // 新增：提交信号更新事件的公共接口
-    void schedule_signal_update(const SignalUpdateEvent& event) {
-        signal_event_queue_.push(event);
-    }
     CycleAccurateSimulator(uint64_t max_cycles = 1000);
     ~CycleAccurateSimulator() = default;
     
@@ -136,6 +153,46 @@ public:
     
     // 获取所有模块（类型擦除版本）
     const std::vector<std::shared_ptr<ISimulatable>>& get_all_modules() const;
+
+    // 注册任务处理器
+    template<typename Func>
+    void register_task_handler(const std::string& task_id, Func&& handler) {
+        task_handlers_[task_id] = std::forward<Func>(handler);
+    }
+
+    // 提交信号更新事件的公共接口
+    void schedule_signal_update(const SignalUpdateEvent& event) {
+        signal_event_queue_.push(event);
+    }
+
+    // 发送消息到核心
+    void send_message_to_core(const std::string& core_id, const GenericMessage& msg) {
+        // auto it = core_handlers_.find(core_id);
+        auto it = module_map_.find(core_id);
+        if (it != module_map_.end()) {
+            it->second->handle_message(msg);
+            // 转换为ModuleBase<void>指针并调用handle_message
+            // auto module_handler = std::dynamic_pointer_cast<ModuleBase<void>>(it->second);
+            // if (module_handler) {
+            //     module_handler->handle_message(msg);
+            // } else {
+            //     throw std::runtime_error("Module found but failed to cast for core: " + core_id);
+            //     // std::cerr << "Warning: Core handler found but failed to cast for core: " << core_id << std::endl;
+            // }
+            // it->second->handle_message(msg);
+        } else {
+            throw std::runtime_error("No module found for core: " + core_id);
+            // std::cerr << "Warning: No handler registered for core: " << core_id << std::endl;
+        }
+    }
+
+    // 便捷版本：发送消息到核心
+    template<typename T>
+    void send_message_to_core(const std::string& core_id, 
+                             const std::string& task_id,
+                             T&& data) {
+        send_message_to_core(core_id, GenericMessage(task_id, std::forward<T>(data)));
+    }
     
     // 获取当前周期
     uint64_t get_current_cycle() const { return current_cycle_; }
@@ -143,25 +200,6 @@ public:
     // 检查模拟是否完成
     bool is_simulation_done() const { return simulation_done_; }
 };
-
-// 模板方法实现
-// template<typename ModuleType>
-// std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(const std::string& id, int topological_depth) {
-//     auto module = std::make_shared<ModuleType>(id);
-//     module->set_topological_depth(topological_depth);
-    
-//     modules_.push_back(module);
-//     module_map_[id] = module;
-    
-//     // 按拓扑深度排序
-//     std::sort(modules_.begin(), modules_.end(),
-//         [](const std::shared_ptr<ISimulatable>& a, 
-//            const std::shared_ptr<ISimulatable>& b) {
-//             return a->get_topological_depth() > b->get_topological_depth(); // 降序
-//         });
-    
-//     return module;
-// }
 
 template<typename ModuleType, typename... Args>
 std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
@@ -190,6 +228,18 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
             event.value = value;
             
             sim->signal_event_queue_.push(event);
+        }
+    });
+
+    //这里设计的语义跟上面一样，都是提交消息事件队列。
+    module->set_message_submit_callback([weak_this, module](const GenericMessage& msg) {
+        if (auto sim = weak_this.lock()) {
+            MessageEvent event;
+            event.trigger_cycle = sim->get_current_cycle() + msg.delay_cycles;
+            event.source_core_id = module->get_id();
+            event.message = msg;
+            
+            sim->message_queue_.push(event);
         }
     });
 

@@ -6,6 +6,12 @@
 #include <tuple>
 #include <vector>
 
+void handle_simd_computation_done(const GenericMessage& msg) {
+    int value = std::any_cast<int>(msg.body);
+    std::cout << "SIMD computation done, value: " << value 
+            << ", delay: " << msg.delay_cycles << " cycles" << std::endl;
+}
+
 class OPUTileSimulatorTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -21,6 +27,16 @@ protected:
         simulator->register_module<Crossbar>("crossbar", 3);
         simulator->register_module<TaskScheduler>("task_scheduler", 2, task_list);
         simulator->register_module<L1C>("L1_cache", 1);
+        // demo，注册一个消息处理器来接收SIMD计算完成的消息，可以利用这个机制更新任务调度器的状态或者触发后续的任务。
+        // simulator->register_task_handler("SIMD_computation_done", [this](const GenericMessage& msg) {
+        //     // 处理SIMD计算完成的消息
+        //     std::cout << "Received SIMD computation done message with value: " 
+        //               << std::any_cast<int>(msg.body) << std::endl;
+        // });
+        // 第二种用法
+        simulator->register_task_handler("SIMD_computation_done", handle_simd_computation_done);
+        simulator->send_message_to_core("task_scheduler", GenericMessage("SIMD_computation_done", 441, 0)); // 发送测试消息
+        simulator->send_message_to_core("task_scheduler", "xxx", 442); // 发送测试消息
     }
 
     void TearDown() override {

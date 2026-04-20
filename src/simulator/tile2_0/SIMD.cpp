@@ -51,6 +51,7 @@ bool SIMD::check_computation_finish() {
 
 bool SIMD::check_computation_end() {
     // submit_signal_value("SIMD_processing", false, 1); // 计算完成后重置processing信号
+    submit_message("SIMD_computation_done", 42, 1); // 计算完成后发送消息通知TaskScheduler
     submit_signal_value("SIMD_compute_ready", true, 1); // 计算完成后设置ready信号
     submit_signal_value("SIMD_data_valid", false, 1); // 重置数据有效信号
     return true;

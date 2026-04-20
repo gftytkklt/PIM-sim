@@ -181,6 +181,18 @@ private:
         submit_signal_value("switching_process", {}, 1); // 重置切换中标志
     }
 
+    // 模块内部消息示例：例如SRAM的写入可以通过这个接口来update，也可以触发wr_trigger。
+    virtual void handle_message(const GenericMessage& msg) override final{
+        // 处理来自SIMD的计算完成消息，更新当前任务状态
+        if (msg.task_id == "SIMD_computation_done") {
+            auto data = std::any_cast<int>(msg.body);
+            std::cout << "TaskScheduler received SIMD computation done message with value: " << data << std::endl;
+        }
+        else {
+            throw std::runtime_error("TaskScheduler received unknown message with task_id: " + msg.task_id);
+        }
+    }
+
     // 每个xbar维护自己当前的任务计数器
     std::array<TaskCounter, L1C_BANK> task_counters_; // 任务计数器，记录每个bank当前执行的任务状态
     std::array<FmapTask, L1C_BANK> task_list_; // 整体任务信息

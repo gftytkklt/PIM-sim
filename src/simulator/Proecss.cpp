@@ -146,7 +146,8 @@ bool ProcessManager::register_process_type(const std::string& name,
                                           ProcessType::EndCondition end_cond,
                                           uint64_t latency) {
     if (process_types_.find(name) != process_types_.end()) {
-        std::cerr << "Warning: Process type '" << name << "' already registered." << std::endl;
+        throw std::runtime_error("Process type '" + name + "' already registered.");
+        // std::cerr << "Warning: Process type '" << name << "' already registered." << std::endl;
         return false;
     }
     
@@ -321,13 +322,10 @@ std::unordered_map<std::string, uint64_t> ProcessManager::get_performance_stats(
                 max_latency = std::max(max_latency, latency);
                 busy_time += exec_time;
             }
-            std::cout << "Event " << event_id.process_type << ":" << event_id.instance_id 
-                      << " - Trigger: " << event_stats["trigger_time"] 
-                    //   << ", Exec: " << event_stats["exec_time"] 
-                    //   << ", Finish: " << event_stats["finish_time"] 
-                      << ", End: " << event_stats["end_time"] 
-                    //   << ", Total Latency: " << event_stats["total_latency"] 
-                      << std::endl;
+            // std::cout << "Event " << event_id.process_type << ":" << event_id.instance_id 
+            //           << " - Trigger: " << event_stats["trigger_time"] 
+            //           << ", End: " << event_stats["end_time"] 
+            //           << std::endl;
         }
         stats["total_latency"] = total_latency;
         stats["avg_latency"] = total_latency / completed_events_.size();
