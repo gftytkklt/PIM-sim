@@ -3,6 +3,7 @@
 
 #include "ISimulatable.h"
 #include "ModuleBase.h"
+#include "MessageBase.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -11,24 +12,6 @@
 #include <algorithm>
 #include <iostream>
 #include <queue>
-
-/**
- * 周期精确模拟器
- * 对应算法5.3的完整实现
- */
-// struct SignalUpdateEvent {
-//     uint64_t cycle;  // 生效周期
-//     std::weak_ptr<ISimulatable> source_module;
-//     std::string source_signal;
-//     std::weak_ptr<ISimulatable> target_module;
-//     std::string target_signal;
-//     std::any value;
-    
-//     // 为优先队列定义比较函数
-//     bool operator>(const SignalUpdateEvent& other) const {
-//         return cycle > other.cycle;  // 最小堆，周期小的优先
-//     }
-// };
 
 struct SignalUpdateEvent {
     uint64_t cycle;                      // 生效周期
@@ -39,6 +22,15 @@ struct SignalUpdateEvent {
     // 比较函数，用于优先队列
     bool operator>(const SignalUpdateEvent& other) const {
         return cycle > other.cycle;  // 最小堆
+    }
+};
+
+struct MessageEvent {
+    uint64_t trigger_cycle;  // 触发周期
+    GenericMessage message;   // 消息内容
+    
+    bool operator>(const MessageEvent& other) const {
+        return trigger_cycle > other.trigger_cycle;
     }
 };
 
@@ -126,7 +118,6 @@ public:
     // 禁止拷贝
     CycleAccurateSimulator(const CycleAccurateSimulator&) = delete;
     CycleAccurateSimulator& operator=(const CycleAccurateSimulator&) = delete;
-    
 
     // 注册模块
     template<typename ModuleType, typename... Args>

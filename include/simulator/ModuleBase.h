@@ -9,6 +9,7 @@
 #include <iostream>
 #include "ISimulatable.h"
 #include "Process.h"
+#include "MessageBase.h"
 
 /**
  * 信号定义
@@ -30,10 +31,33 @@ struct Signal {
     Signal(const std::string& n, Signal::Direction d)
         : name(n), direction(d) {}
     
-    // Signal(const std::string& n, Signal::Direction d, const std::any& v = {})
-    //     : name(n), direction(d), value(v) {}
-    
     Signal() = default;
+};
+
+// 连接管理映射：源模块信号 -> 目标模块信号列表
+struct ConnectionInfo {
+    std::weak_ptr<ISimulatable> target_module;
+    std::string target_signal;
+};
+using ConnectionKey = std::pair<std::weak_ptr<ISimulatable>, std::string>;
+
+struct ConnectionKeyHash {
+    std::size_t operator()(const ConnectionKey& key) const {
+        auto module_ptr = key.first.lock();
+        if (!module_ptr) return 0;
+        return std::hash<std::string>{}(module_ptr->get_id()) ^ 
+                (std::hash<std::string>{}(key.second) << 1);
+    }
+};
+
+struct ConnectionKeyEqual {
+    bool operator()(const ConnectionKey& a, const ConnectionKey& b) const {
+        auto a_module = a.first.lock();
+        auto b_module = b.first.lock();
+        if (!a_module || !b_module) return false;
+        return a_module->get_id() == b_module->get_id() && 
+                a.second == b.second;
+    }
 };
 
 /**
@@ -69,6 +93,15 @@ protected:
     
     // 性能统计
     mutable std::unordered_map<std::string, uint64_t> performance_stats_;
+
+    // 消息接口
+    using MessageCallback = std::function<void(
+        uint64_t delay_cycles,
+        MessageHeader header,
+        std::any payload
+    )>;
+
+    MessageCallback message_callback_;
     
 public:
     ModuleBase(const std::string& id) : id_(id) {
@@ -84,6 +117,19 @@ public:
     void set_schedule_callback(std::function<void(uint64_t, std::weak_ptr<ISimulatable>, 
                                                 std::string, std::any)> callback) {
         schedule_signal_update_callback_ = callback;
+    }
+
+    // 设置信息发送回调
+    void set_message_callback(MessageCallback callback) {
+        message_callback_ = callback;
+    }
+
+    virtual void handle_message(const GenericMessage& msg) {
+        // 默认实现：打印消息内容
+        std::cout << "Module '" << id_ << "' received message of type: " 
+                //   << static_cast<int>(msg.header().type) 
+                //   << " with body type: " << msg.body_().type().name() 
+                  << std::endl;
     }
     
     virtual ~ModuleBase() = default;
@@ -159,6 +205,29 @@ public:
         //           << " (valid after cycle " << valid_cycle << ")" << std::endl;
     }
 
+    // 当前可以把delay cycle视为0，也就是传输以后立刻更新消息表项
+    // 如果需要模拟传输延迟，可以在simulator里维护key为valid cycle的队列来检查
+    // 消息队列可以不主动触发行为，只用来更新状态。
+    // 在当前用例里，消息队列的来源是SIMD计算完成，每计算完成一次或四次，就更新消息表项
+    // 目前消息表项可以直接触发写事件，
+    template<typename... Args>
+    void send_message(MessageHeader header, Args&&... args) {
+        if (message_callback_) {
+            // 这里直接调用回调函数，消息的发送和处理都是在当前周期进行的。
+            auto body = MessageBody<std::decay_t<Args>...>(
+                std::forward<Args>(args)...
+            );
+            // 调用回调函数
+            schedule_message_callback_(
+                header.delay_cycles,
+                std::move(header),
+                std::make_any<MessageBody<std::decay_t<Args>...>>(std::move(body))
+            );
+            } else {
+                throw std::runtime_error("Message callback not set for module: " + id_);
+            }
+    }
+
     void invalidate_signal(const std::string& name) {
         auto it = signals_.find(name);
         if (it != signals_.end()) {
@@ -180,7 +249,8 @@ public:
             it->second.valid_cycle = valid_cycle;
         }
     }
-    
+    // 目前没有用到这个函数，但为了实现嵌套module的连接，需要保留这个接口
+    // 当前的实现是在simulator里例化flatten的module，然后定义它们的connection
     void connect_to(const std::string& local_signal,
                    std::shared_ptr<ISimulatable> target_module,
                    const std::string& target_signal) override {

@@ -88,20 +88,6 @@ void CycleAccurateSimulator::run() {
     print_statistics();
 }
 
-// void CycleAccurateSimulator::connect_modules(const std::string& src_id, 
-//                                             const std::string& src_signal,
-//                                             const std::string& dst_id, 
-//                                             const std::string& dst_signal) {
-//     auto src_it = module_map_.find(src_id);
-//     auto dst_it = module_map_.find(dst_id);
-    
-//     if (src_it != module_map_.end() && dst_it != module_map_.end()) {
-//         src_it->second->connect_to(src_signal, dst_it->second, dst_signal);
-//     } else {
-//         std::cerr << "Warning: Failed to connect modules. Source or target not found." << std::endl;
-//     }
-// }
-
 void CycleAccurateSimulator::connect_modules(const std::string& src_id, 
                                             const std::string& src_signal,
                                             const std::string& dst_id, 
@@ -120,7 +106,6 @@ void CycleAccurateSimulator::connect_modules(const std::string& src_id,
         });
     } else {
         throw std::runtime_error("Failed to connect modules. Source or target not found: " + src_id + " -> " + dst_id);
-        // std::cerr << "Warning: Failed to connect modules. Source or target not found." << std::endl;
     }
 }
 

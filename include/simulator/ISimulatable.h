@@ -44,15 +44,6 @@ public:
     
     // 性能统计
     virtual void get_performance_stats(std::unordered_map<std::string, uint64_t>& stats) const = 0;
-
-    // // 获取输出连接列表（用于优化性能）
-    // virtual std::vector<std::pair<std::string, std::string>> 
-    // get_output_connections(const std::string& signal_name) const = 0;
-    
-    // // 新增：提交信号更新事件
-    // virtual void schedule_signal_update(const std::string& signal_name,
-    //                                    const std::any& value,
-    //                                    uint64_t valid_cycle) = 0;
 };
 
 #endif // ISIMULATABLE_H
