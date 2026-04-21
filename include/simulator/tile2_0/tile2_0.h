@@ -16,5 +16,19 @@
 #include "Crossbar.h"
 #include "SIMD.h"
 #include "L1C.h"
+#include "simulator/ModuleBase.h"
+#include "simulator/Simulator.h"
+
+class OPUSimulator : public CycleAccurateSimulator {
+public:
+    // ctor，两段初始化都要做。
+    OPUSimulator(uint64_t max_cycles = 100000) : CycleAccurateSimulator(max_cycles){}
+    void Init();
+    // 模块到模拟器的消息处理函数
+    void handle_simd_computation_done(const GenericMessage& msg);
+    // 模拟器到模块的消息分发函数
+    // 任务队列初始化，模拟计算开始时L1C已有部分数据。
+    void init_task(int bank_id, int batch_num);
+};
 
 #endif

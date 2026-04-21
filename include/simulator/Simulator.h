@@ -207,7 +207,6 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
     
     auto module = std::make_shared<ModuleType>(id, std::forward<Args>(args)...);
     module->set_topological_depth(topological_depth);
-    
     // 设置信号更新回调
     auto weak_this = std::weak_ptr<CycleAccurateSimulator>(
         std::static_pointer_cast<CycleAccurateSimulator>(shared_from_this())
