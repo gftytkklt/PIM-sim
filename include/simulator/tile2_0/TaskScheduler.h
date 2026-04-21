@@ -90,6 +90,35 @@ public:
     }
 
     // 留给多核判断反压的接口
+    void register_message_handlers() override final {
+        register_message_handler("TS_HELLO", [this](const GenericMessage& msg) {
+            // 处理SIMD计算完成的消息
+            std::cout << "Received SIMD computation done message with value: " 
+                      << std::any_cast<int>(msg.body) << std::endl;
+            // 可以在这里更新任务调度器的状态或者触发后续的任务。
+        });
+        register_message_handler("init_task", 
+            [this](const GenericMessage& msg) {
+                try {
+                    // 从消息体中提取tuple<int, int>
+                    auto data = std::any_cast<std::tuple<int, int>>(msg.body);
+                    int bank_id = std::get<0>(data);
+                    int batch_num = std::get<1>(data);
+                    
+                    std::cout << "TaskScheduler: Received init_task message" << std::endl;
+                    std::cout << "  Bank ID: " << bank_id << std::endl;
+                    std::cout << "  Batch Num: " << batch_num << std::endl;
+                    
+                    // 调用初始化函数
+                    this->init_pending_tasks(bank_id, batch_num);
+                    
+                } catch (const std::bad_any_cast& e) {
+                    std::cerr << "TaskScheduler: Failed to cast init_task message body. "
+                              << "Expected tuple<int, int>, got: " 
+                              << msg.body.type().name() << std::endl;
+                }
+            });
+    }
 
 private:
     // 两列写回L1C的任务触发
@@ -123,9 +152,9 @@ private:
     // bool check_switch_task_finish();
     // bool check_switch_task_end();
 
-    // 简化写入的计算任务初始化建模
-    // 第一次是两个batch，后面都是1个
+    // 根据写入的batch数量初始化SRAM可用数据容量，初始化待调度任务队列
     void init_pending_tasks(int bank_id, int batch_num) {
+        batch_data_info[bank_id].valid_batch_num = batch_num;
         for (int i = 0; i < batch_num; ++i) {
             pending_tasks_.push(bank_id);
         }
@@ -179,18 +208,6 @@ private:
     void invalidate_switch_task_trigger() {
         submit_signal_value("xbar_switching_trigger", {}, 1); // 重置任务切换触发信号
         submit_signal_value("switching_process", {}, 1); // 重置切换中标志
-    }
-
-    // 模块内部消息示例：例如SRAM的写入可以通过这个接口来update，也可以触发wr_trigger。
-    virtual void handle_message(const GenericMessage& msg) override final{
-        // 处理来自SIMD的计算完成消息，更新当前任务状态
-        if (msg.task_id == "SIMD_computation_done") {
-            auto data = std::any_cast<int>(msg.body);
-            std::cout << "TaskScheduler received SIMD computation done message with value: " << data << std::endl;
-        }
-        else {
-            throw std::runtime_error("TaskScheduler received unknown message with task_id: " + msg.task_id);
-        }
     }
 
     // 每个xbar维护自己当前的任务计数器

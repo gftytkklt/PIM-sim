@@ -244,6 +244,8 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
     });
 
     module->register_processes();
+
+    module->register_message_handlers();
     
     modules_.push_back(module);
     module_map_[id] = module;

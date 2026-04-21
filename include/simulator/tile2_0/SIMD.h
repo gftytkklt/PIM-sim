@@ -16,6 +16,9 @@ public:
             compute_latency_
         );
     }
+    void register_message_handlers() override final {
+        // SIMD目前没有需要处理的消息，可以留空或者添加一些调试消息的处理函数。
+    }
 private:
     bool check_computation_trigger();
     bool check_computation_exec();

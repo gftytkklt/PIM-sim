@@ -90,6 +90,10 @@ protected:
     // 添加：用于提交信号更新事件的函数指针
     std::function<void(uint64_t, std::weak_ptr<ISimulatable>, 
                       std::string, std::any)> schedule_signal_update_callback_;
+
+    // 用于提交消息的函数指针
+    using MessageHandlerFunc = std::function<void(const GenericMessage&)>;
+    std::unordered_map<std::string, MessageHandlerFunc> message_handlers_;
     
     // 性能统计
     mutable std::unordered_map<std::string, uint64_t> performance_stats_;
@@ -115,10 +119,43 @@ public:
         submit_message_callback_ = std::move(callback);
     }
 
+    // 新增：注册消息处理函数
+    void register_message_handler(const std::string& task_id, 
+                                 MessageHandlerFunc handler) {
+        message_handlers_[task_id] = std::move(handler);
+    }
+    
+    // 便捷版本：注册消息处理函数（完美转发）
+    // 允许传递除了msg以外的其它参数，这些参数会被绑定到处理函数中，在消息到达时一起调用。
+    template<typename Func, typename... Args>
+    void register_message_handler(const std::string& task_id, 
+                                 Func&& func, Args&&... args) {
+        // 使用lambda包装函数和参数
+        message_handlers_[task_id] = 
+            [func = std::forward<Func>(func), 
+             args = std::make_tuple(std::forward<Args>(args)...)]
+            (const GenericMessage& msg) mutable {
+            
+            // 调用函数，传入消息和绑定的参数
+            std::apply([&func, &msg](auto&&... bound_args) {
+                func(msg, std::forward<decltype(bound_args)>(bound_args)...);
+            }, std::move(args));
+        };
+    }
+
     virtual void handle_message(const GenericMessage& msg) {
-        // 默认实现：打印消息内容
-        std::cout << "Module '" << id_ << "' received message with body type: " 
-                  << msg.body.type().name() << std::endl;
+        std::cout << std::endl;
+        auto it = message_handlers_.find(msg.task_id);
+        if (it != message_handlers_.end()) {
+            // 找到处理函数，执行它
+            it->second(msg);
+        } else {
+            // 没有找到处理函数，调用默认处理器
+            throw std::runtime_error(
+                "Module " + id_ + ": No handler registered for message with task_id: " + 
+                msg.task_id
+            );
+        }
     }
     
     virtual ~ModuleBase() = default;
@@ -315,6 +352,7 @@ protected:
     const ProcessManager* get_process_manager() const { return process_manager_.get(); }
     // 具体模块需要实现的接口
     virtual void register_processes() = 0; // 由派生类实现，注册自己的进程类型和条件函数
+    virtual void register_message_handlers() = 0; // 由派生类实现，注册自己的消息处理函数
     virtual std::unordered_map<std::string, uint64_t> get_module_specific_stats() const {
          return {};
     }

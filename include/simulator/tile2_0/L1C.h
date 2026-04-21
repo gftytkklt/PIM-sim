@@ -27,6 +27,9 @@ public:
             1 // latency will be determined by the number of lines accessed
         );
     }
+    void register_message_handlers() override final {
+        // L1C目前没有需要处理的消息，可以留空或者添加一些调试消息的处理函数。
+    }
 private:
     bool check_cache_read_trigger();
     bool check_cache_read_exec();

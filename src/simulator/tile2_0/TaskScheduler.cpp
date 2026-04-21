@@ -60,13 +60,6 @@ TaskScheduler::TaskScheduler(const std::string& id, const std::array<FmapTask, L
         if (batch_data_info[i].max_batch_capacity < 3) {
             throw std::runtime_error("Invalid task configuration for bank " + std::to_string(i) + ": batch capacity is zero");
         }
-        // 简化读写条件的情况下，可以设置初始有一个分块的数据量。
-        // 通过外部给吧。对应地，TS的queue也要相应初始化任务。
-        // batch_data_info[i].valid_batch_num = 0; // 初始没有有效数据
-        // 根据初始有效数据量更新待调度任务
-        batch_data_info[i].valid_batch_num = batch_num; // 初始有一个batch的有效数据，简化建模实现
-        init_pending_tasks(i, batch_num);
-        // print 
     }
 }
 
