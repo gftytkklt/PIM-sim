@@ -288,6 +288,14 @@ public:
         }
         return empty;
     }
+
+    const std::vector<ProcessEventPtr>& get_completed_processes() const override {
+        static const std::vector<ProcessEventPtr> empty;
+        if (process_manager_) {
+            return process_manager_->get_completed_events();
+        }
+        return empty;
+    }
     
     void get_performance_stats(std::unordered_map<std::string, uint64_t>& stats) const override {
         stats = performance_stats_;

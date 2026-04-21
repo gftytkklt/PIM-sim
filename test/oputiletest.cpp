@@ -30,4 +30,5 @@ protected:
 // 这个测试用来根据fmap参数输出计算延迟。
 TEST_F(OPUTileSimulatorTest, BasicSimulation) {
     simulator->run();
+    simulator->dump_completed_events("completed_events.csv");
 }

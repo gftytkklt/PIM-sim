@@ -1,4 +1,5 @@
 #include "simulator/Simulator.h"
+#include <fstream>
 #include <iostream>
 
 CycleAccurateSimulator::CycleAccurateSimulator(uint64_t max_cycles) 
@@ -214,4 +215,37 @@ void CycleAccurateSimulator::print_statistics() const {
               << (stats_.total_cycles > 0 ? 
                   static_cast<double>(stats_.total_events) / stats_.total_cycles : 0.0) 
               << std::endl;
+}
+
+void CycleAccurateSimulator::dump_completed_events(const std::string& filename) const {
+    std::ofstream ofs(filename);
+    if (!ofs.is_open()) {
+        std::cerr << "Failed to open file for dumping completed events: " << filename << std::endl;
+        return;
+    }
+    
+    for (const auto& module : modules_) {
+        const auto& completed_events = module->get_completed_processes();
+        for (const auto& event : completed_events) {
+            if (event->is_ended()) {
+                ofs << "Module: " << module->get_id() 
+                    << ", Process Type: " << event->get_process_type() 
+                    << ", Timing Stats: ";
+                
+                auto stats = event->get_timing_stats();
+                // 只需要trigger_time和end_time
+                if (stats.find("trigger_time") != stats.end() && stats.find("end_time") != stats.end()) {
+                    uint64_t trigger_time = stats.at("trigger_time");
+                    uint64_t end_time = stats.at("end_time");
+                    uint64_t latency = end_time - trigger_time;
+                    ofs << "trigger_time=" << trigger_time 
+                        << ", end_time=" << end_time;
+                }
+                ofs << std::endl;
+            }
+        }
+    }
+    
+    ofs.close();
+    std::cout << "Completed events dumped to file: " << filename << std::endl;
 }

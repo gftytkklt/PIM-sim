@@ -23,4 +23,5 @@ protected:
 
 TEST_F(BankingSimulatorTest, BasicSimulation) {
     simulator->run();
+    // simulator->dump_completed_events("banking_completed_events_YX1.csv");
 }

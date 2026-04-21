@@ -150,6 +150,7 @@ public:
     
     // 获取活跃事件
     const std::vector<ProcessEventPtr>& get_active_events() const { return active_events_; }
+    const std::vector<ProcessEventPtr>& get_completed_events() const { return completed_events_; }
     std::vector<ProcessEventPtr> get_events_by_type(const std::string& process_type) const;
     
     // 检查是否已存在某类事件

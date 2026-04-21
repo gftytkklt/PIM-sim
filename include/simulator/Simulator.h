@@ -199,6 +199,9 @@ public:
     
     // 检查模拟是否完成
     bool is_simulation_done() const { return simulation_done_; }
+
+    // dump完成的事件到文件
+    void dump_completed_events(const std::string& filename) const;
 };
 
 template<typename ModuleType, typename... Args>

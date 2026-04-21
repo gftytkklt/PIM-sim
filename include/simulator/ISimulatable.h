@@ -26,6 +26,9 @@ public:
     // 事件驱动接口 (对应算法5.2)
     virtual void evaluate(uint64_t current_cycle) = 0;
     virtual const std::vector<ProcessEventPtr>& get_active_processes() const = 0;
+    virtual const std::vector<ProcessEventPtr>& get_completed_processes() const = 0;
+    
+     // 消息传递接口
 
     // 消息传递接口
     virtual void handle_message(const GenericMessage& msg) = 0;

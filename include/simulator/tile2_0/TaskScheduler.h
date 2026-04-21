@@ -96,8 +96,8 @@ public:
     void register_message_handlers() override final {
         register_message_handler("TS_HELLO", [this](const GenericMessage& msg) {
             // 处理SIMD计算完成的消息
-            std::cout << "Received SIMD computation done message with value: " 
-                      << std::any_cast<int>(msg.body) << std::endl;
+            // std::cout << "Received SIMD computation done message with value: " 
+            //           << std::any_cast<int>(msg.body) << std::endl;
             // 可以在这里更新任务调度器的状态或者触发后续的任务。
         });
         register_message_handler("init_task", 
@@ -108,9 +108,6 @@ public:
                     int bank_id = std::get<0>(data);
                     int batch_num = std::get<1>(data);
                     
-                    // std::cout << "TaskScheduler: Received init_task message" << std::endl;
-                    // std::cout << "  Bank ID: " << bank_id << std::endl;
-                    // std::cout << "  Batch Num: " << batch_num << std::endl;
                     
                     // 调用初始化函数
                     this->init_pending_tasks(bank_id, batch_num);

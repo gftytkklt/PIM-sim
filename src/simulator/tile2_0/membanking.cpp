@@ -3,7 +3,7 @@
 void BankingSimulator::Init() {
     // core 0
     const std::array<FmapTask, L1C_BANK> task_list0 = {{
-            {4, 16, 16, 128, true}, // Bank 0
+            {4, 16, 4, 128, true}, // Bank 0
             {0, 0, 0, 0, 0}, // Bank 1
             {0, 0, 0, 0, 0}, // Bank 2
             {0, 0, 0, 0, 0}  // Bank 3
