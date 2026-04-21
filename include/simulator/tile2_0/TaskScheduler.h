@@ -3,6 +3,7 @@
 
 #include "config.h"
 
+// 这里的粒度与rtask对齐，完成一批计算会发送一次完成信号，因此不在这里建模多个分块的计算。
 struct TaskCounter {
     // 任务总数
     int batch_num;
@@ -33,12 +34,14 @@ enum class TaskStatus {
     COMPUTE,
 };
 
-// 全局
+// 这里指输出特征图大小
+// 通道实际上是由输入通道数决定的
+// 因为输入最多支持128通道，跟特征图到底有几个通道无关
 struct FmapTask {
     int block_num; // 分块总数
     int row;
     int col;
-    int channel_num; // 读给PE是输入通道数，激励写L1C是输出通道数
+    int channel_num; // 输入激励的大小
     bool pooling;
 };
 

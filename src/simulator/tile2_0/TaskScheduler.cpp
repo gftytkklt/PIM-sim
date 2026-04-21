@@ -25,6 +25,7 @@ TaskScheduler::TaskScheduler(const std::string& id, const std::array<FmapTask, L
     add_signal(Signal("computation_process", Signal::Direction::INTERNAL)); // bool，是否正在计算
 
     // 初始化任务计数
+    // 这个任务计数没有考虑容量问题，
     for (int i = 0; i < L1C_BANK; i++) {
         // 初始化各bank完成标志，如果没有任务，默认完成
         task_finish_flags_[i] = (task_list_[i].block_num == 0); // 如果任务块数为0，表示没有任务，默认完成
@@ -41,7 +42,7 @@ TaskScheduler::TaskScheduler(const std::string& id, const std::array<FmapTask, L
             continue;
         }
         // task_counters_[i] = {0, 0}; // 读写任务
-        task_counters_[i] = {0, 0, 0, 0}; // 读写任务的pt和batch计数
+        // task_counters_[i] = {0, 0, 0, 0}; // 读写任务的pt和batch计数
         // 根据fmap_task信息初始化batch_data_info，两列的总点数除以16
         int batch_pts = 2 * task_list_[i].row; // 每批次的容量(Bytes)
         task_counters_[i].pt_num = batch_pts;
@@ -195,6 +196,8 @@ bool TaskScheduler::check_rtask_finish() {
 }
 // 释放资源
 bool TaskScheduler::check_rtask_end() {
+    // 在这里触发多核反压的更新，粒度以batch为单位就可以了。
+    submit_message("task_batch_done", std::make_tuple(current_task_id_, id_), 1); // 任务完成后发送消息通知外部模块，携带当前bank id和有效batch数量
     batch_data_info[current_task_id_].valid_batch_num -= 1; // 读出一个batch的数据
     pending_tasks_.pop(); // 移除已完成的任务
     return true;
