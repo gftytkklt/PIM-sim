@@ -19,68 +19,66 @@
 #include "simulator/ModuleBase.h"
 #include "simulator/Simulator.h"
 
-// 维护逻辑是，total_batch_num维护一个分块的总批次数，issued_num是每个分块内已经发起的读请求数
-// valid_batch_num只维护当前有多少有效数据，该数据根据读写情况进行更新
-// 这里假设写入的数据一定是下一次计算需要的
-// 另外，这里只维护有效数据信息，不维护全局任务信息。
-struct BankStatus {
-    int valid_batch_num; // 当前有多少组有效数据
-    int batch_capacity; // L1C中每个bank的批次容量，单位是batch
-    int issued_read_batch_num; // 已经发起读请求但还未完成的批次数
-    // 每次只会写一个batch
-    bool can_issue_write(int required_batch_num) const {
-        return valid_batch_num + required_batch_num <= batch_capacity;
-    }
-    // 第一批计算读两个batch，后续都是一个
-    bool can_issue_read(int required_batch_num) const {
-        return valid_batch_num >= required_batch_num;
-    }
-    void write_batch(int batch_num) {
-        valid_batch_num += batch_num;
-    }
-    void read_batch(int batch_num) {
-        issued_read_batch_num += batch_num;
-        valid_batch_num -= batch_num;
-    }
-};
-// bank整体task情况。
-// 当前需要手动建模层融合的计数机制
-// 即前级发射多少次，才生成一批后级有效数据。
-// 简化处理：两种情况，pooling的时候只有前后级统一blk大小和两倍两种情况。
-// 前者要算4个block才能生成对应batch的数据
-// 直接在满足条件的时候往pending_tasks里丢任务就行了
-struct BankTask {
-    int block_num;
-    int block_row;
-    int block_col;
-    bool pooling;
-};
+// // 维护逻辑是，total_batch_num维护一个分块的总批次数，issued_num是每个分块内已经发起的读请求数
+// // valid_batch_num只维护当前有多少有效数据，该数据根据读写情况进行更新
+// // 这里假设写入的数据一定是下一次计算需要的
+// // 另外，这里只维护有效数据信息，不维护全局任务信息。
+// struct BankStatus {
+//     int valid_batch_num; // 当前有多少组有效数据
+//     int batch_capacity; // L1C中每个bank的批次容量，单位是batch
+//     int issued_read_batch_num; // 已经发起读请求但还未完成的批次数
+//     // 每次只会写一个batch
+//     bool can_issue_write(int required_batch_num) const {
+//         return valid_batch_num + required_batch_num <= batch_capacity;
+//     }
+//     // 第一批计算读两个batch，后续都是一个
+//     bool can_issue_read(int required_batch_num) const {
+//         return valid_batch_num >= required_batch_num;
+//     }
+//     void write_batch(int batch_num) {
+//         valid_batch_num += batch_num;
+//     }
+//     void read_batch(int batch_num) {
+//         issued_read_batch_num += batch_num;
+//         valid_batch_num -= batch_num;
+//     }
+// };
+// // bank整体task情况。
+// // 当前需要手动建模层融合的计数机制
+// // 即前级发射多少次，才生成一批后级有效数据。
+// // 简化处理：两种情况，pooling的时候只有前后级统一blk大小和两倍两种情况。
+// // 前者要算4个block才能生成对应batch的数据
+// // 直接在满足条件的时候往pending_tasks里丢任务就行了
+// struct BankTask {
+//     int block_num;
+//     int block_row;
+//     int block_col;
+//     bool pooling;
+// };
 
-using BankID = std::pair<std::string, int>; // <core_name, bank_id>
-struct BankIDHash {
-    std::size_t operator()(const BankID& bank_id) const {
-        return std::hash<std::string>{}(bank_id.first) ^ (std::hash<int>{}(bank_id.second) << 1);
-    }
-};
-using BankStatusMap = std::unordered_map<BankID, BankStatus, BankIDHash>;
-using TaskPair = std::unordered_map<BankID, BankID, BankIDHash>; // <读任务bank, 写任务bank>
+// using BankID = std::pair<std::string, int>; // <core_name, bank_id>
+// struct BankIDHash {
+//     std::size_t operator()(const BankID& bank_id) const {
+//         return std::hash<std::string>{}(bank_id.first) ^ (std::hash<int>{}(bank_id.second) << 1);
+//     }
+// };
+// using BankStatusMap = std::unordered_map<BankID, BankStatus, BankIDHash>;
+// using TaskPair = std::unordered_map<BankID, BankID, BankIDHash>; // <读任务bank, 写任务bank>
 
 class OPUSimulator : public CycleAccurateSimulator {
 public:
     // ctor，两段初始化都要做。
     OPUSimulator(uint64_t max_cycles = 100000) : CycleAccurateSimulator(max_cycles){}
     void Init();
-    void InitMemBankCase(); // 16x16->8x8->4x4的情况
     // 模块到模拟器的消息处理函数
     void handle_simd_computation_done(const GenericMessage& msg);
     void handle_batch_task_done(const GenericMessage& msg);
     // 模拟器到模块的消息分发函数
     // 任务队列初始化，模拟计算开始时L1C已有部分数据。
     void init_task(int bank_id, int batch_num);
-    void sending_xy_pooling_batch();
-private:
-    BankStatusMap bank_status_map_;
-    TaskPair task_pair_;
+// private:
+//     BankStatusMap bank_status_map_;
+//     TaskPair task_pair_;
 };
 
 #endif
