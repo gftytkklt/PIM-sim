@@ -108,9 +108,9 @@ public:
                     int bank_id = std::get<0>(data);
                     int batch_num = std::get<1>(data);
                     
-                    std::cout << "TaskScheduler: Received init_task message" << std::endl;
-                    std::cout << "  Bank ID: " << bank_id << std::endl;
-                    std::cout << "  Batch Num: " << batch_num << std::endl;
+                    // std::cout << "TaskScheduler: Received init_task message" << std::endl;
+                    // std::cout << "  Bank ID: " << bank_id << std::endl;
+                    // std::cout << "  Batch Num: " << batch_num << std::endl;
                     
                     // 调用初始化函数
                     this->init_pending_tasks(bank_id, batch_num);

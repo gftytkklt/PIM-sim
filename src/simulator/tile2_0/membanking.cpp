@@ -108,8 +108,8 @@ void BankingSimulator::handle_batch_task_done(const GenericMessage& msg) {
     auto data = std::any_cast<std::tuple<int, std::string>>(msg.body);
     int bank_id = std::get<0>(data);
     std::string core_name = std::get<1>(data);
-    std::cout << "Received task batch done message from " << core_name 
-              << " with bank id: " << bank_id << std::endl;
+    // std::cout << "Received task batch done message from " << core_name 
+    //           << " with bank id: " << bank_id << std::endl;
     // 写死：core0
     if (core_name == "task_scheduler0") {
         core_batch_num_map_["task_scheduler0"] += 1;
