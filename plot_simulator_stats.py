@@ -73,7 +73,7 @@ def plot_simulator_stats(csv_file='completed_events.csv', output_image='module_t
     # 设置轴标签
     ax.set_xlabel('time (cycles)')
     ax.set_ylabel('modules')
-    ax.set_title('8x8 fmap inference timeline heatmap')
+    ax.set_title('6x12 fmap inference timeline heatmap')
 
     # 添加图例
     ax.legend()
@@ -262,7 +262,7 @@ def create_core_clustered_timeline(csv_file_path="banking_completed_events_YX.cs
 if __name__ == "__main__":
     # plot_simulator_stats()
     plot_simulator_stats()
-    create_core_clustered_timeline('banking_completed_events_XY.csv', 'core_timeline_XY.pdf', title='XY tiling timeline heatmap')
-    create_core_clustered_timeline('banking_completed_events_YX.csv', 'core_timeline_YX.pdf', title='YX tiling timeline heatmap')
-    create_core_clustered_timeline('banking_completed_events_16x4.csv', 'core_timeline_16x4.pdf', title='16x4 fmap tiling timeline heatmap')
-    create_core_clustered_timeline('multicore_completed_events.csv', 'multicore_completed_events.pdf', title='AlexNet inference timeline heatmap')
+    # create_core_clustered_timeline('banking_completed_events_XY.csv', 'core_timeline_XY.pdf', title='XY tiling timeline heatmap')
+    # create_core_clustered_timeline('banking_completed_events_YX.csv', 'core_timeline_YX.pdf', title='YX tiling timeline heatmap')
+    # create_core_clustered_timeline('banking_completed_events_16x4.csv', 'core_timeline_16x4.pdf', title='16x4 fmap tiling timeline heatmap')
+    # create_core_clustered_timeline('multicore_completed_events.csv', 'multicore_completed_events.pdf', title='AlexNet inference timeline heatmap')
