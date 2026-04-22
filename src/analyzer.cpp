@@ -24,6 +24,20 @@ static OptType gen_opt_type_from_optinfo(const OptInfo& opt, const bool tile2_0_
     return opt_type;
 }
 
+Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptType opt_type){
+    auto cg_strategy = createStrategy<CGraph>(opt_type);
+    auto tg_strategy = createStrategy<TGraph>(opt_type);
+    auto hg_strategy = createStrategy<HGraph>(opt_type);
+    auto dg_strategy = createStrategy<DGraph>(opt_type);
+    if (!cg_strategy || !tg_strategy || !hg_strategy || !dg_strategy) {
+        throw std::runtime_error("Failed to create strategy for one of the graphs.");
+    }
+    cg = std::make_shared<CGraph>(kernels, info.xbar_size, cg_strategy);
+    tg = std::make_shared<TGraph>(cg, info.xbar_num, tg_strategy);
+    hg = std::make_shared<HGraph>(tg, cg, info.tile_size, hg_strategy);
+    dg = std::make_shared<DGraph>(hg, tg, cg, info.pipeline_depth, dg_strategy);
+}
+
 Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt, bool tile2_0_flag) {
     opt_type = gen_opt_type_from_optinfo(opt, tile2_0_flag);
 

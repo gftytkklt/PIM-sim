@@ -251,14 +251,15 @@ def latency_est(
     # print("tile num is", len(all_tiles_mapping_infos))
     # get inter-tile lat first if not provided
     # if comm_lat is None and ideal == 0:
-    if comm_lat is None:
-        latency_map = booksim_eval(all_comm_segs, bus_width, freq)
+    latency_map = {}
+    # if comm_lat is None:
+    #     latency_map = booksim_eval(all_comm_segs, bus_width, freq)
         # modify filename manually after saving
         # pickle.dump(latency_map, open(f"results/noc_perf_dict_bw=1_xbar=256_256.pkl", "wb"))
     # elif ideal == 1:
     #     latency_map = {}
-    else:
-        latency_map = comm_lat  # lat_layer = latency_map[layer]
+    # else:
+    #     latency_map = comm_lat  # lat_layer = latency_map[layer]
     bandwidth = bus_width * freq  # B/s
     # update tile exec info
     exec_info = defaultdict(dict)

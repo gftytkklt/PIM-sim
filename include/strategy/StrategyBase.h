@@ -52,6 +52,11 @@ public:
     void analysis(TGraph& graph) final;
 };
 
+class TStrategyPUMA : public StrategyBase<TGraph> {
+public:
+    void analysis(TGraph& graph) final;
+};
+
 class TStrategyTILE2_0 : public StrategyBase<TGraph> {
 public:
     void analysis(TGraph& graph) final;
@@ -95,6 +100,9 @@ std::shared_ptr<StrategyBase<GraphType>> createStrategy(OptType opt_type) {
         switch (opt_type) {
             case OptType::MNSIM: return std::make_shared<CStrategyMNSIM>();
             case OptType::TILE2_0: return std::make_shared<CStrategyTILE2_0>();
+            case OptType::TILE2_0_V2:
+            case OptType::PUMA:
+            case OptType::REHARVEST:
             case OptType::HITM:
             case OptType::SPATEM:
             case OptType::PIMAPPING:
@@ -104,8 +112,11 @@ std::shared_ptr<StrategyBase<GraphType>> createStrategy(OptType opt_type) {
     else if constexpr (std::is_same_v<GraphType, TGraph>) {
         switch (opt_type) {
             case OptType::PIMAPPING: return std::make_shared<TStrategyPIMAPPING>();
+            case OptType::TILE2_0_V2:
             case OptType::TILE2_0: return std::make_shared<TStrategyTILE2_0>();
+            case OptType::REHARVEST:
             case OptType::SPATEM: return std::make_shared<TStrategySPATEM>();
+            case OptType::PUMA: return std::make_shared<TStrategyPUMA>();
             case OptType::MNSIM:
             case OptType::HITM:
             default: return std::make_shared<TStrategyMNSIM>();

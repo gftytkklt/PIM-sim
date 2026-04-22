@@ -1727,10 +1727,10 @@ if __name__ == "__main__":
     hw_info = make_hw_info(xbar_size, 8, (0, 0), 1)
 
     begin_time = time.time()
-    mapping_result, comm_result = perf_analysis(models_dir="models", hwinfo=hw_info)
+    mapping_result, comm_result = perf_analysis(models_dir="demo", hwinfo=hw_info)
     logger.info(f"Total Time: {time.time() - begin_time}")
 
-    mp.set_start_method("fork", force=True)
+    # mp.set_start_method("fork", force=True)
     # for bw data gen
     for bw in bw_list:
         perf_dict = load_noc_perf(bw, xbar_size)

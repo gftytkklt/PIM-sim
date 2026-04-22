@@ -794,6 +794,48 @@ void TGraph::create_tnodes_TILE2_0() {
     // std::cout << "[TILE2.0] Total tnodes created: " << boost::num_vertices(tg) << std::endl;
 }
 
+struct discover_visitor : public boost::default_dfs_visitor {
+        std::vector<size_t>& order;
+        discover_visitor(std::vector<size_t>& ord) : order(ord) {}
+        template <typename Vertex, typename Graph>
+        void discover_vertex(Vertex u, const Graph&) {
+            order.push_back(u);
+    };
+};
+
+void TGraph::create_tnodes_PUMA() {
+    std::vector<std::vector<size_t>> cnode_ids{};
+    const auto& cgraph = cg_ref->get_graph();
+    const auto& cdeps = cg_ref->get_cdep();
+    const int num_cnodes = cg_ref->num_nodes(cgraph);
+    if (num_cnodes == 0) return;
+    tile_num = (num_cnodes + tile_xbar_num - 1) / tile_xbar_num;
+    cnode_ids.resize(tile_num);
+
+    // DFS traversal with layer-wise priority
+    std::vector<size_t> traversal_order;
+    discover_visitor vis(traversal_order);
+    boost::depth_first_search(cgraph, boost::visitor(vis));
+    int cur_cnode_counter = 0;
+    for (const auto& cnode : traversal_order) {
+        auto cur_tnode_id = cur_cnode_counter % tile_num;
+        cnode_ids[cur_tnode_id].emplace_back(cnode);
+        cur_cnode_counter++;
+    }
+    // create TNode
+    for (const auto& cnode_id : cnode_ids) {
+        if (cnode_id.empty()) {continue;}
+        // create tnode
+        auto tnode_id = add_node(TNode{cnode_id}, tg);
+        // build node map, i is unique
+        for (const auto& i : cnode_id) {
+            node_map.emplace(i, tnode_id);
+        }
+    }
+};
+
+
+
 void TGraph::create_TDep() {
     // get cdep info
     const auto& cdeps = cg_ref->get_cdep();

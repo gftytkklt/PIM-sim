@@ -125,7 +125,15 @@ int test(const std::vector<NNkernel>& kernels) {
     return 114514;
 }
 
-auto analyze(const std::vector<NNkernel>& kernels, const HWInfo& info = {{1152, 256}, 2, {3, 3}, 1}, const OptInfo& opt = {true, true}) {
+// auto analyze(const std::vector<NNkernel>& kernels, const HWInfo& info = {{1152, 256}, 2, {3, 3}, 1}, const OptInfo& opt = {true, true}) {
+//     Analyzer analyzer1 = Analyzer(kernels, info, opt);
+//     analyzer1.generate_analysis_result();
+//     analyzer1.generate_comm_info();
+//     analyzer1.print_result();
+//     return std::make_pair<AnalysisResult, CommInfo>(analyzer1.get_analysis_result(), analyzer1.get_comm_info());
+// }
+
+auto analyze(const std::vector<NNkernel>& kernels, const HWInfo& info = {{1152, 256}, 2, {3, 3}, 1}, const OptType& opt = OptType::PIMAPPING) {
     Analyzer analyzer1 = Analyzer(kernels, info, opt);
     analyzer1.generate_analysis_result();
     analyzer1.generate_comm_info();
@@ -211,11 +219,27 @@ PYBIND11_MODULE(pimapping, m) {
         .def_readwrite("layers", &CommSeg::layers)
         .def_readwrite("datas", &CommSeg::datas);
 
+    py::enum_<OptType>(m, "OptType")
+        .value("MNSIM", OptType::MNSIM)
+        .value("TILE2_0", OptType::TILE2_0)
+        .value("TILE2_0_V2", OptType::TILE2_0_V2)
+        .value("PUMA", OptType::PUMA)
+        .value("REHARVEST", OptType::REHARVEST)
+        .value("HITM", OptType::HITM)
+        .value("SPATEM", OptType::SPATEM)
+        .value("PIMAPPING", OptType::PIMAPPING);
+
     m.def("test", &test, "Process data and return a result");
 
-    m.def("analyze", &analyze, 
+    // m.def("analyze", &analyze, 
+    //     py::arg("kernels"),
+    //     py::arg("info") = HWInfo{{1152, 256}, 2, {3, 3}, 1},
+    //     py::arg("opt") = OptInfo{true, true},
+    //     "Analyze data and return a result");
+
+    m.def("analyze", &analyze,
         py::arg("kernels"),
         py::arg("info") = HWInfo{{1152, 256}, 2, {3, 3}, 1},
-        py::arg("opt") = OptInfo{true, true},
-        "Analyze data and return a result");
+        py::arg("opt") = OptType::PIMAPPING,
+        "Analyze data with OptType and return a result");
 }

@@ -4,6 +4,9 @@
 #include <boost/graph/properties.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/topological_sort.hpp>
+#include <boost/graph/depth_first_search.hpp>
+#include <boost/graph/visitors.hpp>
+#include <boost/graph/graph_utility.hpp>
 #include <iostream>
 #include <numeric>
 #include <vector>
@@ -351,6 +354,7 @@ public:
     void create_tnodes_PIMAPPING();
     void create_tnodes_SPATEM();
     void create_tnodes_TILE2_0();
+    void create_tnodes_PUMA();
     void create_TDep();
     void inter_tile_conn();
     void update_tedges(Node src_t, Node dst_t, CEdge cedge, int src_layer);
