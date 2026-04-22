@@ -32,7 +32,9 @@ Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptType opt
     if (!cg_strategy || !tg_strategy || !hg_strategy || !dg_strategy) {
         throw std::runtime_error("Failed to create strategy for one of the graphs.");
     }
-    cg = std::make_shared<CGraph>(kernels, info.xbar_size, cg_strategy);
+    int cnode_capacity = info.xbar_num * info.tile_size.first * info.tile_size.second;
+    int tile_num = info.tile_size.first * info.tile_size.second;
+    cg = std::make_shared<CGraph>(kernels, info.xbar_size, cnode_capacity, cg_strategy);
     tg = std::make_shared<TGraph>(cg, info.xbar_num, tg_strategy);
     hg = std::make_shared<HGraph>(tg, cg, info.tile_size, hg_strategy);
     dg = std::make_shared<DGraph>(hg, tg, cg, info.pipeline_depth, dg_strategy);

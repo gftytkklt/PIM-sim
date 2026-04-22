@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import os, sys
 import csv
+from statistics import geometric_mean, mean
 from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
@@ -66,7 +67,7 @@ def latency_est(
             cnode_latency_dict[cn] = cn_latency
             # print (f"CNode l {cn.layer}, latency: {cn_latency:.6f} s")
             num_cnode += 1
-    print(f"Total number of cnodes: {num_cnode}")
+    # print(f"Total number of cnodes: {num_cnode}")
 
     # update path latency of each segment
     overall_latency = 0.0
@@ -157,10 +158,10 @@ def latency_est(
             seg_trans_dict[layer] = cur_max_path_delay
 
     # overall_latency = sum(seg_cal_lat) + sum(seg_trans_lat)
-    print(f"Overall latency: {overall_latency:.6f} s")
-    print(f"Overall pipeline stages: {overall_stages}")
-    print(f"Latency updates: {lat_update_count}")
-    print(f"Processed cnodes: {processed_cnodes}")
+    # print(f"Overall latency: {overall_latency:.6f} s")
+    # print(f"Overall pipeline stages: {overall_stages}")
+    # print(f"Latency updates: {lat_update_count}")
+    # print(f"Processed cnodes: {processed_cnodes}")
     overall_throughput = 1 / cur_max_compute_latency if cur_max_compute_latency > 0 else float("inf")
     return (
         overall_latency,
@@ -183,7 +184,8 @@ def perf_analysis(models_dir="demo", hwinfo=None, debug=False):
 
     logging.info(f"开始回归测试，总共有 {len(model_files)} 个模型文件。")
 
-    OptType_list = [OptType.PIMAPPING, OptType.PUMA, OptType.TILE2_0_V2, OptType.REHARVEST]
+    # OptType_list = [OptType.PIMAPPING, OptType.PUMA, OptType.TILE2_0_V2, OptType.MNSIM]
+    OptType_list = [OptType.TILE2_0]
 
     success = 0
     comm_results = {}
@@ -330,7 +332,7 @@ def plot_perf(
         )
 
         # 特殊标注理想情况
-        if opt == (1, 1):
+        if True:
             for bar in bars:
                 height = bar.get_height()
                 ax.text(
@@ -532,33 +534,307 @@ def plot_stages(
     fig.savefig(file_name, dpi=600, bbox_inches="tight")
     print(f"Pipeline stages plot saved to: {file_name}")
 
-
-
-if __name__ == "__main__":
-    xbar_size = (256, 256)
-    hw_info = make_hw_info(xbar_size, 8, (0, 0), 1)
-    mapping_result, comm_results = perf_analysis(models_dir="models", hwinfo=hw_info)
-    mp.set_start_method("fork", force=True)
-    # for bw data gen
-    bw=1
-    # perf_dict = load_noc_perf(1, xbar_size)
-    # if perf_dict is None:
-    #     logger.warning("Latency dict not found, generate from mapping result...")
-    #     latency_dict, power_dict = get_noc_perf(
-    #         mapping_result, bw, xbar_size, save=True
-    #     )
-    # else:
-    #     logger.info("Latency dict found, use it.")
-    #     latency_dict, power_dict = perf_dict
-
-    # power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
-
-    # plot_perf(
-    #     mapping_result, None, bw, norm=1, plot_type="latency", ideal=1
-    # )
-    plot_stages(
-        mapping_result, None, bw, norm=0
+# 添加新的绘图函数
+def plot_hw_configs_performance(
+    hw_configs_results,  # 硬件配置结果: {config_name: {model_name: {opt_type: latency_value}}}
+    xbar_num_list=None,  # 用于xbar_num变动的x轴标签
+    xbar_size_list=None,  # 用于xbar_size变动的x轴标签
+    config_type="xbar_num",  # "xbar_num" 或 "xbar_size"
+    y_label="Normalized Latency",
+    save_path="results4"
+):
+    """
+    绘制不同硬件配置下各种优化方法的平均性能对比图
+    
+    Args:
+        hw_configs_results: 硬件配置结果字典
+        config_type: 配置类型 ("xbar_num" 或 "xbar_size")
+        xbar_num_list: xbar_num参数列表
+        xbar_size_list: xbar_size参数列表
+    """
+    # 设置学术风格参数
+    plt.style.use("seaborn-v0_8-paper")
+    plt.rcParams.update({
+        "font.family": "Times New Roman",
+        "mathtext.fontset": "stix",
+        "axes.titlesize": 20,
+        "axes.labelsize": 16,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
+        "legend.fontsize": 12,
+        "grid.linewidth": 0.5,
+        "lines.linewidth": 1,
+        "hatch.linewidth": 0.5,
+        "font.weight": "bold",
+    })
+    
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    
+    # 学术配色方案
+    palette = [
+        "#4e79a7", "#f28e2b", "#e15759", "#76b7b2", 
+        "#59a14f", "#b07aa1", "#9c755f", "#edc948"
+    ]
+    
+    # 获取所有优化方法
+    all_opt_types = set()
+    for config_result in hw_configs_results.values():
+        for model_result in config_result.values():
+            all_opt_types.update(model_result.keys())
+    
+    # 过滤掉None值
+    all_opt_types = {opt for opt in all_opt_types if opt is not None}
+    all_opt_types = sorted(list(all_opt_types), key=lambda x: x.name)
+    
+    # 收集每个硬件配置下各优化方法的归一化平均值
+    config_names = sorted(list(hw_configs_results.keys()))
+    
+    # 计算每个配置下各优化方法的平均值
+    avg_results = {}  # {config_name: {opt_type: avg_latency}}
+    
+    for config_name, config_result in hw_configs_results.items():
+        config_avgs = {}
+        
+        # 对每种优化方法
+        for opt_type in all_opt_types:
+            latencies = []
+            
+            # 对每个模型
+            for model_name, model_result in config_result.items():
+                if opt_type in model_result:
+                    # 计算延迟
+                    try:
+                        # 使用latency_est计算延迟
+                        mapping_res = model_result[opt_type]
+                        lat, throughput, stages = latency_est(
+                            mapping_res=mapping_res,
+                            bus_width=1,  # 可以调整
+                            comm_lat=None,
+                            ideal=1
+                        )
+                        latencies.append(lat)
+                    except Exception as e:
+                        print(f"Error calculating latency for {config_name}, {model_name}, {opt_type}: {e}")
+                        continue
+            
+            if latencies:
+                # 计算几何平均值
+                config_avgs[opt_type] = geometric_mean(latencies)
+            else:
+                config_avgs[opt_type] = 0
+        
+        avg_results[config_name] = config_avgs
+    
+    # 归一化到MNSIM
+    normalized_results = {}
+    for config_name, config_avgs in avg_results.items():
+        normalized = {}
+        
+        # 找到MNSIM的基准值
+        baseline_value = None
+        for opt_type, value in config_avgs.items():
+            if opt_type.name == "MNSIM":
+                baseline_value = value
+                break
+        
+        if baseline_value and baseline_value > 0:
+            for opt_type, value in config_avgs.items():
+                normalized[opt_type] = value / baseline_value
+        else:
+            normalized = config_avgs
+        
+        normalized_results[config_name] = normalized
+    
+    # 准备绘图数据
+    n_configs = len(config_names)
+    n_opts = len(all_opt_types)
+    
+    # 计算柱状图宽度
+    max_bar_width = 0.18
+    group_width = 0.9
+    bar_width = min(max_bar_width, group_width / (n_opts + (n_opts - 1) * 0.2))
+    inner_space = bar_width * 0.2
+    
+    index = np.arange(n_configs)
+    
+    # 绘制柱状图
+    for i, opt_type in enumerate(all_opt_types):
+        values = [normalized_results[config_name].get(opt_type, 0) 
+                 for config_name in config_names]
+        
+        pos = index + i * (bar_width + inner_space)
+        bars = ax.bar(
+            pos,
+            values,
+            bar_width,
+            color=palette[i % len(palette)],
+            edgecolor="none",
+            linewidth=0.6,
+            alpha=0.9,
+            label=f"{opt_type.name}",
+        )
+        
+        # 添加数值标签
+        for bar, value in zip(bars, values):
+            height = bar.get_height()
+            if height > 0:  # 只显示有效值
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    height * 1.02,  # 稍微抬高一点
+                    f"{height:.2f}" if height >= 0.1 else f"{height:.3f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                    rotation=0,
+                    fontweight="bold",
+                    bbox=dict(facecolor="white", alpha=0.8, edgecolor="none", pad=0.5),
+                )
+    
+    # 设置坐标轴
+    ax.set_ylabel(y_label, labelpad=5, fontweight="bold")
+    
+    # 设置x轴标签
+    if config_type == "xbar_num" and xbar_num_list:
+        x_labels = [f"Xbar Num={num}" for num in xbar_num_list]
+    elif config_type == "xbar_size" and xbar_size_list:
+        x_labels = [f"Xbar Size={size[0]}×{size[1]}" for size in xbar_size_list]
+    else:
+        x_labels = config_names
+    
+    ax.set_xticks(index + (n_opts - 1) * (bar_width + inner_space) / 2)
+    ax.set_xticklabels(
+        x_labels,
+        rotation=0,
+        ha="center",
+        rotation_mode="anchor",
+        fontweight="bold",
     )
-    # plot_perf(
-    #     mapping_result, None, bw, norm=1, plot_type="throughput", ideal=1
+    
+    # 网格和边框优化
+    ax.yaxis.grid(True, linestyle="--", alpha=0.6)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["bottom"].set_linewidth(0.5)
+    ax.spines["left"].set_linewidth(0.5)
+    
+    # 添加水平线y=1表示MNSIM基准
+    ax.axhline(y=1.0, color='black', linestyle='--', linewidth=0.8, alpha=0.5)
+    
+    # 图例
+    legend = ax.legend(
+        ncol=min(n_opts, 4),
+        loc="upper left",
+        bbox_to_anchor=(0, 1.15),
+        frameon=True,
+        fancybox=False,
+        shadow=False,
+        edgecolor="black",
+        prop={"weight": "bold"},
+    )
+    legend.get_frame().set_linewidth(0.5)
+    
+    plt.tight_layout(pad=1.5)
+    file_name = f"{save_path}/avg_perf_{config_type}.pdf"
+    fig.savefig(file_name, dpi=600, bbox_inches="tight")
+    print(f"Average performance plot saved to: {file_name}")
+
+# 修改主函数
+if __name__ == "__main__":
+    # mp.set_start_method("fork", force=True)
+    
+    # # 实验1: 固定xbar_size=(256, 256)，变动xbar_num
+    # xbar_size_fixed = (256, 256)
+    # xbar_num_list = [16, 32, 64]
+    
+    # hw_configs_results_xbar_num = {}
+    
+    # for xbar_num in xbar_num_list:
+    #     print(f"\n{'='*60}")
+    #     print(f"Testing with xbar_size={xbar_size_fixed}, xbar_num={xbar_num}")
+    #     print('='*60)
+        
+    #     hw_info = make_hw_info(xbar_size_fixed, xbar_num, (0, 0), 1)
+    #     mapping_result, comm_results = perf_analysis(
+    #         models_dir="models", 
+    #         hwinfo=hw_info
+    #     )
+        
+    #     config_name = f"xbar_num_{xbar_num}"
+    #     hw_configs_results_xbar_num[config_name] = mapping_result
+    
+    # # 绘制xbar_num变动的平均性能图
+    # plot_hw_configs_performance(
+    #     hw_configs_results_xbar_num,
+    #     xbar_num_list=xbar_num_list,
+    #     config_type="xbar_num",
+    #     y_label="Normalized Latency (vs MNSIM)",
+    #     save_path="results4"
     # )
+    
+    # 实验2: 固定xbar_num=16，变动xbar_size
+    # xbar_num_fixed = 16
+    # xbar_size_list = [(256, 256), (256, 512), (512, 512), (1024, 512)]
+    
+    # hw_configs_results_xbar_size = {}
+    
+    # for xbar_size in xbar_size_list:
+    #     print(f"\n{'='*60}")
+    #     print(f"Testing with xbar_num={xbar_num_fixed}, xbar_size={xbar_size}")
+    #     print('='*60)
+        
+    #     hw_info = make_hw_info(xbar_size, xbar_num_fixed, (0, 0), 1)
+    #     mapping_result, comm_results = perf_analysis(
+    #         models_dir="models", 
+    #         hwinfo=hw_info
+    #     )
+        
+    #     config_name = f"xbar_size_{xbar_size[0]}x{xbar_size[1]}"
+    #     hw_configs_results_xbar_size[config_name] = mapping_result
+    
+    # # 绘制xbar_size变动的平均性能图
+    # plot_hw_configs_performance(
+    #     hw_configs_results_xbar_size,
+    #     xbar_size_list=xbar_size_list,
+    #     config_type="xbar_size",
+    #     y_label="Normalized Latency (vs MNSIM)",
+    #     save_path="results4"
+    # )
+
+    # tile2.0专属映射
+
+    hw_info = make_hw_info((1152,256), 4, (2, 3), 1)
+    mapping_result, comm_results = perf_analysis(
+            models_dir="demo", 
+            hwinfo=hw_info
+        )
+    print("\nAll experiments completed!")
+
+
+# if __name__ == "__main__":
+#     xbar_size = (512, 512)
+#     hw_info = make_hw_info(xbar_size, 16, (0, 0), 1)
+#     mapping_result, comm_results = perf_analysis(models_dir="models", hwinfo=hw_info)
+#     mp.set_start_method("fork", force=True)
+#     # for bw data gen
+#     bw=1
+#     # perf_dict = load_noc_perf(1, xbar_size)
+#     # if perf_dict is None:
+#     #     logger.warning("Latency dict not found, generate from mapping result...")
+#     #     latency_dict, power_dict = get_noc_perf(
+#     #         mapping_result, bw, xbar_size, save=True
+#     #     )
+#     # else:
+#     #     logger.info("Latency dict found, use it.")
+#     #     latency_dict, power_dict = perf_dict
+
+#     # power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
+
+#     plot_perf(
+#         mapping_result, None, bw, norm=1, plot_type="latency", ideal=1
+#     )
+#     plot_stages(
+#         mapping_result, None, bw, norm=0
+#     )
+#     # plot_perf(
+#     #     mapping_result, None, bw, norm=1, plot_type="throughput", ideal=1
+#     # )

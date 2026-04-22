@@ -26,6 +26,8 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
 
 void CGraph::build_graph_subset(){
     /*** determine the maximum subset under the cnode_capacity constraint ***/
+    // for chpt4 experiment, get total cnode num first
+    int total_cnode_num = 0;
     // build vec_id layer map
     std::map<int, int> layer_id_map;
     std::map<int, std::vector<int>> depth_id_map;
@@ -35,6 +37,7 @@ void CGraph::build_graph_subset(){
             throw std::runtime_error("Duplicate layer found");
         }
         depth_id_map[depth_map[kernels[i].layer]].push_back(i);
+        total_cnode_num += compute_node_num(CNode_size, kernels[i].wsize, kernels[i].channel);
     }
     // traverse kernel by depth, build subset by adding kernels until reaching cnode_capacity
     std::vector<int> qkernel; // kernel traversal order
@@ -125,6 +128,10 @@ void CGraph::build_graph_subset(){
     for (const auto& ker : kernels) {
         std::cout << "[CG] Layer " << ker.layer << ": wsize(" << ker.wsize.first << ", " << ker.wsize.second << "), channel(" << ker.channel.first << ", " << ker.channel.second << "), depth: " << depth_map[ker.layer] << std::endl;
     }
+    std::cout << "[CG] CGraph subset built with " << kernels.size() << " kernels, max cnode num: " << max_cnode_num << ", max compute num: " << max_compute_num << std::endl;
+    double cnode_util = static_cast<double>(max_cnode_num) / cnode_capacity;
+    double kernel_util = static_cast<double>(max_cnode_num) / total_cnode_num;
+    std::cout << "Total cnode num of the kernels: " << total_cnode_num << ", cnode utilization: " << cnode_util << ", kernel utilization: " << kernel_util << std::endl;
 }
 
 void CGraph::create_dup_num() {
