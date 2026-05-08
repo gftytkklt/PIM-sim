@@ -24,6 +24,7 @@ void OPUSimulator::Init() {
     connect_modules("task_scheduler", "xbar_computation_trigger", "crossbar", "computation_trigger");
     connect_modules("task_scheduler", "xbar_switching_trigger", "crossbar", "switching_trigger");
     connect_modules("crossbar", "switching_done", "task_scheduler", "xbar_switching_done");
+    connect_modules("crossbar", "computation_done", "task_scheduler", "xbar_computation_done");
     // TS to SIMD
     connect_modules("task_scheduler", "pooling_enabled", "simd", "SIMD_pooling_enable");
     connect_modules("simd", "SIMD_data_valid", "task_scheduler", "SIMD_computation_done");

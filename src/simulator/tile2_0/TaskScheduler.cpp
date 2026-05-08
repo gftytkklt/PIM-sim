@@ -15,6 +15,7 @@ TaskScheduler::TaskScheduler(const std::string& id, const std::array<FmapTask, L
     // xbar接口，当前通过TS等待XBAR的计算完成再发送下一次来实现控制依赖，不对ready建模
     add_signal(Signal("xbar_computation_trigger", Signal::Direction::OUTPUT)); // bool
     add_signal(Signal("xbar_switching_trigger", Signal::Direction::OUTPUT)); // int, target xbar id
+    add_signal(Signal("xbar_computation_done", Signal::Direction::INPUT, false)); // bool
     add_signal(Signal("xbar_switching_done", Signal::Direction::INPUT, false)); // bool
     // SIMD接口，当前通过TS等待SIMD的计算完成再发送下一次来实现控制依赖，不对ready建模
     add_signal(Signal("pooling_enabled", Signal::Direction::OUTPUT, false)); // bool
@@ -176,8 +177,9 @@ bool TaskScheduler::check_rtask_finish() {
         // 最保险的建模方法是握手以后就拉低请求，对无阻塞的计算触发信号应当立刻拉低
         case TaskStatus::COMPUTE: {
             invalidate_xbar_computation_trigger(); // 重置计算触发信号
-            auto compute_done_val = get_signal_value("SIMD_computation_done");
-            if (compute_done_val.has_value() && std::any_cast<bool>(compute_done_val)) {
+            // auto compute_done_val = get_signal_value("SIMD_computation_done");
+            auto compute_done_val = get_signal_value("xbar_computation_done");
+            if (compute_done_val.has_value() && std::any_cast<int>(compute_done_val)) {
                 // 计算完成，任务完成
                 
                 current_task_status_ = TaskStatus::IDLE;

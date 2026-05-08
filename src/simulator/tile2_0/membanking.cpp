@@ -3,7 +3,7 @@
 void BankingSimulator::Init() {
     // core 0
     const std::array<FmapTask, L1C_BANK> task_list0 = {{
-            {4, 16, 4, 128, true}, // Bank 0
+            {4, 8, 8, 128, true}, // Bank 0
             {0, 0, 0, 0, 0}, // Bank 1
             {0, 0, 0, 0, 0}, // Bank 2
             {0, 0, 0, 0, 0}  // Bank 3
@@ -24,6 +24,7 @@ void BankingSimulator::Init() {
     connect_modules("task_scheduler0", "xbar_computation_trigger", "crossbar0", "computation_trigger");
     connect_modules("task_scheduler0", "xbar_switching_trigger", "crossbar0", "switching_trigger");
     connect_modules("crossbar0", "switching_done", "task_scheduler0", "xbar_switching_done");
+    connect_modules("crossbar0", "computation_done", "task_scheduler0", "xbar_computation_done");
     // TS to SIMD
     connect_modules("task_scheduler0", "pooling_enabled", "simd0", "SIMD_pooling_enable");
     connect_modules("simd0", "SIMD_data_valid", "task_scheduler0", "SIMD_computation_done");
@@ -52,6 +53,7 @@ void BankingSimulator::Init() {
     connect_modules("task_scheduler1", "xbar_computation_trigger", "crossbar1", "computation_trigger");
     connect_modules("task_scheduler1", "xbar_switching_trigger", "crossbar1", "switching_trigger");
     connect_modules("crossbar1", "switching_done", "task_scheduler1", "xbar_switching_done");
+    connect_modules("crossbar1", "computation_done", "task_scheduler1", "xbar_computation_done");
     // TS to SIMD
     connect_modules("task_scheduler1", "pooling_enabled", "simd1", "SIMD_pooling_enable");
     connect_modules("simd1", "SIMD_data_valid", "task_scheduler1", "SIMD_computation_done");
@@ -80,6 +82,7 @@ void BankingSimulator::Init() {
     connect_modules("task_scheduler2", "xbar_computation_trigger", "crossbar2", "computation_trigger");
     connect_modules("task_scheduler2", "xbar_switching_trigger", "crossbar2", "switching_trigger");
     connect_modules("crossbar2", "switching_done", "task_scheduler2", "xbar_switching_done");
+    connect_modules("crossbar2", "computation_done", "task_scheduler2", "xbar_computation_done");
     // TS to SIMD
     connect_modules("task_scheduler2", "pooling_enabled", "simd2", "SIMD_pooling_enable");
     connect_modules("simd2", "SIMD_data_valid", "task_scheduler2", "SIMD_computation_done");

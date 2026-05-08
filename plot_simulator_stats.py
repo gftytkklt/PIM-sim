@@ -3,7 +3,7 @@ import re
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
-def plot_simulator_stats(csv_file='completed_events.csv', output_image='module_timeline_heatmap.pdf'):
+def plot_simulator_stats(csv_file='build/test/completed_events.csv', output_image='module_timeline_heatmap.pdf'):
     # 读取并解析CSV数据
     data = []
     with open(csv_file, 'r') as f:
@@ -261,8 +261,7 @@ def create_core_clustered_timeline(csv_file_path="banking_completed_events_YX.cs
 
 if __name__ == "__main__":
     # plot_simulator_stats()
-    plot_simulator_stats()
-    # create_core_clustered_timeline('banking_completed_events_XY.csv', 'core_timeline_XY.pdf', title='XY tiling timeline heatmap')
-    # create_core_clustered_timeline('banking_completed_events_YX.csv', 'core_timeline_YX.pdf', title='YX tiling timeline heatmap')
-    # create_core_clustered_timeline('banking_completed_events_16x4.csv', 'core_timeline_16x4.pdf', title='16x4 fmap tiling timeline heatmap')
-    # create_core_clustered_timeline('multicore_completed_events.csv', 'multicore_completed_events.pdf', title='AlexNet inference timeline heatmap')
+    # create_core_clustered_timeline('build/test/banking_completed_events_XY.csv', 'core_timeline_XY.pdf', title='XY tiling timeline heatmap')
+    # create_core_clustered_timeline('build/test/banking_completed_events_YX.csv', 'core_timeline_YX.pdf', title='YX tiling timeline heatmap')
+    # create_core_clustered_timeline('build/test/banking_completed_events_16x4.csv', 'core_timeline_16x4.pdf', title='16x4 fmap tiling timeline heatmap')
+    create_core_clustered_timeline('build/test/multicore_completed_events.csv', 'multicore_completed_events.pdf', title='AlexNet inference timeline heatmap')

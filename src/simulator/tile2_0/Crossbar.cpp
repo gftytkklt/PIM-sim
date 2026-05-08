@@ -35,17 +35,11 @@ bool Crossbar::check_computation_exec() {
     }
     submit_signal_value("computation_process", true, 1); // 提交当前计算任务索引
     submit_signal_value("computation_done", XBAR_BL, compute_latency_); // 提交计算完成信号，携带当前任务的bl_num信息
-    // submit_signal_value("computation_done", get_current_xbar_task().task.bl_num, compute_latency_); // 重置计算完成信号
-    // if (xbar_tasks_[cur_task_index_].task.pooling) {
-    //     submit_signal_value("Pooling_enabled", true, 1); // 如果当前任务需要pooling，设置pooling使能信号
-    // }
     increment_current_task_counter();
     return true; // 简化：只要触发了就执行
 }
 
 bool Crossbar::check_computation_finish() {
-    // 简化：假设计算在固定周期后完成
-    // submit_signal_value("computation_process", false, 1); // 重置计算进程信号
     auto computation_done = get_signal_value("computation_done");
     return computation_done.has_value();
 }
@@ -53,7 +47,6 @@ bool Crossbar::check_computation_finish() {
 bool Crossbar::check_computation_end() {
     submit_signal_value("computation_process", {}, 1); // 重置计算进程信号
     submit_signal_value("computation_done", {}, 1); // 重置计算完成信号
-    // submit_signal_value("Pooling_enabled", {}, 1); // 重置pooling使能信号
     return true;
 }
 
@@ -81,8 +74,6 @@ bool Crossbar::check_switching_exec() {
 }
 
 bool Crossbar::check_switching_finish() {
-    // 简化：假设切换在固定周期后完成
-    // submit_signal_value("switching_process", false, 1); // 重置切换进程信号
     auto switching_done = get_signal_value("switching_done");
     return switching_done.has_value() && std::any_cast<bool>(switching_done);
 }

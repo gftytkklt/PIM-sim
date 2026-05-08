@@ -24,6 +24,7 @@ void MulticoreSimulator::Init() {
     connect_modules("task_scheduler0", "xbar_computation_trigger", "crossbar0", "computation_trigger");
     connect_modules("task_scheduler0", "xbar_switching_trigger", "crossbar0", "switching_trigger");
     connect_modules("crossbar0", "switching_done", "task_scheduler0", "xbar_switching_done");
+    connect_modules("crossbar0", "computation_done", "task_scheduler0", "xbar_computation_done");
     // TS to SIMD
     connect_modules("task_scheduler0", "pooling_enabled", "simd0", "SIMD_pooling_enable");
     connect_modules("simd0", "SIMD_data_valid", "task_scheduler0", "SIMD_computation_done");
@@ -52,6 +53,7 @@ void MulticoreSimulator::Init() {
     connect_modules("task_scheduler1", "xbar_computation_trigger", "crossbar1", "computation_trigger");
     connect_modules("task_scheduler1", "xbar_switching_trigger", "crossbar1", "switching_trigger");
     connect_modules("crossbar1", "switching_done", "task_scheduler1", "xbar_switching_done");
+    connect_modules("crossbar1", "computation_done", "task_scheduler1", "xbar_computation_done");
     // TS to SIMD
     connect_modules("task_scheduler1", "pooling_enabled", "simd1", "SIMD_pooling_enable");
     connect_modules("simd1", "SIMD_data_valid", "task_scheduler1", "SIMD_computation_done");
@@ -80,6 +82,7 @@ void MulticoreSimulator::Init() {
     connect_modules("task_scheduler2", "xbar_computation_trigger", "crossbar2", "computation_trigger");
     connect_modules("task_scheduler2", "xbar_switching_trigger", "crossbar2", "switching_trigger");
     connect_modules("crossbar2", "switching_done", "task_scheduler2", "xbar_switching_done");
+    connect_modules("crossbar2", "computation_done", "task_scheduler2", "xbar_computation_done");
     // TS to SIMD
     connect_modules("task_scheduler2", "pooling_enabled", "simd2", "SIMD_pooling_enable");
     connect_modules("simd2", "SIMD_data_valid", "task_scheduler2", "SIMD_computation_done");
@@ -108,6 +111,7 @@ void MulticoreSimulator::Init() {
     connect_modules("task_scheduler3", "xbar_computation_trigger", "crossbar3", "computation_trigger");
     connect_modules("task_scheduler3", "xbar_switching_trigger", "crossbar3", "switching_trigger");
     connect_modules("crossbar3", "switching_done", "task_scheduler3", "xbar_switching_done");
+    connect_modules("crossbar3", "computation_done", "task_scheduler3", "xbar_computation_done");
     // TS to SIMD
     connect_modules("task_scheduler3", "pooling_enabled", "simd3", "SIMD_pooling_enable");
     connect_modules("simd3", "SIMD_data_valid", "task_scheduler3", "SIMD_computation_done");
@@ -136,6 +140,7 @@ void MulticoreSimulator::Init() {
     connect_modules("task_scheduler4", "xbar_computation_trigger", "crossbar4", "computation_trigger");
     connect_modules("task_scheduler4", "xbar_switching_trigger", "crossbar4", "switching_trigger");
     connect_modules("crossbar4", "switching_done", "task_scheduler4", "xbar_switching_done");
+    connect_modules("crossbar4", "computation_done", "task_scheduler4", "xbar_computation_done");
     // TS to SIMD
     connect_modules("task_scheduler4", "pooling_enabled", "simd4", "SIMD_pooling_enable");
     connect_modules("simd4", "SIMD_data_valid", "task_scheduler4", "SIMD_computation_done");
@@ -164,6 +169,7 @@ void MulticoreSimulator::Init() {
     connect_modules("task_scheduler5", "xbar_computation_trigger", "crossbar5", "computation_trigger");
     connect_modules("task_scheduler5", "xbar_switching_trigger", "crossbar5", "switching_trigger");
     connect_modules("crossbar5", "switching_done", "task_scheduler5", "xbar_switching_done");
+    connect_modules("crossbar5", "computation_done", "task_scheduler5", "xbar_computation_done");
     // TS to SIMD
     connect_modules("task_scheduler5", "pooling_enabled", "simd5", "SIMD_pooling_enable");
     connect_modules("simd5", "SIMD_data_valid", "task_scheduler5", "SIMD_computation_done");
