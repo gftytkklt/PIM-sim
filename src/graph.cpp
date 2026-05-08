@@ -6,7 +6,9 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
       kernels{kernels}, CNode_size{CNode_size}, cdeps{}, dup_num(kernels.size(), 1) {
     build_depth_map();
     this->analysis();
+    std::cout << "CGraph analysis completed" << std::endl;
     create_cnodes();
+    std::cout << "CNodes created" << std::endl;
     conn_accblk();
     inter_layer_conn();
     std::cout << "CGraph created" << std::endl;
@@ -18,8 +20,11 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
       kernels{kernels}, CNode_size{CNode_size}, cnode_capacity{CNode_capacity}, cdeps{}, dup_num(kernels.size(), 1) {
     build_depth_map();
     this->analysis();
+    std::cout << "CGraph analysis completed" << std::endl;
     create_cnodes();
+    std::cout << "CNodes created" << std::endl;
     conn_accblk();
+    std::cout << "Accblk connected" << std::endl;
     inter_layer_conn();
     std::cout << "CGraph created with tile2.0 optimization" << std::endl;
 }
@@ -292,7 +297,20 @@ void CGraph::conn_accblk() {
     }
 }
 
+// 这里存在潜在的bug，由于cdeps是vector，在没有裁剪kernel的情况下，index和layer是一一对应的
+// 但是，裁剪以后，index和layer是不对应的，通过layer访问cdeps就会越界或访问错误信息
+// 当前这个补丁只打在这个函数里面，因为目前只有这个函数通过layer访问cdeps
+// 但是最安全的方法是用unordered_map<int, CDep>来存储cdeps，直接通过layer访问，避免index和layer不对应的问题
+// 这个方法可以去掉cdeps元素中的layer字段，但其余函数访问都要修改，这件事后续再做吧
 void CGraph::inter_layer_conn() {
+    // for (size_t i = 0; i < cdeps.size(); i++) {
+    // std::cout << "cdeps[" << i << "] -> layer "
+    //           << cdeps[i].layer << std::endl;
+    // }
+    std::unordered_map<int, int> layer_to_cdep_index;
+    for (size_t i = 0; i < cdeps.size(); i++) {
+        layer_to_cdep_index[cdeps[i].layer] = i;
+    }
     for (const auto& v : cdeps) {
         // get acc blks and dep info
         const auto& deps = v.dep_info;
@@ -315,7 +333,7 @@ void CGraph::inter_layer_conn() {
                     auto conn_id = dup_to_dup(cur_dupnum, dep_dupnum, grp_id);
                     // get dep layer info struct
                     for (auto i : conn_id) {
-                        const auto& dst_grp = cdeps[dep.dep_layer].acc_blks[i];
+                        const auto& dst_grp = cdeps[layer_to_cdep_index[dep.dep_layer]].acc_blks[i];
                         for (const auto& dst_layer : dst_grp) {
                             for (const auto& dst_node : dst_layer.vertex_id) {
                                 auto ci_dst = get_node_property(dst_node, cg).id_cin;

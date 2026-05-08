@@ -804,7 +804,7 @@ if __name__ == "__main__":
 
     hw_info = make_hw_info((1152,256), 4, (2, 3), 1)
     mapping_result, comm_results = perf_analysis(
-            models_dir="demo", 
+            models_dir="models", 
             hwinfo=hw_info
         )
     print("\nAll experiments completed!")
