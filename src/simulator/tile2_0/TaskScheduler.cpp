@@ -179,6 +179,7 @@ bool TaskScheduler::check_rtask_finish() {
             invalidate_xbar_computation_trigger(); // 重置计算触发信号
             // auto compute_done_val = get_signal_value("SIMD_computation_done");
             auto compute_done_val = get_signal_value("xbar_computation_done");
+            // if (compute_done_val.has_value() && std::any_cast<bool>(compute_done_val)) {
             if (compute_done_val.has_value() && std::any_cast<int>(compute_done_val)) {
                 // 计算完成，任务完成
                 
