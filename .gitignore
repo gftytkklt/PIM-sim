@@ -5,5 +5,20 @@
 !*.hpp
 !*.h
 !.gitignore
-!Makefile
-/boost_1_85_0/
+!*.sh
+!*.py
+!CMakeLists.txt
+/refcode
+/result for paper
+/build
+/booksim2
+!libmain.so
+/.idea
+!booksim
+!booksim_cfg
+!SimConfig.ini
+!techfile.txt
+/logs
+/pimapping
+/runs
+/results
