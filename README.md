@@ -1,413 +1,343 @@
-# PIMapping工程结构
+# PIM-sim（PIMapping）
 
-算子映射前端代码框架，工程结构如下所示（随开发进度更新）：
+> **PIMapping: A Tile-Level Dataflow Optimization Framework for PIM-Architecture**  
+> Ziqian Zhu, Yifei Zhou, Jinsen Zhu, Yuxuan Wang, Hongbing Pan — *IEEE TCAD 2025*
 
-```bash
+面向存内计算（PIM）架构的 **tile 级数据流优化与性能评估框架**。由**算子映射前端**（C++ 图分析引擎）和**性能模拟后端**（cycle-accurate 仿真器）两大部分组成，构成从 ONNX 模型输入到硬件级延迟、吞吐量、功耗指标的**全流程仿真工具链**。CMake 项目名：`PIMapping`。
+
+## 架构总览
+
+```
+ONNX 模型 ──(onnx_analysis.py)──▶ NNkernel 数组
+                                   │
+                       pybind11 ──────────┘
+                                   ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  算子映射前端 (libPIMapping.a)                                   │
+  │                                                                 │
+  │  Analyzer ──▶ CGraph ──▶ TGraph ──▶ HGraph ──▶ DGraph           │
+  │  (crossbar级)  (tile级)    (硬件映射)   (动态调度)              │
+  │                                                                 │
+  │  Mapper（物理映射）  Scheduler（拥塞感知路由）                  │
+  │  strategy/（PIMAPPING / SPATEM / HITM / MNSIM / TILE2_0）       │
+  └─────────────────────────────────────────────────────────────────┘
+                                   │
+                       pybind11 ──────────┘
+                                   ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  性能模拟后端 (Python + C++ Simulator)                           │
+  │                                                                 │
+  │  MappingInfo.py ──▶ Booksim（NoC 仿真） + MNSIM（硬件建模）     │
+  │  Simulator/ ──▶ Cycle-accurate 事件驱动仿真（Tile2.0 架构）     │
+  │  perf.py ──▶ 延迟/吞吐量/功耗分析 + 可视化                      │
+  └─────────────────────────────────────────────────────────────────┘
+```
+
+## 方法论
+
+PIMapping 的工作流分为三个阶段：**递进式部署表示生成** → **数据流图构建与优化** → **性能评估**。
+
+### Tile 级数据流表示
+
+框架定义了四个层次的图表示，从细粒度到粗粒度逐步推导：
+
+| 表示 | 图类 | 定义 | 关键属性 |
+|------|------|------|----------|
+| **C-VDFG** | `CGraph` | Crossbar 级虚拟数据流图。将 MVM 算子按 Crossbar 尺寸沿并行通道（BL）和部分和（WL）维度拆分，每个算子分配 ⌈H/WL⌉×⌈W/BL⌉ 个 Crossbar | 节点：layer, ifm/ofm, cin/cout。边类型：Psum（层内累加）、Prop（层间传播）。数据量按通道交集比例计算 |
+| **T-VDFG** | `TGraph` | Tile 级虚拟数据流图。在 Tile 内 Crossbar 数量约束下，将 C-Node 合并为 T-Node | 合并原则：数据依赖驱动（高复用率节点优先合并）+ 最小化片间通信。T-Edge 数据量为融合 C-Edge 的叠加 |
+| **HCG** | `HGraph` | 硬件连接图。将 T-Node 映射到物理 2D Tile 阵列，数据依赖通过 NoC 拓扑实现，引入中继节点 | 节点：物理 Tile 位置 + 映射的虚拟 Tile。边：物理路径 + 数据量。中继开销累积 |
+| **DHCG** | `DGraph` | 动态硬件连接图。按流水线阶段将 HCG 划分为多个子图，每个子图对应一个并行计算阶段 | 划分依据：算子拓扑排序 → 线性化 → 分段（LS/LP 均为特例）。DHCG 为拥塞分析的基本单元 |
+
+所有图类基于 Boost Graph Library（BGL）构建，支持有向图、无向图、双向图操作。
+
+### 基于数据邻近性的物理映射（Algorithm 1）
+
+目标：最小化片间通信代价 ΣCommData(i,j) × Distance(i,j)。
+
+**步骤 1 — Crossbar 级节点分解：** 算子按 Crossbar 尺寸拆分，生成 C-VDFG。
+
+**步骤 2 — Tile 级节点聚类：** 定义连接强度度量 `Intensity Map`，其优化目标为 α×Γ_Intra − β×Γ_Inter（Γ_Intra 量化片内数据复用收益，Γ_Inter 捕获片间通信开销）。算法流程：
+1. 初始化 Intensity Map，构建最大堆
+2. 弹出堆顶节点作为聚类种子，遍历邻居，选择强度最大的节点加入聚类
+3. 动态更新邻居归属和聚类内强度度量
+4. 持续至 Tile 内 Crossbar 填满，生成 T-Node
+
+**步骤 3 — 物理节点放置：** 将坐标映射问题转化为离散 2D 谱嵌入问题。构建图拉普拉斯矩阵 L = D − A，求解近优节点嵌入，离散化后得到最终 HCG 物理映射。
+
+### 拥塞感知的路径调度（Algorithm 2）
+
+目标：最小化各 D-Edge 的拥塞度量之和。
+
+**拥塞度量定义：**
+- **BCE 度量**（边介数中心性）：识别关键通信路径，结合数据依赖量化各边的重要性：
+  ```
+  BCE(e_D, DG) = Σ η(ns,nt|e_D) / η(ns,nt) × e_T(ns,nt)
+  ```
+- **Tile 级拥塞度量 C-Σ**：量化通信资源竞争导致的影响数据量。假设路径按数据量升序排列 P₁,...,Pₙ，则 C(e) = Σᵢ₌₁ⁿ⁻² Dᵢ + 2Dₙ₋₁
+
+**调度算法：**
+1. 按流水线分段生成 DHCG，初始化 BCE
+2. 路径按曼哈顿距离升序、数据量降序排列
+3. 对每条路径，使用加权 Dijkstra 寻找最短路径，权重 w(e) = C'(e) × BCE(e)
+4. 更新拥塞图，继续下一条路径
+
+该权重设计平衡了两个目标：降低拥塞 + 避免过度使用热点路径。
+
+### 表达力
+
+框架可表达多种计算优化技术：
+- **权重复制：** 建模为多个独立并行 CNode 流，ifmap/ofmap 按复制因子 N 缩减为 1/N，通过特征图依赖路由输出组到输入组
+- **零值跳过：** 通过量化计算减少比例，自动调整 C-Edge 数据量
+- **OU 级计算：** 将 CNode 尺寸配置为 OU 维度，同时缩放每 Crossbar 的 OU 数量
+
+## 工程结构
+
+```
 .
-├── include/                # 头文件
-│   ├── graph.h             # 数据流图类声明
-│   └── util.h              # 与数据流图无关的辅助函数声明
-├── src/                    # 源文件
-│   ├── graph.cpp           # 数据流图成员函数实现
-│   ├── util.cpp            # 与数据流图无关的辅助函数
-│   └── CMakeLists.txt      # CMake 配置文件
-├── test/                   # 测试文件
-│   ├── test1.cpp           # 测试基本成员函数的功能
-│   ├── test2.cpp           # 测试uniformsplit
-│   └── CMakeLists.txt      # CMake 配置文件
-├── build.sh                # 测试脚本
-├── CMakeLists.txt          # CMake 配置文件
-├── README.md               # 项目说明文件
-└── .gitignore              # Git 忽略文件
+├── include/                      # C++ 头文件
+│   ├── graph.h                   # 数据流图类层次（CGraph / TGraph / HGraph / DGraph）
+│   ├── analyzer.h                # 顶层 Analyzer（编排完整分析流水线）
+│   ├── mapper.h                  # 物理 tile 映射（2D 网格上的 BFS/zigzag 放置）
+│   ├── scheduler.h               # 拥塞感知路径调度（BCE + Dijkstra 路由）
+│   ├── util.h                    # 辅助函数与通用类型（Path, OptType 等）
+│   ├── strategy/                 # 策略模式
+│   │   └── StrategyBase.h        # 策略基类 + 各策略具体实现（PIMAPPING/SPATEM/HITM/MNSIM/TILE2_0）
+│   └── simulator/                # Cycle-accurate 仿真器
+│       ├── ISimulatable.h        # 模块接口
+│       ├── Process.h             # 进程状态机（IDLE → TRIGGERED → EXECUTING → FINISHED）
+│       ├── ModuleBase.h          # CRTP 模块基类（信号/消息/进程管理）
+│       ├── Simulator.h           # 事件驱动仿真引擎
+│       └── tile2_0/              # Tile 2.0 架构模型
+│           ├── Crossbar.h        # 交叉开关矩阵（计算 + 切换）
+│           ├── SIMD.h            # SIMD 流水线（量化→激活→池化）
+│           ├── L1C.h             # L1 缓存（SRAM 多 bank）
+│           ├── TaskScheduler.h   # 任务调度器（数据搬运 + 计算触发）
+│           ├── tile2_0.h         # OPU 单 tile 仿真器
+│           ├── membanking.h      # 内存 banking 仿真器
+│           ├── multicore.h       # 多核仿真器
+│           └── tiling.h          # 动态 banking tiling 仿真器
+│
+├── src/                          # C++ 源文件（与 include/ 一一对应）
+│   ├── CMakeLists.txt            # 编译静态库 libPIMapping.a
+│   ├── graph.cpp                 # 数据流图实现（~1400 行）
+│   ├── analyzer.cpp              # 分析编排
+│   ├── mapper.cpp                # 物理映射算法
+│   ├── scheduler.cpp             # 拥塞感知路由
+│   ├── util.cpp                  # 辅助函数
+│   ├── strategy/
+│   │   └── StrategyBase.cpp      # 五种策略的具体实现
+│   └── simulator/
+│       ├── Process.cpp           # 进程状态机
+│       ├── Simulator.cpp         # 仿真引擎
+│       └── tile2_0/              # Tile 2.0 各模块实现
+│
+├── test/                         # Google Test 测试
+│   ├── CMakeLists.txt            # 每个 .cpp 自动生成一个测试可执行文件
+│   ├── mappingalexnet.cpp        # Analyzer 全流程测试（AlexNet 风格 kernel）
+│   ├── bankingtest.cpp           # BankingSimulator 测试（XY/XY/自定义策略）
+│   ├── multicoretest.cpp         # MulticoreSimulator 多核并行测试
+│   ├── oputiletest.cpp           # OPU 单 tile 全流水线测试
+│   └── tilingtest.cpp            # TilingSimulator 动态策略测试
+│
+├── MNSIM/                        # MNSIM Python 硬件建模库
+│   ├── Hardware_Model/           # 硬件组件模型（Crossbar, PE, Tile, ADC, DAC 等）
+│   ├── Latency_Model/            # 延迟估算（Tile/PE/Pooling 级）
+│   ├── Energy_Model/             # 能耗估算
+│   ├── Area_Model/               # 面积估算
+│   ├── Power_Model/              # 推理功耗估算
+│   ├── Accuracy_Model/           # 精度建模（Crossbar 非理想性等）
+│   ├── Mapping_Model/            # 行为级映射 + Tile 连接图
+│   ├── Interface/                # 训练/测试接口（网络定义、量化、数据集）
+│   └── NoC/                      # 片上网络估算
+│
+├── pytorch/                      # PyTorch 参考模型
+│   ├── model.py                  # FSRCNN 模型
+│   └── mc_cnn_fast.py            # FastMcCnn 模型（默认转换示例）
+│
+├── models/                       # ONNX 模型文件（.onnx）
+├── runs/                         # 运行时日志（生成）
+├── results/                      # 输出结果 .pkl / .csv / .pdf（生成）
+│
+├── main.cpp                      # pybind11 模块入口（导出 pimapping 模块）
+├── CMakeLists.txt                # 根 CMake（项目 PIMapping，生成 pimapping.so）
+├── build.sh                      # 编译脚本（force clean + cmake + make）
+├── test.sh                       # 测试脚本（编译 + 运行 gtest）
+├── env.sh                        # 环境加载脚本（module load）
+├── SimConfig.ini                 # 硬件仿真参数配置
+├── techfile.txt                  # Booksim 功耗建模工艺文件
+├── booksim                       # Booksim 2.0 NoC 仿真器（预编译二进制）
+├── booksim_cfg                   # Booksim 配置模板
+│
+├── perf.py                       # 主性能分析脚本（全流程编排 + 可视化）
+├── onnx_analysis.py              # ONNX 模型解析 → NNkernel 提取
+├── torch2onnx.py                 # PyTorch 模型 → ONNX 转换
+├── MappingInfo.py                # 延迟估算（Booksim + MNSIM 集成）
+├── logger.py                     # 彩色日志工具
+└── plot_simulator_stats.py       # 仿真器时间线可视化
 ```
 
-## 解析器输入
+## 快速开始
 
-解析器基于python和onnx库，接收NN算法的标准onnx格式输入。功能是提取算法的MVM算子级别数据流图，其它算子对数据流的影响被合并在前级MVM节点中。算法的onnx表示被转换为后端可以分析的NNKernel数组，一个实例如下：
-算法包括conv1-relu-avgpooling-conv2四层，onnx格式如下：
-
-```json
-{
-  "ir_version": 7,
-  "opset_import": [
-    {
-      "domain": "",
-      "version": 11
-    }
-  ],
-  "graph": {
-    "name": "SequentialModel",
-    "input": [
-      {
-        "name": "input",
-        "type": {
-          "tensor_type": {
-            "elem_type": 1,  // FLOAT
-            "shape": {
-              "dim": [
-                { "dim_value": 1 },
-                { "dim_value": 3 },
-                { "dim_value": 224 },
-                { "dim_value": 224 }
-              ]
-            }
-          }
-        }
-      }
-    ],
-    "output": [
-      {
-        "name": "output",
-        "type": {
-          "tensor_type": {
-            "elem_type": 1,  // FLOAT
-            "shape": {
-              "dim": [
-                { "dim_value": 1 },
-                { "dim_value": 64 },
-                { "dim_value": 112 },
-                { "dim_value": 112 }
-              ]
-            }
-          }
-        }
-      }
-    ],
-    "initializer": [
-      // 在这里定义权重和偏置初始化（如果有）
-    ],
-    "node": [
-      {
-        "op_type": "Conv",
-        "name": "Conv1",
-        "input": ["input", "Conv1_W", "Conv1_B"],
-        "output": ["Conv1_Output"],
-        "attribute": [
-          {
-            "name": "kernel_shape",
-            "ints": [3, 3]
-          },
-          {
-            "name": "strides",
-            "ints": [1, 1]
-          },
-          {
-            "name": "pads",
-            "ints": [1, 1, 1, 1]
-          },
-          // 其他Conv1的属性
-        ]
-      },
-      {
-        "op_type": "Relu",
-        "name": "ReLU1",
-        "input": ["Conv1_Output"],
-        "output": ["ReLU1_Output"],
-        "attribute": []
-      },
-      {
-        "op_type": "AveragePool",
-        "name": "AvgPool1",
-        "input": ["ReLU1_Output"],
-        "output": ["AvgPool1_Output"],
-        "attribute": [
-          {
-            "name": "kernel_shape",
-            "ints": [2, 2]
-          },
-          {
-            "name": "strides",
-            "ints": [2, 2]
-          },
-          // 其他AvgPool的属性
-        ]
-      },
-      {
-        "op_type": "Conv",
-        "name": "Conv2",
-        "input": ["AvgPool1_Output", "Conv2_W", "Conv2_B"],
-        "output": ["Conv2_Output"],
-        "attribute": [
-          {
-            "name": "kernel_shape",
-            "ints": [3, 3]
-          },
-          {
-            "name": "strides",
-            "ints": [1, 1]
-          },
-          {
-            "name": "pads",
-            "ints": [1, 1, 1, 1]
-          },
-          // 其他Conv2的属性
-        ]
-      }
-    ]
-  }
-}
-```
-
-数据流分析器只关心MVM算子的数据流图，因此该图被解析为以下格式的NNKernel数组：
-
-```cpp
-    std::vector<NNkernel> kernels = { 
-    {0, {3,3}, {256,384}, std::vector<Depinfo>{{1,std::make_pair(1,384)}},{224, 224},{224, 224}}, 
-    {1, {3,3}, {384,384}, std::vector<Depinfo>{{2,std::make_pair(1,384)}},{224, 224},{224, 224}},
-    };
-```
-
-注意这里的变化：在ONNX表示中，conv1和conv2可能是layer/layer+3的层index关系，但在NNkernel数组中，它们的index为0和1，conv1的depinfo中，表示和conv2依赖关系的index应为conv2在NNkernel数组中的index1，而非原始的layer+3，该工作由前端解析器完成转换，以提高后端解析的效率。
-
-相关结构体的介绍见下节。
-
-## `Struct and enum class`
-
-本节介绍graph.h中公共可见的结构体定义。
-
-### `Struct Depinfo`
-
-用于描述算子级别依赖关系的结构体，成员介绍如下：
-
-- `int dep_layer`: 按NNKernel数组下标计算，该算子输出目的节点下标，从0开始计数。
-- `std::pair<int,int> dep_chan`: 该目标节点依赖的输出通道范围，从1开始计数。
-
-### `Struct NNkernel`
-
-用于描述算法中MVM算子的数据依赖，成员介绍如下：
-
-- `int layer`: 和该结构体在`std::vector<NNkernel> kernels`中的index一致，实际上可以忽略
-- `std::pair<int,int> wsize`: 卷积核滑窗的w, h，或全连接层矩阵的w, h
-- `std::pair<int,int> channel`: 卷积核输出输出通道个数
-- `std::vector<Depinfo> depinfo`: 该算子目的节点的依赖关系数组，见`Struct Depinfo`
-- `std::pair<int,int> ifmap_size, ofmap_size`: 输入、输出特征图大小(w, h)
-
-### `enum class DepType`
-
-用于描述边的数据依赖类型
-
-- `ErrorType`: debug类型
-- `Accum`: 层内部分和累加
-- `Prop`: 层间fmap传递
-
-### `Struct CNode`
-
-C-VDFG的节点类型，用于描述crossbar-level的算子
-
-- `int layer`: 和用于推导该节点的NNKernel一致，原因同上也可以忽略
-- `int ofmap_size`: 节点输出特征图大小，这里是datavolume
-- `std::pair<int,int> id_cin, id_cout`: 输入、输出通道范围
-
-### `Struct CEdge`
-
-C-VDFG的有向边类型，用于描述CNode的数据依赖关系
-
-- `DepType c_type`: 有向边的数据依赖类型。
-- `int datavolume`: 有向边传输的数据量。
-
-## `class BaseGraph`
-
-`BaseGraph` 是基于BGL (Boost Graph Library)提供的接口构造的图模板类，实现了通用的图操作封装。不同数据流图需要为该模板类提供权重结构体。
-
-### 成员变量
-
-该类是抽象模板类，没有成员变量，成员函数通过传入派生类的图引用进行图的基本操作。
-
-### 模板别名
-
-- `Graph`
-BGL有向图别名。
-
-- `UGraph`
-BGL无向图别名。
-
-- `BiGraph`
-BGL双向图别名。
-
-- `Node`
-BGL节点描述符。
-
-- `Edge`
-BGL边描述符。
-
-- `NodeProperty`
-节点权重结构体。
-
-- `EdgeProperty`
-边权重结构体。
-
-### 成员函数 (BaseGraph)
-
-- `BaseGraph()`
-构造函数，实际上没有做任何事。
-
-- `void add_node(const NodeProperty& node_prop, Graph& g)`
-封装boost的添加节点函数。
-
-- `void add_edge(int v1, int v2, const EdgeProperty& edge_prop, Graph& g)`
-封装boost的添加边函数。
-
-- `void remove_node(int v, Graph& g)`
-封装boost的移除节点函数，由于boost库只移除出边，因此额外添加了入边搜索（O(E)）。
-
-- `void remove_edge(int v1, int v2, Graph& g)`
-封装boost的移除边函数，使用节点index作为输入。
-
-- `void remove_edge(const Edge& e, Graph& g)`
-封装boost的移除边函数，使用边描述符作为输入。
-
-- `virtual const Graph& get_graph() const`
-纯虚函数，派生类必须根据自己持有的图对象重写该函数。
-
-- `const NodeProperty& get_node_property(int v, const Graph& g) const`
-NodeProperty接口函数，返回结构体引用。
-
-- `const EdgeProperty& get_edge_property(int v1, int v2, const Graph& g) const`
-EdgeProperty接口函数，返回结构体引用，使用节点index作为输入。
-
-- `const EdgeProperty& get_edge_property(const Edge& e, const Graph& g) const`
-EdgeProperty接口函数，返回结构体引用，使用边描述符作为输入。
-
-- `void set_node_property(int v, const NodeProperty& node_prop, Graph& g)`
-设置节点NodeProperty。
-
-- `void set_edge_property(int v1, int v2, const EdgeProperty& edge_prop, Graph& g)`
-设置边EdgeProperty，使用节点index作为输入。
-
-- `void set_edge_property(const Edge& e, const EdgeProperty& edge_prop, Graph& g)`
-设置边EdgeProperty，使用边描述符作为输入。
-
-- `std::vector<int> get_adjacent_nodes(int v, const Graph& g) const`
-获取所有该节点出边指向的节点index列表。
-
-- `std::vector<Edge> get_adjacent_edges(int v, const Graph& g) const`
-获取所有出边的描述符，目前它有问题。
-
-- `virtual void analysis()`
-纯虚函数，派生类必须根据自己的数据流分析任务重写该函数。
-
-- `virtual void print_graph_info(const Graph& cg) const`
-虚函数，打印图信息，可以被派生类重写。
-
-## `Class CGraph`
-
-通过`<CNode, CEdge>`实例化模板基类的派生类，描述C-VDFG。
-
-### 成员变量、结构体
-
-- `struct AccBlk`
-维护部分和累加关系，包括涉及的节点和输出通道范围。
-
-- `struct CDep`
-维护层间数据依赖关系，包括部分和块、index（同上原因可忽略）、由kernel推导得来的依赖关系。
-
-- `const std::vector<NNkernel>& kernels`
-NN算子数组，元素需要满足拓扑序，且各元素dep相关元素符合相关约束。
-
-- `Graph cg`
-通过`<CNode, CEdge>`实例化的有向图类别。
-
-- `std::pair<int, int> CNode_size`
-crossbar大小、PE映射策略等约束节点大小的尺寸参数。
-
-- `std::vector<CDep> dep_infos`
-层间依赖关系数组，每个元素代表一个算子的依赖关系。
-
-### 成员函数 (CGraph)
-
-- `CGraph(const std::vector<NNkernel>& kernels, std::pair<int, int> CNode_size)`
-构造函数。
-
-- `void analysis() final`
-基于NNkernel生成cg有向图。
-
-- `const Graph& get_graph() const`
-得到只读cg引用。
-
-- `Graph& get_graph()`
-得到可修改的cg引用。
-
-- `void print_graph_info() const`
-打印该层级数据流信息。
-
-- `void debug()`
-用于调用基类中protect类型函数的调试接口，方便单独测试函数功能且不改变封装。
-
-- `void create_cnodes()`
-拆分算子为CNode。
-
-- `void conn_accblk()`
-构造层内数据依赖。
-
-- `void inter_layer_conn()`
-构造层间数据依赖。
-
-# Python-C++ Integration for Model Conversion and Analysis
-
-## 简介
-本模块将所有的 C++ 源文件打包为共享库，允许通过 Python 调用 C++ 的 `main.cpp` 中的 `test` 函数，并进行后续的测试。提供了一键编译脚本和两个主要的 Python 命令，用于模型转换和分析。
-
----
-
-## 功能概览
-1. **C++模块打包**  
-   通过根目录下的 `CMakeLists.txt`，将所有的 C++ 源文件打包生成共享库 `libmain.so`。
-   
-2. **Python 调用 C++**  
-   Python 可以直接调用 `main.cpp` 中的 `test` 函数，用于快速测试功能。
-
-3. **模型转换与分析工具**  
-   - `torch2onnx.py`：将 PyTorch 模型转换为 ONNX 格式，并解析模型。
-   - `onnx_analysis.py`：对指定的 ONNX 模型进行分析。
-
----
-
-## 使用方法
-
-### 1. 编译共享库
-运行根目录下的 `build.sh` 脚本编译 `libmain.so`。  
-**注意：** 如果需要修改编译设置，请取消 `build.sh` 中的注释。
+### 1. 加载环境
 
 ```bash
-./build.sh
-
+source env.sh
 ```
 
-### 2. Python 脚本
-提供两个主要的 Python 命令：
+在组内服务器上加载所需模块（GCC 11.4, CMake 3.28, Python 3.11, Boost 1.84, GTest 1.14, pybind11 2.13）。其他设备需自行安装对应依赖。
 
-#### 2.1 `torch2onnx.py`
-初始化参数，将 PyTorch 模型转换为 ONNX 格式。 
+### 2. 编译并测试
 
 ```bash
-python3 torch2onnx.py
+./test.sh                  # 编译 + 运行全部回归测试
+./test.sh mappingalexnet   # 编译 + 运行指定测试
 ```
 
-- 默认情况下提供`mccnn`模型的转换作为示例，如果需要转换其他模型，可以修改 `torch2onnx.py` 文件中的相应代码，指定模型的路径及转换参数。
+测试可执行文件与 `test/` 目录下的 `.cpp` 文件名一一对应。
 
-
-#### 2.2 `onnx_analysis.py`
-分析 ONNX 模型，并输出一些有用的信息。你可以通过以下命令运行：
+### 3. 执行性能分析
 
 ```bash
-python3 onnx_analysis.py [onnx_model_path]
+python3 perf.py
 ```
 
-- 如果未指定 `onnx_model_path`，默认会加载 `models` 文件夹中的 `resnet18` 模型。
+该脚本将自动完成：ONNX 模型加载 → 算子映射 → Tile 分配 → 通信路径生成 → Booksim NoC 仿真 → 延迟/吞吐量/功耗计算 → 结果可视化。首次运行耗时较长（Booksim 仿真），后续运行将复用 pickle 缓存。
 
-### 3. 测试功能
-`main.cpp` 中提供了一个 `test` 函数，可以通过 Python 调用进行测试。运行 Python 脚本时会自动调用该函数。
+## 核心组件
 
-### 4. 注意事项
-- 在运行 `torch2onnx.py` 时，确保你已经安装了 PyTorch 和 ONNX 的相关依赖。
-- 如果转换其他模型，记得在 `torch2onnx.py` 中修改模型加载部分的代码。
-- `onnx_analysis.py` 需要提供 ONNX 模型的路径，否则会默认加载 `models/resnet18`。
+### 数据流图层次
 
-## 环境依赖
+四层图表示（详见上方方法论章节），对应 `include/graph.h` 中的 `CGraph` / `TGraph` / `HGraph` / `DGraph` 类，均基于 Boost Graph Library（BGL）构建。
 
-- Python 3.x
-- PyTorch
-- ONNX
-- pybind11
-- CMake
-- Ubuntu 24 LTS 或其他支持的操作系统
+### 优化策略对比
+
+PIMapping 将映射优化（mapping_opt）和调度优化（sched_opt）解耦，通过组合形成四种策略，另加 TILE2_0 高级流水线：
+
+| 策略 | 映射方式 | 路由方式 | 优化目标 |
+|------|----------|----------|----------|
+| **MNSIM** | 顺序 tiling + zigzag | XY 路由 | 基线方案 |
+| **HITM** | 同 MNSIM | 拥塞感知 BCE 路由 | 仅调度优化 |
+| **SPATEM** | OU 级 tiling + zigzag | XY 路由 | 仅映射优化 |
+| **PIMAPPING** | Intensity-Map 聚类 + 谱嵌入 | 拥塞感知 BCE 路由 | 映射+调度联合优化（本文方案） |
+| **TILE2_0** | 容量约束 tiling + 贪心 | 拥塞感知 BCE 路由 | 高级流水线架构 |
+
+策略通过 `OptInfo`（`mapping_opt`, `sched_opt`）和 `OptType` 枚举控制，在 `perf.py` 中自动遍历所有组合。
+
+### 实验结果
+
+在六种典型 DNN 模型（AlexNet, VGG16, ResNet50, DenseNet-121, Inception-v4, YOLOv5m）上评估，硬件参数：Crossbar 256×256, 32 Crossbars/Tile, 2D-Mesh NoC, 8Gb/s 带宽。
+
+**整体性能**（vs MNSIM 基线）：
+- 延迟降低 **47%–69%**（平均 **57.5%**）
+- 吞吐量提升 **1.39×–6.03×**（平均 **3.17×**）
+- 在复杂拓扑网络（DenseNet-121, Inception-v4）上仍保持显著提升，而 HITM/SPATEM 在此类网络上出现退化
+
+**延迟分解分析：**
+- 计算延迟显著降低，但更高并行度加剧通信需求
+- SPATEM 实现最高计算延迟降低（~85%），但通信开销激增近一个数量级
+- PIMapping 在计算并行度与通信开销之间取得平衡，实现总体最优
+
+**带宽敏感性：** 随着 NoC 带宽提升，拥塞对性能的惩罚递减，各策略趋于计算上限。PIMapping 在所有带宽下相比 HITM 延迟降低 34.5%–44.6%，吞吐量提升 1.25×–1.89×。
+
+**流水线策略：** 支持 LS（逐层同步）和 LP（多层并行）两种流水线模式。LP 显著降低推理延迟，但可能因增加单阶段内并行通信而降低吞吐量。
+
+**Crossbar 尺寸探索：** PIMapping 在 256×256 配置下达到最优性能，体现了并行可扩展性与架构兼容性之间的权衡。
+
+### 物理映射器（Mapper）
+
+实现 Algorithm 1 的物理映射流程：
+
+- `create_cnodes()`：算子按 WL/BL 维度拆分，生成 C-VDFG 节点
+- `create_tnodes_PIMAPPING()`：基于 Intensity Map 最大堆的聚类算法，优先合并数据依赖紧密的 C-Node
+- `greedy_mapping()`：基于数据邻近性的 BFS 贪心放置，依赖节点就近映射
+- `zigzag_mapping()`：蛇形顺序放置（MNSIM/SPATEM 基线）
+
+### 路径调度器（Scheduler）
+
+实现 Algorithm 2 的拥塞感知调度流程：
+
+- `init_bce()`：对 2D Mesh 图计算 Brandes 边介数中心性（BCE），识别关键通信资源
+- `congestion_aware_routing()`：路径按曼哈顿距离升序、数据量降序排列，使用加权 Dijkstra 寻路。权重 w(e) = C-Σ(e) × BCE(e)，平衡拥塞降低与热点避免
+- `xy_routing()`：简单 XY 路由（基线）
+
+### Cycle-Accurate 仿真器
+
+位于 `include/simulator/` 和 `src/simulator/`，基于事件驱动的模块化仿真框架，实现周期精确的存算架构性能模拟。其理论模型见《模拟器》第五章。
+
+#### 数据流驱动模型
+
+仿真器将计算数据流抽象为三层：**全局数据流**（系统级输入激励）→ **分块数据流**（存算核心间的输入-输出关系）→ **MVM 数据流**（存算阵列内部批次计算与乘累加流水）。在微架构层面，计算操作 μopᵢ 在微架构节点 μarchⱼ 上的行为映射为 (data, condition) 集合组，定义了参数和状态机依赖。微架构图的拓扑属性（深度、依赖方向）由数据流参考方向决定，确保模拟过程中数据流动的正确性与一致性。
+
+计算流水线由状态机驱动而非指令流：片上缓存容量约束下输入特征图分块加载 → 本地缓存按列读取，累积连续 N 列有效数据后触发计算 → 激励分发逻辑生成访存请求 → 寄存器堆按周期移位输入形成计算流水 → 结果经后处理发送至总线。事件计数器在事件执行后更新，反映当前执行状态，驱动后续事件触发。
+
+#### 三类核心原语
+
+| 原语 | 职责 | 关键语义 |
+|------|------|----------|
+| **模块原语** | 微架构统一封装 | 信号属性（输入/输出信号列表、有效性、时间戳）、功能函数属性（触发条件、执行周期数、状态转换逻辑）、接口属性（模块间信号绑定与传输） |
+| **控制依赖原语** | 维护模块调用顺序 | 可用性（占用状态标志、占用/释放条件）、调用条件（输入/内部信号组合与触发函数绑定、优先级定义） |
+| **事件原语** | 执行机制抽象 | 功能属性（绑定的功能函数、执行状态）、时间属性（触发/执行/完成/结束/性能计数五种时间戳），分别建模计算行为（模块内部执行）和通信行为（模块间接口交互） |
+
+#### 事件驱动机制
+
+事件状态更新模型定义五阶段流程：**触发时间戳**（前级输出就绪）→ **执行时间戳**（模块开始接收数据并计算，状态更新为"占用"）→ **完成时间戳**（计算结束，输出置为有效）→ **结束时间戳**（模块状态恢复可用，信号组无效化）。
+
+并发事件按拓扑深度降序（逆流水线方向）执行，保证"在 T 时刻所有输入数据已就绪，且当前输出更新不影响同一时刻未执行事件的输入"。两类违例依赖通过组合逻辑前移（插入高优先级事件栈）和时序输出入队（数据队列化）消除。
+
+#### 多核事务机制
+
+多核模拟通过三层抽象扩展单核事件驱动：**事务构造**（计算图节点抽象为事务）→ **事务分配**（硬件映射）→ **事务间消息传递**（多核调度）。任务依赖原语维护活跃计算任务表，消息原语封装核间通信事件参数。事务机制实现了架构无关的消息传递与架构相关的回调处理的分离设计。
+
+#### Tile 2.0 架构模型
+
+基于 OPU-Tile2.0 真实芯片架构建模，包含 Crossbar（存算阵列计算+切换）、SIMD（量化→激活→池化流水线）、L1C（多 bank SRAM 缓存）、TaskScheduler（任务调度与数据搬运）四大模块，以及 BankingSimulator（内存 banking）、MulticoreSimulator（多核并行）、TilingSimulator（动态 tiling）等上层封装。
+
+## Python 集成
+
+### pimapping 模块（pybind11）
+
+C++ 核心通过 `main.cpp` 导出为 Python 模块 `pimapping`：
+
+```python
+import pimapping
+
+# 核心分析函数
+result, comm_info = pimapping.analyze(kernels, hw_info, opt_info)
+
+# 调试函数
+pimapping.test()
+```
+
+导出的数据结构：`NNkernel`, `Depinfo`, `HWInfo`, `OptInfo`, `AnalysisResult`, `DeployInfo`, `CommInfo`, `CommSeg`, `Path`, `CNode`。
+
+### 主要 Python 脚本
+
+| 脚本 | 功能 |
+|------|------|
+| `perf.py` | 主性能分析流水线（1778 行）：模型遍历、四种策略对比、Booksim 评估、延迟/吞吐量/功耗/通信开销可视化 |
+| `onnx_analysis.py` | ONNX 模型解析：加载模型 → 合并非 MVM 算子 → 形状推断 → 提取 Conv/Gemm 信息 → 转换为 NNkernel 数组 |
+| `MappingInfo.py` | 延迟估算集成：MNSIM tile 级计算延迟 + Booksim NoC 通信延迟 + 带宽建模 |
+| `torch2onnx.py` | PyTorch → ONNX 转换工具 |
+| `logger.py` | 彩色日志工具（输出到 `runs/perf.log`） |
+
+## 硬件配置
+
+编辑 `SimConfig.ini` 修改硬件参数，主要配置项：
+
+| 层级 | 关键参数 |
+|------|----------|
+| Device | 工艺节点、器件类型（NVM/SRAM）、面积、读写延迟/电压 |
+| Crossbar | 阵列尺寸（WL, BL）、子阵列大小、单元类型 |
+| PE | PIM 类型（模拟/数字）、DAC/ADC 精度、Buffer 大小 |
+| Digital | 数字模块频率、加法器/移位寄存器/寄存器参数 |
+| Tile | PE 数量与排列、Pooling 尺寸、片内/片间带宽 |
+| Architecture | Buffer 选择、Tile 数量与排列、NoC 使能 |
+
+## 注意事项
+
+- 所有命令需在项目根目录下执行（脚本使用相对路径）
+- `build.sh` 每次执行会**强制清理** `build/` 目录
+- `.gitignore` 为白名单模式：默认忽略所有文件，仅纳入 `.cpp/.h/.hpp/.sh/.py/CMakeLists.txt` 等指定类型。添加新文件类型需更新 `.gitignore`
+- 根目录下的 `libmain.so` 为旧版构建产物，当前构建产物为 `pimapping.<python_ext>.so`
+- 本项目无 CI / lint / 格式化配置
+- 测试可执行文件需链接 `pthread`（已在 `test/CMakeLists.txt` 中配置）
