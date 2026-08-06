@@ -1,5 +1,10 @@
 # PIM-sim Development Skill
 
+## Key reference files
+- `TASKS.md` — Complete task list (26/52 completed), always check before starting new work
+- `AGENTS.md` — Build instructions, architecture, conventions
+- `README.md` — Full methodology, engineering structure, quick start
+
 ## Project context
 - Academic research: PIM architecture NN mapping + performance evaluation framework.
 - CMake project `PIMapping`, repo `PIM-sim`. C++20 + Python (pybind11). Linux (Ubuntu 24 LTS).
@@ -99,9 +104,26 @@ result_develop/
 - Scheduler: `shared_ptr<Scheduler>` injected into `DGraph` via `scheduler_` member
 - Strategy: `shared_ptr<StrategyBase<GraphType>>` injected into each graph via constructor
 
-## Known issues
+## Current status & remaining work
 
+See `TASKS.md` for the full task list. Current progress: 26/52 completed.
+
+### Completed refactoring (26 items)
+- **Code organization**: graph.cpp split, strategy pattern, Mapper/Scheduler decoupling, .gitignore, CMake
+- **Interface**: logging (PIM_INFO), error handling (PIMException), naming conventions (snake_case)
+- **Simulator optimization**: CRTP removal, hw_config constexpr, core_factory, any_cast safety, completion detection
+- **Integration**: cache key fix, Booksim timeout, Perf.py split, pybind11 ProcessEvent, config_validator.py
+- **Engineering**: CI, clang-format, ASan, Doxygen, 8 test files (25+ cases)
+
+### Remaining work (26 items) — see `TASKS.md` for details
+- **Algorithm improvements**: DHCG segmentation, Intensity Map tuning, spectral embedding, weight replication, more DNN ops
+- **Simulator features**: mapper-simulator integration, event counters, backpressure, multi-core transactions
+- **Simulator architecture** (4 items): typed signals, module decoupling, ISimulator interface, message types
+- **Bug fixes**: get_adjacent_edges, cycle detection, channel intersection, BCE normalization, process state machine
+- **Testing**: Mapper/Scheduler unit tests, waveform trace output
+
+### Known quirks
 - `perf.py` has uncommitted pre-existing changes (stashed)
-- 4 simulator architecture items remain: typed signals, module decoupling, ISimulator interface, message types
-- `test/tilingtest.cpp` hits max_cycles (300000) before completion — known boundary condition
+- `test/tilingtest.cpp` hits max_cycles (300000) before completion
 - Boost `-Wmaybe-uninitialized` false positives (13 warnings from template internals)
+- `mappingalexnet` is the only test without simulator (passes ASan with 0 leaks)
