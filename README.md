@@ -138,12 +138,16 @@ PIMapping 的工作流分为三个阶段：**递进式部署表示生成** → *
 │   └── simulator/
 │       ├── Process.cpp           # 进程状态机
 │       ├── Simulator.cpp         # 仿真引擎
-│       └── tile2_0/              # Tile 2.0 各模块实现
+│       └── tile2_0/              # Tile 2.0 各模块实现 + 工厂函数
+│           └── core_factory.h    # create_core_modules() 核心模块工厂
 │
-├── test/                         # Google Test 测试
+├── test/                         # Google Test 测试（8 个文件，25+ 用例）
 │   ├── CMakeLists.txt            # 每个 .cpp 自动生成一个测试可执行文件
-│   ├── mappingalexnet.cpp        # Analyzer 全流程测试（AlexNet 风格 kernel）
-│   ├── bankingtest.cpp           # BankingSimulator 测试（XY/YX/Custom 策略）
+│   ├── process_test.cpp          # ProcessEvent/ProcessManager 单元测试
+│   ├── modulebase_test.cpp       # ModuleBase 信号管理单元测试
+│   ├── config_test.cpp           # hw_config constexpr 一致性测试
+│   ├── mappingalexnet.cpp        # Analyzer 全流程测试
+│   ├── bankingtest.cpp           # BankingSimulator 测试
 │   ├── multicoretest.cpp         # MulticoreSimulator 多核并行测试
 │   ├── oputiletest.cpp           # OPU 单 tile 全流水线测试
 │   └── tilingtest.cpp            # TilingSimulator 动态策略测试
@@ -343,6 +347,23 @@ Scheduler 通过 `shared_ptr<Scheduler>` 注入到 `DGraph`，支持运行时替
 #### Tile 2.0 架构模型
 
 基于 OPU-Tile2.0 真实芯片架构建模，包含 Crossbar（存算阵列计算+切换）、SIMD（量化→激活→池化流水线）、L1C（多 bank SRAM 缓存）、TaskScheduler（任务调度与数据搬运）四大模块，以及 BankingSimulator（内存 banking）、MulticoreSimulator（多核并行）、TilingSimulator（动态 tiling）等上层封装。
+
+模块通过 `core_factory.h` 中的 `create_core_modules()` 工厂函数统一创建和连接，减少重复代码。`ModuleBase` 为非模板类，继承自 `ISimulatable`，提供信号管理、进程管理、`get_signal_as<T>()` 安全类型访问等基础设施。
+
+#### 仿真器测试
+
+8 个 gtest 测试文件（25+ 用例）：
+
+| 测试 | 覆盖 |
+|------|------|
+| `process_test.cpp` | ProcessEvent 生命周期/状态转换/计时统计；ProcessManager 注册/驱动/清理/统计 |
+| `modulebase_test.cpp` | ModuleBase 信号增删改查、`get_signal_as<T>` 类型安全 |
+| `config_test.cpp` | `hw_config` 命名空间 constexpr 值与宏定义一致性 |
+| `mappingalexnet.cpp` | Analyzer 全流程测试（AlexNet 风格 kernel） |
+| `bankingtest.cpp` | BankingSimulator 测试（XY/YX/Custom 策略） |
+| `multicoretest.cpp` | MulticoreSimulator 多核并行测试 |
+| `oputiletest.cpp` | OPU 单 tile 全流水线测试 |
+| `tilingtest.cpp` | TilingSimulator 动态策略测试 |
 
 ## Python 集成
 

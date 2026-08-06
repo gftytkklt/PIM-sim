@@ -50,9 +50,12 @@ C++ (libPIMapping) │  Analyzer → Graph hierarchy:        │
 | File | Role |
 |---|---|
 | `SimConfig.ini` | Hardware parameters (Xbar size, bitwidth, etc.) |
-| `perf.py` | Main performance analysis script (1778 lines) |
+| `perf.py` | Entry point (35 lines), re-exports analysis/plotting |
+| `analysis.py` | Core analysis functions (perf_analysis, get_noc_perf, etc.) |
+| `plotting.py` | Visualization functions (latency/throughput/power plots) |
 | `onnx_analysis.py` | ONNX parsing → NNkernel extraction |
 | `MappingInfo.py` | Tile latency, Booksim invocation, bandwidth modeling |
+| `config_validator.py` | SimConfig.ini schema validation (30+ params) |
 | `include/graph.h` | Core graph class definitions (CGraph, TGraph, HGraph, DGraph) |
 | `include/analyzer.h` | Top-level Analyzer orchestrating the pipeline |
 | `include/mapper.h` | Physical tile mapping (shared_ptr injectable) |
@@ -68,6 +71,22 @@ C++ (libPIMapping) │  Analyzer → Graph hierarchy:        │
 | `src/strategy/TStrategy.cpp` | TGraph strategies (MNSIM/PIMAPPING/SPATEM/TILE2_0) |
 | `src/strategy/HStrategy.cpp` | HGraph strategies (MNSIM/PIMAPPING/SPATEM) |
 | `src/strategy/DStrategy.cpp` | DGraph strategies (Default/PIMAPPING/TILE2_0) |
+| `include/simulator/ModuleBase.h` | Module base (non-template, extends ISimulatable) |
+| `include/simulator/Simulator.h` | Cycle-accurate event-driven simulator |
+| `include/simulator/Process.h` | ProcessEvent lifecycle + ProcessManager state machine |
+| `include/simulator/tile2_0/core_factory.h` | create_core_modules() factory function |
+| `include/simulator/tile2_0/config.h` | hw_config namespace constexpr params |
+
+## Simulator architecture
+
+- **Module hierarchy**: `ISimulatable` → `ModuleBase` → `Crossbar`/`SIMD`/`L1C`/`TaskScheduler`
+- **ModuleBase** is non-template (CRTP removed), uses `enable_shared_from_this<ISimulatable>`
+- **Signal access**: `get_signal_as<T>()` returns `std::optional<T>` for safe type-checked access
+- **Core factory**: `create_core_modules()` in `core_factory.h` eliminates repeated module registration
+- **Hardware config**: `hw_config` namespace with `constexpr int` values (legacy `#define` aliases kept)
+- **Memory**: `shared_ptr` self-reference cycle in `register_module` lambdas fixed (Issue #d4a9883)
+- **Tests**: 8 gtest files (25+ cases) including ProcessManager/ModuleBase/Config unit tests
+- **ASan**: `cmake -DENABLE_ASAN=ON` passes all tests with 0 leaks
 
 ## Conventions & gotchas
 
