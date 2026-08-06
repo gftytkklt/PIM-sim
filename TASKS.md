@@ -52,9 +52,24 @@
 - [ ] **BCE 归一化**：`init_bce()` 中的 BCE 值按最大值归一化，但最大 BCE 值可能为 0（单路径场景），导致除零
 
 ### 模拟器
+- [x] **内存泄漏**：`Simulator.h` lambda 自引用 `shared_ptr` 循环已修复，ASan 下 0 字节泄漏
 - [ ] **`Simulator::run()` 事件丢失**：当事件队列中同时存在信号事件和消息事件时，优先级排序可能错误
 - [ ] **`Process::execute()` 状态机**：FINISHED 状态下重复触发可能导致状态不一致
 - [ ] **`ModuleBase` 信号更新竞态**：拷贝消除策略下，同一时刻多模块写入同一信号变量可能导致数据覆盖
+- [ ] **模拟完成检测不完整**：`check_simulation_complete()` 未检查 `message_queue_`，可能导致仿真提前终止
+
+### 模拟器架构优化
+- [ ] **硬编码参数替换**：`config.h` 中 13 个 `#define` 宏改为 `HardwareConfig` 结构体，支持运行时配置和参数扫描
+- [ ] **移除 CRTP 模板**：`ModuleBase<DerivedModule>` 的 CRTP 模式不提供实际收益，改为普通虚基类简化类型系统
+- [ ] **核心实例化工厂**：`membanking.cpp`/`multicore.cpp` 等 ~400 行重复模块注册代码提取为工厂函数
+- [ ] **类型化信号系统**：替换字符串信号名（`"cache_read_trigger"` 等），防止拼写错误和类型不匹配
+- [ ] **模块与模拟器解耦**：`ModuleBase` 中回调函数直接访问 `Simulator` 私有队列，改为返回事件列表由模拟器处理
+- [ ] **ISimulator 抽象接口**：提取 `CycleAccurateSimulator` 的虚接口，支持模拟和测试
+- [ ] **消息类型系统**：替换 `std::any` + `std::string` 消息体为 `std::variant` 或类型化消息
+- [ ] **反压/流水线停顿建模**：添加 ready/valid 握手信号和缓冲区占用模型
+- [ ] **`std::any_cast` 保护**：所有信号访问添加类型检查，防止 `bad_any_cast` 崩溃
+- [ ] **配置驱动模块图**：模拟器拓扑从配置文件（JSON/YAML）加载，替代硬编码 C++ 代码
+- [ ] **单元测试覆盖**：添加 `ProcessManager`、`ProcessEvent`、各模块独立单元测试，补充断言
 
 ### 集成
 - [x] **`perf.py` 缓存键冲突**：缓存文件名添加模型名哈希，支持旧格式兼容

@@ -240,6 +240,12 @@ bash result_develop/scripts/regression_test.sh
 clang-format -i src/*.cpp include/*.h
 ```
 
+### 6. 配置校验
+
+```bash
+python3 config_validator.py [SimConfig.ini]
+```
+
 ## 核心组件
 
 ### 数据流图层次
@@ -356,14 +362,19 @@ pimapping.test()
 
 导出的数据结构：`NNkernel`, `DepInfo`, `HWInfo`, `OptInfo`, `AnalysisResult`, `DeployInfo`, `CommInfo`, `CommSeg`, `Path`, `CNode`。
 
+导出的模拟器类型：`ProcessEvent`（事件生命周期和性能统计）、`ProcessState`（IDLE/TRIGGERED/EXECUTING/FINISHED/ENDED 枚举）。
+
 ### 主要 Python 脚本
 
 | 脚本 | 功能 |
 |------|------|
-| `perf.py` | 主性能分析流水线（1778 行）：模型遍历、四种策略对比、Booksim 评估、延迟/吞吐量/功耗/通信开销可视化 |
-| `onnx_analysis.py` | ONNX 模型解析：加载模型 → 合并非 MVM 算子 → 形状推断 → 提取 Conv/Gemm 信息 → 转换为 NNkernel 数组 |
-| `MappingInfo.py` | 延迟估算集成：MNSIM tile 级计算延迟 + Booksim NoC 通信延迟 + 带宽建模 |
+| `perf.py` | 入口模块（35 行），re-export 分析/绘图函数 |
+| `analysis.py` | 性能分析函数（perf_analysis, get_noc_perf, power_analysis 等） |
+| `plotting.py` | 可视化函数（延迟/吞吐量/功耗/带宽图表） |
+| `onnx_analysis.py` | ONNX 模型解析 → NNkernel 提取 |
+| `MappingInfo.py` | 延迟估算集成（MNSIM tile 级计算延迟 + Booksim NoC 通信延迟） |
 | `torch2onnx.py` | PyTorch → ONNX 转换工具 |
+| `config_validator.py` | SimConfig.ini schema 验证（30+ 参数的类型/范围/必填检查） |
 | `logger.py` | 彩色日志工具（输出到 `runs/perf.log`） |
 
 ## 硬件配置
