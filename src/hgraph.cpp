@@ -2,7 +2,7 @@
 HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> cg, 
                std::pair<int, int> tile_size, std::shared_ptr<HStrategyBase> strategy)
     : BaseGraph<HGraph, HNode, HEdge>(strategy),
-      hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, paths{}, mapper{} {
+      hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, paths{}, mapper_{} {
     
     auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
     std::cout << "[HG]: num tile: " << num_tile << std::endl;
@@ -15,7 +15,7 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
         std::cout << "Tile size: " << this->tile_size.first << " x " << this->tile_size.second << std::endl;
     }
     
-    mapper = Mapper{this->tile_size};
+    mapper_ = std::make_shared<Mapper>(this->tile_size);
     this->analysis();
 }
 
@@ -43,10 +43,10 @@ void HGraph::init_hw_setting() {
 
 void HGraph::zigzag_mapping() {
     auto tg = tg_ref->get_graph();
-    mapper.zigzag_mapping(num_nodes(tg));
+    mapper_->zigzag_mapping(num_nodes(tg));
     for (size_t i = 0; i < num_nodes(tg); ++i) {
         // auto tnode = tg_ref->get_node_property(i, tg);
-        auto hnode = mapper.get_core(i);
+        auto hnode = mapper_->get_core(i);
         auto hid = xy_to_id(hnode);
         set_node_property(hid, HNode{i, hnode, true}, hg);
     }
@@ -82,12 +82,12 @@ void HGraph::greedy_mapping() {
         //     std::cout << i << " ";
         // }
         // std::cout << std::endl;
-        mapper.map_group(tdep, dep_set);
+        mapper_->map_group(tdep, dep_set);
     }
     // update HGraph
     for (size_t i = 0; i < num_nodes(tg); ++i) {
         // auto tnode = tg_ref->get_node_property(i, tg);
-        auto hnode = mapper.get_core(i);
+        auto hnode = mapper_->get_core(i);
         auto hid = xy_to_id(hnode);
         set_node_property(hid, HNode{i, hnode, true}, hg);
     }
@@ -109,11 +109,11 @@ void HGraph::SPATEM_mapping() {
     }
     auto mapping_order = neighbor_ranking_sort(conn_intensity_map);
     // map Tnode to HNode
-    mapper.SPATEM_mapping(mapping_order);
+    mapper_->SPATEM_mapping(mapping_order);
     // update HGraph
     for (size_t i = 0; i < num_nodes(tg); ++i) {
         // auto tnode = tg_ref->get_node_property(i, tg);
-        auto hnode = mapper.get_core(i);
+        auto hnode = mapper_->get_core(i);
         auto hid = xy_to_id(hnode);
         set_node_property(hid, HNode{i, hnode, true}, hg);
     }
@@ -129,8 +129,8 @@ void HGraph::init_path() {
         auto tedge = tg_ref->get_edge_property(e, tg);
         auto datavolume = tedge.accvolume + tedge.propvolume;
         // get src and dst HNode
-        auto src_h = mapper.get_core(src);
-        auto dst_h = mapper.get_core(dst);
+        auto src_h = mapper_->get_core(src);
+        auto dst_h = mapper_->get_core(dst);
         // get path
         auto path = XYinit(src_h, dst_h);
         // add path to paths

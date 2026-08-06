@@ -378,12 +378,10 @@ public:
     // for HNode id, xy transformation
     std::pair<int, int> id_to_xy(size_t id) const;
     size_t xy_to_id(std::pair<int, int> xy) const;
-    // use tnode to get hnode
-    auto get_hnode(Node tnode) const {return mapper.get_core(tnode);}
-    // use hnode to get tnode
-    auto get_tnode(int x, int y) const {return mapper.get_node(x, y);}
-    auto get_tnode(std::pair<int, int> xy) const {return mapper.get_node(xy);}
-    // print graph info
+    const Mapper& get_mapper() const { return *mapper_; }
+    auto get_hnode(Node tnode) const {return mapper_->get_core(tnode);}
+    auto get_tnode(int x, int y) const {return mapper_->get_node(x, y);}
+    auto get_tnode(std::pair<int, int> xy) const {return mapper_->get_node(xy);}
     void print_graph_info() const;
 
     void init_hw_setting(); // init hardware template
@@ -400,7 +398,7 @@ private:
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for HCG inference
     std::pair<int, int> tile_size; // (W, H) of tile array
     std::vector<Path> paths; // path info
-    Mapper mapper; // mapper for HCG
+    std::shared_ptr<Mapper> mapper_; // mapper for HCG, injectable dependency
     OptType opt_type = OptType::PIMAPPING; // mapping optimization flag, default true
 };
 
@@ -445,9 +443,9 @@ private:
     std::vector<std::shared_ptr<Path>> paths; // path info
     std::vector<long long> congestion_segs; // congestion of each seg
     Scheduler scheduler;
-    auto get_core(size_t node) const {return hg_ref->mapper.get_core(node);}
-    auto get_node(int x, int y) const {return hg_ref->mapper.get_node(x, y);}
-    auto get_node(std::pair<int, int> xy) const {return hg_ref->mapper.get_node(xy);}
+    auto get_core(size_t node) const {return hg_ref->get_mapper().get_core(node);}
+    auto get_node(int x, int y) const {return hg_ref->get_mapper().get_node(x, y);}
+    auto get_node(std::pair<int, int> xy) const {return hg_ref->get_mapper().get_node(xy);}
 };
 
 #endif
