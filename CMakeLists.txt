@@ -5,13 +5,22 @@ project(PIMapping)
 
 # C++ standard
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# 构建类型默认值
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+# 编译警告选项
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare -Wno-reorder -Wno-unused-parameter")
 
 # 定义库的输出目录
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../)
 
-# 兼容性策略设置
-# cmake_policy(SET CMP0148 OLD)
-# 查找pybind11包
+# pybind11 兼容性
+cmake_policy(SET CMP0148 NEW)
 find_package(pybind11 REQUIRED)
 
 # enable testing
@@ -23,32 +32,17 @@ add_subdirectory(test)
 
 add_library(PIModule MODULE main.cpp)
 
-# 设置模块属性
 set_target_properties(PIModule PROPERTIES
     OUTPUT_NAME "pimapping"
     PREFIX ""
     SUFFIX ${PYTHON_MODULE_EXTENSION}
 )
 
-# 链接依赖项
 target_link_libraries(PIModule PRIVATE
-    PIMapping       # 链接核心库
+    PIMapping
     pybind11::module
 )
 
-# 包含目录
 target_include_directories(PIModule PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
-
-# 设置 include 目录
-# include_directories(${PROJECT_SOURCE_DIR}/include)
-# include_directories(${PROJECT_SOURCE_DIR}/src)
-
-# 查找源文件和头文件
-# file(GLOB_RECURSE SOURCES1 "src/*.cpp")
-# file(GLOB_RECURSE SOURCES2 "include/*.h")
-# 编译库并生成Python模块
-# add_library(main MODULE main.cpp ${SOURCES1} ${SOURCES2})
-# 链接pybind11库
-# target_link_libraries(main PRIVATE pybind11::module)
