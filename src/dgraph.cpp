@@ -1,6 +1,5 @@
 #include "graph.h"
 
-
 DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> tg,
                std::shared_ptr<const CGraph> cg, int pipeline_depth, 
                std::shared_ptr<DStrategyBase> strategy)
