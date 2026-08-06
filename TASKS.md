@@ -6,7 +6,7 @@
 
 ### 代码组织
 - [x] **拆分 graph.cpp（~1400 行）**：按图层次分离为 `cgraph.cpp`、`tgraph.cpp`、`hgraph.cpp`、`dgraph.cpp`、`graph_io.cpp`，保留 `graph.h` 作为统一头文件
-- [ ] **策略模式重构**：当前策略逻辑分散在 `StrategyBase.h/cpp` 和 `graph.cpp` 的 `create_tnodes_*` 等函数中。将各策略的具体实现收敛到 `strategy/` 目录下的独立文件
+- [x] **策略模式重构**：策略文件按图层次拆分为 `CStrategy.cpp`、`TStrategy.cpp`、`HStrategy.cpp`、`DStrategy.cpp`
 - [x] **Mapper 解耦**：将 `Mapper` 从 `HGraph` 中解耦为 `shared_ptr` 注入依赖，支持不同映射策略的插件化替换
 - [x] **Scheduler 解耦**：将 `Scheduler` 从 `DGraph` 中解耦为 `shared_ptr` 注入依赖，支持 XY 路由、BCE 路由、自定义路由的插件化
 - [x] **`.gitignore` 标准化**：保留白名单模式，仅追踪代码框架文件，移除 `libmain.so` 跟踪
@@ -15,7 +15,7 @@
 ### 接口规范
 - [x] **统一错误处理**：添加 `errors.h` 统一异常层次（PIMException/GraphError/MappingError/SchedulingError/ConfigError）
 - [x] **日志系统**：C++ 侧添加结构化日志（`logger.h`，PIM_INFO/PIM_WARN/PIM_ERROR 宏），输出到 `runs/cpp_analysis.log`
-- [ ] **命名规范**：统一中英文混合命名（如 `booksim_eval` vs `latency_est`），统一 C++ 命名风格（部分函数使用 snake_case，部分使用 camelCase）
+- [x] **命名规范**：统一 snake_case（util.h/cpp 函数名、graph.h 枚举/结构体），修复拼写错误
 
 ## 功能完善
 
