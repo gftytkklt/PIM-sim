@@ -1,0 +1,69 @@
+# PIM-sim 开发工作事项
+
+基于对代码框架、论文原理和当前实现状态的分析，整理以下工作事项。
+
+## 重构
+
+### 代码组织
+- [ ] **拆分 graph.cpp（~1400 行）**：按图层次分离为 `cgraph.cpp`、`tgraph.cpp`、`hgraph.cpp`、`dgraph.cpp`，保留 `graph.h` 作为统一头文件
+- [ ] **策略模式重构**：当前策略逻辑分散在 `StrategyBase.h/cpp` 和 `graph.cpp` 的 `create_tnodes_*` 等函数中。将各策略的具体实现收敛到 `strategy/` 目录下的独立文件
+- [ ] **Mapper 解耦**：将 `Mapper` 从 `HGraph` 中解耦为独立组件，支持不同映射策略的插件化替换
+- [ ] **Scheduler 解耦**：将 `Scheduler` 从 `DGraph` 中解耦，支持 XY 路由、BCE 路由、自定义路由的插件化
+- [ ] **`.gitignore` 标准化**：从白名单模式改为黑名单模式，移除对 `libmain.so` 和 `pimapping` 的例外
+- [ ] **CMake 优化**：统一 `include_directories`、添加 `CMAKE_CXX_FLAGS` 警告选项、区分 Debug/Release 构建
+
+### 接口规范
+- [ ] **统一错误处理**：C++ 代码中大量使用裸指针和容器访问，缺少边界检查。添加统一的异常处理和错误返回机制
+- [ ] **日志系统**：C++ 侧添加结构化日志（当前仅 Python 侧有 logger.py）
+- [ ] **命名规范**：统一中英文混合命名（如 `booksim_eval` vs `latency_est`），统一 C++ 命名风格（部分函数使用 snake_case，部分使用 camelCase）
+
+## 功能完善
+
+### 算子映射前端
+- [ ] **补全 DHCG 分段策略**：当前仅实现 LS（逐层同步）和固定 pipeline_depth 分段。根据论文定义，应支持任意拓扑排序分段，包括 LP（多层并行）和自适应分段
+- [ ] **Intensity Map 调参**：当前 α/β/γ/δ/ε/ζ 系数硬编码，需支持从 SimConfig.ini 读取或运行时校准
+- [ ] **谱嵌入实现验证**：当前 `greedy_mapping()` 使用 BFS 贪心，论文 Algorithm 1 描述的是离散 2D 谱嵌入（拉普拉斯特征映射）。需对比实现或确认 BFS 为近似替代
+- [ ] **权重复制建模**：当前 `create_dup_num()` 实现了基础复制因子计算，但缺少对应的 C-Edge 数据量调整和输出组路由逻辑
+- [ ] **支持更多 DNN 算子**：当前仅支持 Conv/Gemm 的 MVM 分解。需扩展支持 Attention（Transformer）、Depthwise Conv、Element-wise 等
+
+### 性能模拟后端
+- [ ] **模拟器与映射前端集成**：当前 `src/simulator/` 和 `src/graph.cpp` 通过 TILE2_0 策略松散耦合。需实现完整的映射结果→模拟事件生成流水线（对应论文 5.3.2 节）
+- [ ] **事件计数器自动化**：实现 Algorithm 5.1 的推理事件计数，自动从映射结果和架构参数生成事件队列
+- [ ] **组合逻辑依赖检测**：自动检测前向组合逻辑依赖（零延迟功能函数），将其插入高优先级事件栈
+- [ ] **时序依赖入队**：实现反馈时序依赖的数据队列化机制（论文 5.2.2 节）
+- [ ] **多核事务机制完善**：当前 `MulticoreSimulator` 为硬编码 4 核测试。需实现通用的任务依赖原语和消息原语，支持任意核数的事务驱动模拟
+- [ ] **反压机制建模**：实现数据生产者的阻塞/释放逻辑，以及通信网络缓存满时的反压传播
+
+### Python 集成
+- [ ] **pybind11 绑定扩展**：导出 Simulator 相关类（`Process`、`ModuleBase`、`Simulator`），支持 Python 侧构造和运行模拟
+- [ ] **`perf.py` 重构**：1778 行单文件，职责混杂（分析、可视化、缓存、并行）。拆分为 `analysis.py`、`plotting.py`、`cache.py`
+- [ ] **配置校验**：`SimConfig.ini` 缺少参数校验，添加 schema 验证和友好错误提示
+
+## Bug 修复
+
+### 图分析
+- [ ] **`BaseGraph::get_adjacent_edges()`**：原 README 标注"目前它有问题"，需修复或移除
+- [ ] **`build_depth_map()` 环检测**：当前仅通过拓扑排序检测环，但未处理自环和平行边
+- [ ] **`CGraph::inter_layer_conn()` 通道交集计算**：当源/目标节点通道范围不连续时，交集计算可能遗漏或重复
+
+### 映射与调度
+- [ ] **`Mapper::bfs_heuristic_mapping()` 边界条件**：当网格已满或依赖节点无可用邻居时，回退策略不明确
+- [ ] **`Scheduler::congestion_aware_routing()` 权重计算**：验证 C-Σ 公式 `Σ₁ⁿ⁻² Dᵢ + 2Dₙ₋₁` 与论文算法 2 的实现一致性
+- [ ] **BCE 归一化**：`init_bce()` 中的 BCE 值按最大值归一化，但最大 BCE 值可能为 0（单路径场景），导致除零
+
+### 模拟器
+- [ ] **`Simulator::run()` 事件丢失**：当事件队列中同时存在信号事件和消息事件时，优先级排序可能错误
+- [ ] **`Process::execute()` 状态机**：FINISHED 状态下重复触发可能导致状态不一致
+- [ ] **`ModuleBase` 信号更新竞态**：拷贝消除策略下，同一时刻多模块写入同一信号变量可能导致数据覆盖
+
+### 集成
+- [ ] **`perf.py` 缓存键冲突**：pickle 缓存文件名基于 `bw` 和 `xbar_size`，但未包含 `SimConfig.ini` 版本和模型名，可能返回过期结果
+- [ ] **Booksim 进程泄漏**：`MappingInfo.py` 的 `booksim_eval()` 使用 `subprocess`，异常退出时可能残留僵尸进程
+
+## 工程化
+
+- [ ] **添加 CI**：GitHub Actions：`build.sh` + `test.sh`，Ubuntu 24.04 环境
+- [ ] **代码格式化**：添加 `.clang-format` 和 Python `black`/`isort` 配置
+- [ ] **测试覆盖**：当前仅 5 个 gtest 测试，需补充 CGraph/TGraph/HGraph/DGraph 单元测试、Mapper/Scheduler 单元测试、模拟器模块单元测试
+- [ ] **内存安全**：将裸指针（`shared_ptr` 的部分使用）统一为智能指针，启用 AddressSanitizer 编译选项
+- [ ] **文档**：C++ 公共 API 添加 Doxygen 注释，Python 添加 docstring

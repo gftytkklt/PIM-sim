@@ -1730,27 +1730,27 @@ if __name__ == "__main__":
     mapping_result, comm_result = perf_analysis(models_dir="models", hwinfo=hw_info)
     logger.info(f"Total Time: {time.time() - begin_time}")
 
-    mp.set_start_method("fork", force=True)
-    # for bw data gen
-    for bw in bw_list:
-        perf_dict = load_noc_perf(bw, xbar_size)
-        if perf_dict is None:
-            logger.warning("Latency dict not found, generate from mapping result...")
-            latency_dict, power_dict = get_noc_perf(
-                mapping_result, bw, xbar_size, save=True
-            )
-        else:
-            logger.info("Latency dict found, use it.")
-            latency_dict, power_dict = perf_dict
+    # mp.set_start_method("fork", force=True)
+    # # for bw data gen
+    # for bw in bw_list:
+    #     perf_dict = load_noc_perf(bw, xbar_size)
+    #     if perf_dict is None:
+    #         logger.warning("Latency dict not found, generate from mapping result...")
+    #         latency_dict, power_dict = get_noc_perf(
+    #             mapping_result, bw, xbar_size, save=True
+    #         )
+    #     else:
+    #         logger.info("Latency dict found, use it.")
+    #         latency_dict, power_dict = perf_dict
 
-        power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
+    #     power_analysis(mapping_result, latency_dict, power_dict, bw, comm_result)
 
-        plot_perf(
-            mapping_result, latency_dict, bw, norm=1, plot_type="latency", ideal=1
-        )
-        plot_perf(
-            mapping_result, latency_dict, bw, norm=1, plot_type="throughput", ideal=1
-        )
+    #     plot_perf(
+    #         mapping_result, latency_dict, bw, norm=1, plot_type="latency", ideal=1
+    #     )
+    #     plot_perf(
+    #         mapping_result, latency_dict, bw, norm=1, plot_type="throughput", ideal=1
+    #     )
     # plot_bw_perf(mapping_result, bw_list, xbar_size)
 
     ## for bw=1 main case data gen
