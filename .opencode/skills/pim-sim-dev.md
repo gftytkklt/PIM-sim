@@ -56,6 +56,36 @@ C++:       Analyzer → CGraph → TGraph → HGraph → DGraph
 - Logger: `PIM_INFO(msg)`, `PIM_WARN(msg)`, `PIM_ERROR(msg)` macros. Output to `runs/cpp_analysis.log`.
 - Errors: `pim::PIMException`, `pim::GraphError`, `pim::MappingError`, `pim::SchedulingError`, `pim::ConfigError`.
 
+## Workflow protocol
+
+**Before executing any task**, assess complexity and suggest the approach:
+
+1. Classify the task using the matrix below
+2. Use the `question` tool to present your recommendation and ask for confirmation
+3. Wait for user to switch mode/model before starting work
+4. If the user says "just do it", proceed with current settings
+
+### Task complexity matrix
+
+| Type | Examples | Thinking | Model | Reason |
+|------|----------|----------|-------|--------|
+| **Trivial** | Fix typo, add comment, update doc | Default | Flash | Single file, no logic change |
+| **Simple** | Rename function, add one test, fix single warning | Default | Flash | Mechanical change, low risk |
+| **Moderate** | Add new class method, refactor one file, fix bug with test | High | Default | Multi-file but bounded scope |
+| **Complex** | Split large file, decouple component, multi-file refactor | High | Default | Architectural change, needs verification |
+| **Heavy** | CRTP removal, strategy pattern refactor, simulator overhaul | Max | Pro | Cross-cutting, affects many files, high risk |
+| **Unknown** | Vague instruction, unfamiliar code area | High | Default | Needs exploration before classification |
+
+### Decision flow
+```
+User instruction
+  → Classify task type using matrix
+  → Suggest: mode + model + brief reasoning
+  → Wait for user confirmation
+  → Execute
+  → Verify with ctest + compare.py
+```
+
 ## Refactoring workflow
 
 When making structural changes to C++ code:
