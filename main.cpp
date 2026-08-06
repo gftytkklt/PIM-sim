@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include "analyzer.h"
+#include "simulator/Process.h"
 
 void print_nn_kernel(const NNkernel& kernel, std::ofstream& outFile) {
     outFile << "{" << kernel.layer << ", ";
@@ -218,4 +219,29 @@ PYBIND11_MODULE(pimapping, m) {
         py::arg("info") = HWInfo{{1152, 256}, 2, {3, 3}, 1},
         py::arg("opt") = OptInfo{true, true},
         "Analyze data and return a result");
+
+    // Simulator bindings
+    py::enum_<ProcessEvent::State>(m, "ProcessState")
+        .value("IDLE", ProcessEvent::State::IDLE)
+        .value("TRIGGERED", ProcessEvent::State::TRIGGERED)
+        .value("EXECUTING", ProcessEvent::State::EXECUTING)
+        .value("FINISHED", ProcessEvent::State::FINISHED)
+        .value("ENDED", ProcessEvent::State::ENDED)
+        .export_values();
+
+    py::class_<ProcessEvent, std::shared_ptr<ProcessEvent>>(m, "ProcessEvent")
+        .def(py::init<const std::string&, uint64_t>())
+        .def("get_process_type", &ProcessEvent::get_process_type)
+        .def("get_instance_id", &ProcessEvent::get_instance_id)
+        .def("get_state", &ProcessEvent::get_state)
+        .def("get_trigger_time", &ProcessEvent::get_trigger_time)
+        .def("get_exec_time", &ProcessEvent::get_exec_time)
+        .def("get_finish_time", &ProcessEvent::get_finish_time)
+        .def("get_end_time", &ProcessEvent::get_end_time)
+        .def("is_idle", &ProcessEvent::is_idle)
+        .def("is_triggered", &ProcessEvent::is_triggered)
+        .def("is_executing", &ProcessEvent::is_executing)
+        .def("is_finished", &ProcessEvent::is_finished)
+        .def("is_ended", &ProcessEvent::is_ended)
+        .def("get_timing_stats", &ProcessEvent::get_timing_stats);
 }

@@ -35,9 +35,9 @@
 - [ ] **反压机制建模**：实现数据生产者的阻塞/释放逻辑，以及通信网络缓存满时的反压传播
 
 ### Python 集成
-- [ ] **pybind11 绑定扩展**：导出 Simulator 相关类（`Process`、`ModuleBase`、`Simulator`），支持 Python 侧构造和运行模拟
+- [x] **pybind11 绑定扩展**：导出 ProcessEvent 和 ProcessState 枚举，支持 Python 侧创建和检查模拟事件
 - [x] **`perf.py` 重构**：从 1778 行拆分为 `analysis.py`（分析函数）+ `plotting.py`（可视化）+ `perf.py`（入口，35 行）
-- [ ] **配置校验**：`SimConfig.ini` 缺少参数校验，添加 schema 验证和友好错误提示
+- [x] **配置校验**：`config_validator.py` 提供 schema 验证和友好错误提示
 
 ## Bug 修复
 
