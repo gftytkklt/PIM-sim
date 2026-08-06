@@ -53,8 +53,15 @@ C++ (libPIMapping) │  Analyzer → Graph hierarchy:        │
 | `MappingInfo.py` | Tile latency, Booksim invocation, bandwidth modeling |
 | `include/graph.h` | Core graph class definitions (CGraph, TGraph, HGraph, DGraph) |
 | `include/analyzer.h` | Top-level Analyzer orchestrating the pipeline |
-| `include/mapper.h` | Physical tile mapping |
-| `include/scheduler.h` | Path scheduling + congestion |
+| `include/mapper.h` | Physical tile mapping (shared_ptr injectable) |
+| `include/scheduler.h` | Path scheduling + congestion (shared_ptr injectable) |
+| `include/logger.h` | C++ structured logging (PIM_INFO/PIM_WARN/PIM_ERROR) |
+| `include/errors.h` | Exception hierarchy (PIMException/GraphError/...) |
+| `src/cgraph.cpp` | CGraph: C-VDFG (crossbar-level) implementation |
+| `src/tgraph.cpp` | TGraph: T-VDFG (tile-level) with 5 create_tnodes_* strategies |
+| `src/hgraph.cpp` | HGraph: HCG (hardware connection graph) with zigzag/greedy/SPATEM |
+| `src/dgraph.cpp` | DGraph: DHCG (dynamic) with BCE/XY routing |
+| `src/graph_io.cpp` | operator<< overloads for graph node/edge types |
 
 ## Conventions & gotchas
 

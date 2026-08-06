@@ -5,16 +5,16 @@
 ## 重构
 
 ### 代码组织
-- [ ] **拆分 graph.cpp（~1400 行）**：按图层次分离为 `cgraph.cpp`、`tgraph.cpp`、`hgraph.cpp`、`dgraph.cpp`，保留 `graph.h` 作为统一头文件
+- [x] **拆分 graph.cpp（~1400 行）**：按图层次分离为 `cgraph.cpp`、`tgraph.cpp`、`hgraph.cpp`、`dgraph.cpp`、`graph_io.cpp`，保留 `graph.h` 作为统一头文件
 - [ ] **策略模式重构**：当前策略逻辑分散在 `StrategyBase.h/cpp` 和 `graph.cpp` 的 `create_tnodes_*` 等函数中。将各策略的具体实现收敛到 `strategy/` 目录下的独立文件
-- [ ] **Mapper 解耦**：将 `Mapper` 从 `HGraph` 中解耦为独立组件，支持不同映射策略的插件化替换
-- [ ] **Scheduler 解耦**：将 `Scheduler` 从 `DGraph` 中解耦，支持 XY 路由、BCE 路由、自定义路由的插件化
-- [ ] **`.gitignore` 标准化**：从白名单模式改为黑名单模式，移除对 `libmain.so` 和 `pimapping` 的例外
-- [ ] **CMake 优化**：统一 `include_directories`、添加 `CMAKE_CXX_FLAGS` 警告选项、区分 Debug/Release 构建
+- [x] **Mapper 解耦**：将 `Mapper` 从 `HGraph` 中解耦为 `shared_ptr` 注入依赖，支持不同映射策略的插件化替换
+- [x] **Scheduler 解耦**：将 `Scheduler` 从 `DGraph` 中解耦为 `shared_ptr` 注入依赖，支持 XY 路由、BCE 路由、自定义路由的插件化
+- [x] **`.gitignore` 标准化**：保留白名单模式，仅追踪代码框架文件，移除 `libmain.so` 跟踪
+- [x] **CMake 优化**：添加 `-Wall -Wextra -Wpedantic` 警告选项、区分 Debug/Release 构建、消除 CMP0148 警告
 
 ### 接口规范
-- [ ] **统一错误处理**：C++ 代码中大量使用裸指针和容器访问，缺少边界检查。添加统一的异常处理和错误返回机制
-- [ ] **日志系统**：C++ 侧添加结构化日志（当前仅 Python 侧有 logger.py）
+- [x] **统一错误处理**：添加 `errors.h` 统一异常层次（PIMException/GraphError/MappingError/SchedulingError/ConfigError）
+- [x] **日志系统**：C++ 侧添加结构化日志（`logger.h`，PIM_INFO/PIM_WARN/PIM_ERROR 宏），输出到 `runs/cpp_analysis.log`
 - [ ] **命名规范**：统一中英文混合命名（如 `booksim_eval` vs `latency_est`），统一 C++ 命名风格（部分函数使用 snake_case，部分使用 camelCase）
 
 ## 功能完善
