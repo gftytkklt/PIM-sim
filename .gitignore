@@ -1,24 +1,56 @@
-*
-*.*
-!*/
-!*.cpp
-!*.hpp
-!*.h
-!.gitignore
-!*.sh
-!*.py
-!CMakeLists.txt
-/refcode
-/result for paper
-/build
-/booksim2
-!libmain.so
-/.idea
-!booksim
-!booksim_cfg
-!SimConfig.ini
-!techfile.txt
-/logs
-/pimapping
-/runs
-/results
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.out
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pkl
+
+# Virtual environment
+pimapping/
+
+# Stale artifacts
+libmain.so
+
+# Output directories
+runs/
+results/
+logs/
+refcode/
+result for paper/
+booksim2/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Generated plots and archives
+*.pdf
+*.png
+*.zip
+
+# VS Code
+.VSCodeCounter/
+
+# Old results and baseline
+baseline/
+result5/
+results4/
+booksim_cfg_stat
+inj_rate.txt
+
+# Generated test data (scripts are tracked, output is not)
+result_develop/current/
+result_develop/logs/
+
+# OS files
+.DS_Store
+Thumbs.db
