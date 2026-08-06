@@ -1,11 +1,14 @@
 #include "analyzer.h"
 #include <iostream>
+#include "logger.h"
+#include <filesystem>
+#include <fstream>
 
 static OptType gen_opt_type_from_optinfo(const OptInfo& opt, const bool tile2_0_flag) {
-    OptType opt_type; // default optimization type
+    OptType opt_type;
     if (tile2_0_flag) {
         opt_type = OptType::TILE2_0;
-        std::cout << "Tile 2.0 optimization enabled, overriding other optimization flags." << std::endl;
+        PIM_INFO("Tile 2.0 optimization enabled, overriding other optimization flags.");
         return opt_type;
     }
     if(opt.mapping_opt && opt.sched_opt){
@@ -20,11 +23,20 @@ static OptType gen_opt_type_from_optinfo(const OptInfo& opt, const bool tile2_0_
     else{
         opt_type = OptType::MNSIM;
     }
-    std::cout << "Opt type: " << opt_type_to_string(opt_type) << std::endl;
+    PIM_INFO("Opt type: " << opt_type_to_string(opt_type));
     return opt_type;
 }
 
+static void init_logger() {
+    static bool initialized = false;
+    if (initialized) return;
+    initialized = true;
+    std::filesystem::create_directories("runs");
+    pim::Logger::instance().set_log_file("runs/cpp_analysis.log");
+}
+
 Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt, bool tile2_0_flag) {
+    init_logger();
     opt_type = gen_opt_type_from_optinfo(opt, tile2_0_flag);
 
     auto cg_strategy = createStrategy<CGraph>(opt_type);
@@ -35,7 +47,7 @@ Analyzer::Analyzer(const std::vector<NNkernel> kernels, HWInfo info, OptInfo opt
         throw std::runtime_error("Failed to create strategy for one of the graphs.");
     }
     if(tile2_0_flag){
-        std::cout << "Using tile2.0 optimization for CGraph." << std::endl;
+        PIM_INFO("Using tile2.0 optimization for CGraph.");
     }
     int cnode_capacity = info.xbar_num * info.tile_size.first * info.tile_size.second;
     int tile_num = tile2_0_flag ? info.tile_size.first * info.tile_size.second : 0;

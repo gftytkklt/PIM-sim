@@ -1,24 +1,67 @@
+# PIM-sim: 仅追踪代码框架文件
+# 默认忽略所有文件，仅放行特定类型
+# 新增文件类型需在此添加 ! 规则
+
+# 1. 默认忽略所有
 *
-*.*
+
+# 2. 允许目录遍历
 !*/
+
+# 3. 源代码
 !*.cpp
-!*.hpp
 !*.h
-!.gitignore
-!*.sh
+!*.hpp
 !*.py
+!*.sh
+
+# 4. 构建系统
 !CMakeLists.txt
-/refcode
-/result for paper
-/build
-/booksim2
-!libmain.so
-/.idea
-!booksim
-!booksim_cfg
-!SimConfig.ini
+
+# 5. 文档
+!*.md
+!*.rst
+
+# 6. 配置文件
+!*.ini
+!*.cfg
+!*.json
+!*.yaml
+!*.yml
+
+# 7. 特定无扩展名文件
+!booksim          # NoC 仿真器
+!booksim_cfg      # Booksim 配置模板
+!.clang-format    # 代码格式化配置
+
+# 8. 特定文本文件
 !techfile.txt
-/logs
-/pimapping
-/runs
-/results
+!requirements.txt
+
+# 9. 元数据
+!.gitignore
+!.gitattributes
+
+# 10. 显式忽略目录
+/build/
+/booksim2/
+/logs/
+/pimapping/
+/refcode/
+/result for paper/
+/runs/
+/results/
+/result_develop/reference/
+/result_develop/current/
+/result_develop/logs/
+/result4/
+/result5/
+/baseline/
+/.idea/
+/.vscode/
+/.VSCodeCounter/
+/__pycache__/
+
+# 11. 显式忽略生成文件
+inj_rate.txt
+libmain.so

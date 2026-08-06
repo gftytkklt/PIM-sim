@@ -3,14 +3,15 @@
 #include <iostream>
 #include <fstream>
 #include "analyzer.h"
+#include "simulator/Process.h"
 
-void printNNkernel(const NNkernel& kernel, std::ofstream& outFile) {
+void print_nn_kernel(const NNkernel& kernel, std::ofstream& outFile) {
     outFile << "{" << kernel.layer << ", ";
     outFile << "{" << kernel.wsize.first << "," << kernel.wsize.second << "}, ";
     outFile << "{" << kernel.channel.first << "," << kernel.channel.second << "}, ";
-    outFile << "std::vector<Depinfo>{ ";
+    outFile << "std::vector<DepInfo>{ ";
     for (size_t i = 0; i < kernel.depinfo.size(); ++i) {
-        const Depinfo& info = kernel.depinfo[i];
+        const DepInfo& info = kernel.depinfo[i];
         outFile << "{ " << info.dep_layer << ", ";
         outFile << "std::make_pair(" << info.dep_chan.first << "," << info.dep_chan.second << ") ";
         outFile << "}";
@@ -31,7 +32,7 @@ void check_data(const std::vector<NNkernel>& kernels) {
     //     std::cout << "Channel: (" << d.channel.first << ", " << d.channel.second << ")" << std::endl;
     //     std::cout << "  - Ifmap Size: (" << d.ifmap_size.first << ", " << d.ifmap_size.second << ")" << std::endl;
     //     std::cout << "  - Ofmap Size: (" << d.ofmap_size.first << ", " << d.ofmap_size.second << ")" << std::endl;
-    //     std::cout << "Depinfo: " << std::endl;
+    //     std::cout << "DepInfo: " << std::endl;
     //     for (auto& di : d.depinfo) {
     //         std::cout << "  - Dep Layer: " << di.dep_layer << ", Dep Channel: (" << di.dep_chan.first << ", " << di.dep_chan.second << ")" << std::endl;
     //     }
@@ -41,7 +42,7 @@ void check_data(const std::vector<NNkernel>& kernels) {
     //检查算子顺序是否违背数据依赖关系
     for (const auto& kernel : kernels) {
         for (const auto& dep : kernel.depinfo) {
-            if (dep.dep_layer < kernel.layer & dep.dep_layer >= 0 ){
+            if ((dep.dep_layer < kernel.layer) & (dep.dep_layer >= 0) ){
                 std::cout << "Error: Layer " << dep.dep_layer << " depends on layer " << kernel.layer << ", but " << kernel.layer << " comes after " << dep.dep_layer << std::endl;
             }
         }
@@ -50,7 +51,7 @@ void check_data(const std::vector<NNkernel>& kernels) {
     std::ofstream outFile("kernels.txt");  // 文件名可以根据需求修改
     if (outFile.is_open()) {
         for (const auto& kernel : kernels) {
-            printNNkernel(kernel, outFile);
+            print_nn_kernel(kernel, outFile);
         }
         outFile.close();
         std::cout << "kernel信息已写入到kernels.txt供查看" << std::endl;
@@ -135,19 +136,19 @@ auto analyze(const std::vector<NNkernel>& kernels, const HWInfo& info = {{1152, 
 
 int main() {
     std::vector<NNkernel> kernels = { 
-    {0, {3,3}, {256,384}, std::vector<Depinfo>{{1,std::make_pair(1,384)}},{8, 8},{4, 4}}, 
-    {1, {3,3}, {384,384}, std::vector<Depinfo>{{2,std::make_pair(1,384)}},{4, 4},{2, 2}},
-    {2, {3,3}, {384,256}, std::vector<Depinfo>{{-1,std::make_pair(0,0)}},{2, 2},{1, 1}} 
+    {0, {3,3}, {256,384}, std::vector<DepInfo>{{1,std::make_pair(1,384)}},{8, 8},{4, 4}}, 
+    {1, {3,3}, {384,384}, std::vector<DepInfo>{{2,std::make_pair(1,384)}},{4, 4},{2, 2}},
+    {2, {3,3}, {384,256}, std::vector<DepInfo>{{-1,std::make_pair(0,0)}},{2, 2},{1, 1}} 
     };
     return test(kernels);
 }
 
 namespace py = pybind11;
 PYBIND11_MODULE(pimapping, m) {
-    py::class_<Depinfo>(m, "Depinfo")
+    py::class_<DepInfo>(m, "DepInfo")
        .def(py::init<>())
-       .def_readwrite("dep_layer", &Depinfo::dep_layer)
-       .def_readwrite("dep_chan", &Depinfo::dep_chan);
+       .def_readwrite("dep_layer", &DepInfo::dep_layer)
+       .def_readwrite("dep_chan", &DepInfo::dep_chan);
 
     py::class_<NNkernel>(m, "NNkernel")
        .def(py::init<>())
@@ -218,4 +219,29 @@ PYBIND11_MODULE(pimapping, m) {
         py::arg("info") = HWInfo{{1152, 256}, 2, {3, 3}, 1},
         py::arg("opt") = OptInfo{true, true},
         "Analyze data and return a result");
+
+    // Simulator bindings
+    py::enum_<ProcessEvent::State>(m, "ProcessState")
+        .value("IDLE", ProcessEvent::State::IDLE)
+        .value("TRIGGERED", ProcessEvent::State::TRIGGERED)
+        .value("EXECUTING", ProcessEvent::State::EXECUTING)
+        .value("FINISHED", ProcessEvent::State::FINISHED)
+        .value("ENDED", ProcessEvent::State::ENDED)
+        .export_values();
+
+    py::class_<ProcessEvent, std::shared_ptr<ProcessEvent>>(m, "ProcessEvent")
+        .def(py::init<const std::string&, uint64_t>())
+        .def("get_process_type", &ProcessEvent::get_process_type)
+        .def("get_instance_id", &ProcessEvent::get_instance_id)
+        .def("get_state", &ProcessEvent::get_state)
+        .def("get_trigger_time", &ProcessEvent::get_trigger_time)
+        .def("get_exec_time", &ProcessEvent::get_exec_time)
+        .def("get_finish_time", &ProcessEvent::get_finish_time)
+        .def("get_end_time", &ProcessEvent::get_end_time)
+        .def("is_idle", &ProcessEvent::is_idle)
+        .def("is_triggered", &ProcessEvent::is_triggered)
+        .def("is_executing", &ProcessEvent::is_executing)
+        .def("is_finished", &ProcessEvent::is_finished)
+        .def("is_ended", &ProcessEvent::is_ended)
+        .def("get_timing_stats", &ProcessEvent::get_timing_stats);
 }

@@ -15,7 +15,7 @@ struct LogicalXbar{
     int finish_task_counter;
 };
 
-class Crossbar : public ModuleBase<Crossbar> {
+class Crossbar : public ModuleBase {
 public:
     Crossbar(const std::string& id);
     // add and init signal

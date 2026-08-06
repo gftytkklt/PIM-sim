@@ -6,6 +6,7 @@
 #include <vector>
 #include <any>
 #include <memory>
+#include <optional>
 #include <iostream>
 #include "ISimulatable.h"
 #include "Process.h"
@@ -61,12 +62,11 @@ struct ConnectionKeyEqual {
 };
 
 /**
- * 模块基类模板
- * 实现ISimulatable接口，同时保持具体模块类型的类型安全
+ * 模块基类
+ * 实现ISimulatable接口
  */
-template <typename DerivedModule>
 class ModuleBase : public ISimulatable, 
-                   public std::enable_shared_from_this<DerivedModule> {
+                   public std::enable_shared_from_this<ISimulatable> {
 protected:
     std::string id_;
     int topological_depth_{0};
@@ -167,7 +167,7 @@ public:
     }
     
     std::type_index get_module_type() const override { 
-        return typeid(DerivedModule); 
+        return typeid(*this); 
     }
     
     int get_topological_depth() const override { 
@@ -188,6 +188,14 @@ public:
             return it->second.value;
         }
         return {};
+    }
+
+    template<typename T>
+    std::optional<T> get_signal_as(const std::string& name) const {
+        auto it = signals_.find(name);
+        if (it == signals_.end() || !it->second.valid) return std::nullopt;
+        const auto* ptr = std::any_cast<T>(&it->second.value);
+        return ptr ? std::optional<T>(*ptr) : std::nullopt;
     }
 
     void clear_signal(const std::string& name) {
@@ -217,7 +225,7 @@ public:
             if (schedule_signal_update_callback_) {
                 schedule_signal_update_callback_(
                     valid_cycle, 
-                    std::weak_ptr<ISimulatable>(this->shared_from_this()),
+                    shared_from_this(),
                     name, 
                     value
                 );
@@ -299,11 +307,7 @@ public:
     
     void get_performance_stats(std::unordered_map<std::string, uint64_t>& stats) const override {
         stats = performance_stats_;
-        
-        // 添加模块特定统计
-        auto derived = static_cast<const DerivedModule*>(this);
-        // auto module_stats = derived->get_module_specific_stats();
-        auto module_stats = derived->get_process_stats();
+        auto module_stats = get_process_stats();
         stats.insert(module_stats.begin(), module_stats.end());
     }
 
@@ -356,8 +360,8 @@ protected:
     }
 
     // 派生类可访问的进程管理器
-    ProcessManager* get_process_manager() { return process_manager_.get(); }
-    const ProcessManager* get_process_manager() const { return process_manager_.get(); }
+    ProcessManager& get_process_manager() { return *process_manager_; }
+    const ProcessManager& get_process_manager() const { return *process_manager_; }
     // 具体模块需要实现的接口
     virtual void register_processes() = 0; // 由派生类实现，注册自己的进程类型和条件函数
     virtual void register_message_handlers() = 0; // 由派生类实现，注册自己的消息处理函数

@@ -263,7 +263,7 @@ def convert_to_cpp(conv_info_list):
         
         depinfo_list = []
         for dep in conv_info.depinfo:
-            depinfo = pimapping.Depinfo()
+            depinfo = pimapping.DepInfo()
             depinfo.dep_layer = dep.dep_layer
             depinfo.dep_chan = dep.dep_chan
             depinfo_list.append(depinfo)

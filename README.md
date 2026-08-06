@@ -97,11 +97,13 @@ PIMapping 的工作流分为三个阶段：**递进式部署表示生成** → *
 ├── include/                      # C++ 头文件
 │   ├── graph.h                   # 数据流图类层次（CGraph / TGraph / HGraph / DGraph）
 │   ├── analyzer.h                # 顶层 Analyzer（编排完整分析流水线）
-│   ├── mapper.h                  # 物理 tile 映射（2D 网格上的 BFS/zigzag 放置）
-│   ├── scheduler.h               # 拥塞感知路径调度（BCE + Dijkstra 路由）
+│   ├── mapper.h                  # 物理 tile 映射（shared_ptr 注入，支持插件化替换）
+│   ├── scheduler.h               # 拥塞感知路径调度（shared_ptr 注入，BCE + Dijkstra）
 │   ├── util.h                    # 辅助函数与通用类型（Path, OptType 等）
-│   ├── strategy/                 # 策略模式
-│   │   └── StrategyBase.h        # 策略基类 + 各策略具体实现（PIMAPPING/SPATEM/HITM/MNSIM/TILE2_0）
+│   ├── logger.h                  # C++ 结构化日志（PIM_INFO/PIM_WARN/PIM_ERROR）
+│   ├── errors.h                  # 统一异常层次（PIMException/GraphError 等）
+│   ├── strategy/                 # 策略模式（按图层次组织）
+│   │   └── StrategyBase.h        # 基类 + 工厂函数 + 类型别名
 │   └── simulator/                # Cycle-accurate 仿真器
 │       ├── ISimulatable.h        # 模块接口
 │       ├── Process.h             # 进程状态机（IDLE → TRIGGERED → EXECUTING → FINISHED）
@@ -117,27 +119,45 @@ PIMapping 的工作流分为三个阶段：**递进式部署表示生成** → *
 │           ├── multicore.h       # 多核仿真器
 │           └── tiling.h          # 动态 banking tiling 仿真器
 │
-├── src/                          # C++ 源文件（与 include/ 一一对应）
-│   ├── CMakeLists.txt            # 编译静态库 libPIMapping.a
-│   ├── graph.cpp                 # 数据流图实现（~1400 行）
-│   ├── analyzer.cpp              # 分析编排
-│   ├── mapper.cpp                # 物理映射算法
-│   ├── scheduler.cpp             # 拥塞感知路由
-│   ├── util.cpp                  # 辅助函数
+├── src/                          # C++ 源文件（按图层次拆分）
+│   ├── CMakeLists.txt            # 编译静态库 libPIMapping.a（GLOB_RECURSE 自动发现）
+│   ├── cgraph.cpp                # CGraph: C-VDFG（crossbar 级）实现
+│   ├── tgraph.cpp                # TGraph: T-VDFG（tile 级）+ 5 种 create_tnodes_* 策略
+│   ├── hgraph.cpp                # HGraph: HCG（硬件连接图）zigzag/greedy/SPATEM 映射
+│   ├── dgraph.cpp                # DGraph: DHCG（动态调度）BCE/XY 路由
+│   ├── graph_io.cpp              # operator<< 重载（CNode/CEdge/TNode/TEdge/HNode/HEdge/DNode）
+│   ├── analyzer.cpp              # 分析编排 + 日志初始化
+│   ├── mapper.cpp                # 物理映射算法（BFS/zigzag/SPATEM）
+│   ├── scheduler.cpp             # 拥塞感知路由（BCE + Dijkstra + XY）
+│   ├── util.cpp                  # 辅助函数（距离/中位数/路径/组合）
 │   ├── strategy/
-│   │   └── StrategyBase.cpp      # 五种策略的具体实现
+│   │   ├── CStrategy.cpp         # CGraph 策略（Default/MNSIM/TILE2_0）
+│   │   ├── TStrategy.cpp         # TGraph 策略（MNSIM/PIMAPPING/SPATEM/TILE2_0）
+│   │   ├── HStrategy.cpp         # HGraph 策略（MNSIM/PIMAPPING/SPATEM）
+│   │   └── DStrategy.cpp         # DGraph 策略（Default/PIMAPPING/TILE2_0）
 │   └── simulator/
 │       ├── Process.cpp           # 进程状态机
 │       ├── Simulator.cpp         # 仿真引擎
-│       └── tile2_0/              # Tile 2.0 各模块实现
+│       └── tile2_0/              # Tile 2.0 各模块实现 + 工厂函数
+│           └── core_factory.h    # create_core_modules() 核心模块工厂
 │
-├── test/                         # Google Test 测试
+├── test/                         # Google Test 测试（8 个文件，25+ 用例）
 │   ├── CMakeLists.txt            # 每个 .cpp 自动生成一个测试可执行文件
-│   ├── mappingalexnet.cpp        # Analyzer 全流程测试（AlexNet 风格 kernel）
-│   ├── bankingtest.cpp           # BankingSimulator 测试（XY/XY/自定义策略）
+│   ├── process_test.cpp          # ProcessEvent/ProcessManager 单元测试
+│   ├── modulebase_test.cpp       # ModuleBase 信号管理单元测试
+│   ├── config_test.cpp           # hw_config constexpr 一致性测试
+│   ├── mappingalexnet.cpp        # Analyzer 全流程测试
+│   ├── bankingtest.cpp           # BankingSimulator 测试
 │   ├── multicoretest.cpp         # MulticoreSimulator 多核并行测试
 │   ├── oputiletest.cpp           # OPU 单 tile 全流水线测试
 │   └── tilingtest.cpp            # TilingSimulator 动态策略测试
+│
+├── result_develop/               # 回归测试基础设施
+│   ├── scripts/
+│   │   ├── collect_reference.py  # 收集参考基线数据
+│   │   ├── compare.py            # 比对当前结果与参考基线
+│   │   └── regression_test.sh    # 一键构建 + 测试
+│   └── reference/                # 参考基线数据（生成，不跟踪）
 │
 ├── MNSIM/                        # MNSIM Python 硬件建模库
 │   ├── Hardware_Model/           # 硬件组件模型（Crossbar, PE, Tile, ADC, DAC 等）
@@ -154,8 +174,9 @@ PIMapping 的工作流分为三个阶段：**递进式部署表示生成** → *
 │   ├── model.py                  # FSRCNN 模型
 │   └── mc_cnn_fast.py            # FastMcCnn 模型（默认转换示例）
 │
-├── models/                       # ONNX 模型文件（.onnx）
-├── runs/                         # 运行时日志（生成）
+├── models/                       # ONNX 模型文件（.onnx，不跟踪）
+├── demo/                         # 快速测试用 ONNX 模型（.onnx，不跟踪）
+├── runs/                         # 运行时日志（生成：cpp_analysis.log, perf.log）
 ├── results/                      # 输出结果 .pkl / .csv / .pdf（生成）
 │
 ├── main.cpp                      # pybind11 模块入口（导出 pimapping 模块）
@@ -189,11 +210,14 @@ source env.sh
 ### 2. 编译并测试
 
 ```bash
+./build.sh                 # 编译（force clean）
 ./test.sh                  # 编译 + 运行全部回归测试
 ./test.sh mappingalexnet   # 编译 + 运行指定测试
-```
 
-测试可执行文件与 `test/` 目录下的 `.cpp` 文件名一一对应。
+# 启用 AddressSanitizer
+cmake -S . -B build -DENABLE_ASAN=ON
+make -C build -j$(nproc)
+```
 
 ### 3. 执行性能分析
 
@@ -201,7 +225,30 @@ source env.sh
 python3 perf.py
 ```
 
-该脚本将自动完成：ONNX 模型加载 → 算子映射 → Tile 分配 → 通信路径生成 → Booksim NoC 仿真 → 延迟/吞吐量/功耗计算 → 结果可视化。首次运行耗时较长（Booksim 仿真），后续运行将复用 pickle 缓存。
+### 4. 回归测试
+
+```bash
+# 简易回归（demo 模型）
+python3 result_develop/scripts/compare.py
+
+# 全量回归（所有模型）
+python3 result_develop/scripts/compare.py --full
+
+# 一键构建 + 测试
+bash result_develop/scripts/regression_test.sh
+```
+
+### 5. 代码格式化
+
+```bash
+clang-format -i src/*.cpp include/*.h
+```
+
+### 6. 配置校验
+
+```bash
+python3 config_validator.py [SimConfig.ini]
+```
 
 ## 核心组件
 
@@ -245,17 +292,26 @@ PIMapping 将映射优化（mapping_opt）和调度优化（sched_opt）解耦�
 
 ### 物理映射器（Mapper）
 
-实现 Algorithm 1 的物理映射流程：
+实现 Algorithm 1 的物理映射流程，通过策略模式注入不同映射算法：
 
-- `create_cnodes()`：算子按 WL/BL 维度拆分，生成 C-VDFG 节点
-- `create_tnodes_PIMAPPING()`：基于 Intensity Map 最大堆的聚类算法，优先合并数据依赖紧密的 C-Node
-- `greedy_mapping()`：基于数据邻近性的 BFS 贪心放置，依赖节点就近映射
-- `zigzag_mapping()`：蛇形顺序放置（MNSIM/SPATEM 基线）
+- `CStrategyDefault::analysis()`：调用 `create_dup_num()` 进行吞吐量均衡复制
+- `TStrategyPIMAPPING::analysis()`：调用 `create_tnodes_PIMAPPING()` 基于 Intensity Map 最大堆聚类
+- `HStrategyPIMAPPING::analysis()`：调用 `greedy_mapping()` 基于 BFS 贪心放置
+- `HStrategyMNSIM::analysis()`：调用 `zigzag_mapping()` 蛇形顺序放置（基线）
+- `HStrategySPATEM::analysis()`：调用 `SPATEM_mapping()` OU 级放置
+
+Mapper 通过 `shared_ptr<Mapper>` 注入到 `HGraph`，支持运行时替换映射策略。
 
 ### 路径调度器（Scheduler）
 
-实现 Algorithm 2 的拥塞感知调度流程：
+实现 Algorithm 2 的拥塞感知调度流程，通过策略模式注入不同路由算法：
 
+- `DStrategyPIMAPPING::analysis()`：调用 `bce_routing()` 拥塞感知 BCE 路由
+- `DStrategyDefault::analysis()`：调用 `xy_routing()` 简单 XY 路由（基线）
+
+Scheduler 通过 `shared_ptr<Scheduler>` 注入到 `DGraph`，支持运行时替换路由策略。
+
+核心算法：
 - `init_bce()`：对 2D Mesh 图计算 Brandes 边介数中心性（BCE），识别关键通信资源
 - `congestion_aware_routing()`：路径按曼哈顿距离升序、数据量降序排列，使用加权 Dijkstra 寻路。权重 w(e) = C-Σ(e) × BCE(e)，平衡拥塞降低与热点避免
 - `xy_routing()`：简单 XY 路由（基线）
@@ -292,6 +348,23 @@ PIMapping 将映射优化（mapping_opt）和调度优化（sched_opt）解耦�
 
 基于 OPU-Tile2.0 真实芯片架构建模，包含 Crossbar（存算阵列计算+切换）、SIMD（量化→激活→池化流水线）、L1C（多 bank SRAM 缓存）、TaskScheduler（任务调度与数据搬运）四大模块，以及 BankingSimulator（内存 banking）、MulticoreSimulator（多核并行）、TilingSimulator（动态 tiling）等上层封装。
 
+模块通过 `core_factory.h` 中的 `create_core_modules()` 工厂函数统一创建和连接，减少重复代码。`ModuleBase` 为非模板类，继承自 `ISimulatable`，提供信号管理、进程管理、`get_signal_as<T>()` 安全类型访问等基础设施。
+
+#### 仿真器测试
+
+8 个 gtest 测试文件（25+ 用例）：
+
+| 测试 | 覆盖 |
+|------|------|
+| `process_test.cpp` | ProcessEvent 生命周期/状态转换/计时统计；ProcessManager 注册/驱动/清理/统计 |
+| `modulebase_test.cpp` | ModuleBase 信号增删改查、`get_signal_as<T>` 类型安全 |
+| `config_test.cpp` | `hw_config` 命名空间 constexpr 值与宏定义一致性 |
+| `mappingalexnet.cpp` | Analyzer 全流程测试（AlexNet 风格 kernel） |
+| `bankingtest.cpp` | BankingSimulator 测试（XY/YX/Custom 策略） |
+| `multicoretest.cpp` | MulticoreSimulator 多核并行测试 |
+| `oputiletest.cpp` | OPU 单 tile 全流水线测试 |
+| `tilingtest.cpp` | TilingSimulator 动态策略测试 |
+
 ## Python 集成
 
 ### pimapping 模块（pybind11）
@@ -308,16 +381,21 @@ result, comm_info = pimapping.analyze(kernels, hw_info, opt_info)
 pimapping.test()
 ```
 
-导出的数据结构：`NNkernel`, `Depinfo`, `HWInfo`, `OptInfo`, `AnalysisResult`, `DeployInfo`, `CommInfo`, `CommSeg`, `Path`, `CNode`。
+导出的数据结构：`NNkernel`, `DepInfo`, `HWInfo`, `OptInfo`, `AnalysisResult`, `DeployInfo`, `CommInfo`, `CommSeg`, `Path`, `CNode`。
+
+导出的模拟器类型：`ProcessEvent`（事件生命周期和性能统计）、`ProcessState`（IDLE/TRIGGERED/EXECUTING/FINISHED/ENDED 枚举）。
 
 ### 主要 Python 脚本
 
 | 脚本 | 功能 |
 |------|------|
-| `perf.py` | 主性能分析流水线（1778 行）：模型遍历、四种策略对比、Booksim 评估、延迟/吞吐量/功耗/通信开销可视化 |
-| `onnx_analysis.py` | ONNX 模型解析：加载模型 → 合并非 MVM 算子 → 形状推断 → 提取 Conv/Gemm 信息 → 转换为 NNkernel 数组 |
-| `MappingInfo.py` | 延迟估算集成：MNSIM tile 级计算延迟 + Booksim NoC 通信延迟 + 带宽建模 |
+| `perf.py` | 入口模块（35 行），re-export 分析/绘图函数 |
+| `analysis.py` | 性能分析函数（perf_analysis, get_noc_perf, power_analysis 等） |
+| `plotting.py` | 可视化函数（延迟/吞吐量/功耗/带宽图表） |
+| `onnx_analysis.py` | ONNX 模型解析 → NNkernel 提取 |
+| `MappingInfo.py` | 延迟估算集成（MNSIM tile 级计算延迟 + Booksim NoC 通信延迟） |
 | `torch2onnx.py` | PyTorch → ONNX 转换工具 |
+| `config_validator.py` | SimConfig.ini schema 验证（30+ 参数的类型/范围/必填检查） |
 | `logger.py` | 彩色日志工具（输出到 `runs/perf.log`） |
 
 ## 硬件配置
@@ -337,7 +415,8 @@ pimapping.test()
 
 - 所有命令需在项目根目录下执行（脚本使用相对路径）
 - `build.sh` 每次执行会**强制清理** `build/` 目录
-- `.gitignore` 为白名单模式：默认忽略所有文件，仅纳入 `.cpp/.h/.hpp/.sh/.py/CMakeLists.txt` 等指定类型。添加新文件类型需更新 `.gitignore`
-- 根目录下的 `libmain.so` 为旧版构建产物，当前构建产物为 `pimapping.<python_ext>.so`
-- 本项目无 CI / lint / 格式化配置
+- `.gitignore` 为白名单模式：默认忽略所有文件，仅追踪 `.cpp`/`.h`/`.py`/`.sh`/`CMakeLists.txt`/`.md`/`.ini`/`.cfg` 等代码文件。添加新文件类型需更新 `.gitignore`
+- 编译启用 `-Wall -Wextra -Wpedantic` 警告，构建类型默认 `Release`（支持 `-DCMAKE_BUILD_TYPE=Debug`）
+- C++ 日志输出到 `runs/cpp_analysis.log`（Python 日志输出到 `runs/perf.log`）
 - 测试可执行文件需链接 `pthread`（已在 `test/CMakeLists.txt` 中配置）
+- Python 模块 `pimapping` 必须可导入 — 构建产物 `.so` 需在项目根目录或 `PYTHONPATH` 中

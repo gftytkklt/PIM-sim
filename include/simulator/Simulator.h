@@ -50,37 +50,17 @@ private:
     
     EventQueue signal_event_queue_;
     
-    // 连接管理映射：源模块信号 -> 目标模块信号列表
-    struct ConnectionInfo {
-        std::weak_ptr<ISimulatable> target_module;
-        std::string target_signal;
-    };
-    using ConnectionKey = std::pair<std::weak_ptr<ISimulatable>, std::string>;
-    
-    struct ConnectionKeyHash {
-        std::size_t operator()(const ConnectionKey& key) const {
-            auto module_ptr = key.first.lock();
-            if (!module_ptr) return 0;
-            return std::hash<std::string>{}(module_ptr->get_id()) ^ 
-                   (std::hash<std::string>{}(key.second) << 1);
-        }
-    };
-    
-    struct ConnectionKeyEqual {
-        bool operator()(const ConnectionKey& a, const ConnectionKey& b) const {
-            auto a_module = a.first.lock();
-            auto b_module = b.first.lock();
-            if (!a_module || !b_module) return false;
-            return a_module->get_id() == b_module->get_id() && 
-                   a.second == b.second;
-        }
-    };
+    // 连接管理映射：使用 ModuleBase.h 中定义的全局 ConnectionKey/ConnectionInfo 类型
+    using SimConnectionInfo = ConnectionInfo;
+    using SimConnectionKey = ConnectionKey;
+    using SimConnectionKeyHash = ConnectionKeyHash;
+    using SimConnectionKeyEqual = ConnectionKeyEqual;
     
     std::unordered_map<
-        ConnectionKey, 
-        std::vector<ConnectionInfo>,
-        ConnectionKeyHash,
-        ConnectionKeyEqual
+        SimConnectionKey, 
+        std::vector<SimConnectionInfo>,
+        SimConnectionKeyHash,
+        SimConnectionKeyEqual
     > connections_map_;
 
     // 消息队列
@@ -215,7 +195,8 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
         std::static_pointer_cast<CycleAccurateSimulator>(shared_from_this())
     );
     
-    module->set_schedule_callback([weak_this, module](
+    auto* module_ptr = module.get();
+    module->set_schedule_callback([weak_this, module_ptr](
         uint64_t valid_cycle, // latency after current cycle
         std::weak_ptr<ISimulatable> source_module,
         const std::string& signal_name,
@@ -234,11 +215,11 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
     });
 
     //这里设计的语义跟上面一样，都是提交消息事件队列。
-    module->set_message_submit_callback([weak_this, module](const GenericMessage& msg) {
+    module->set_message_submit_callback([weak_this, module_ptr](const GenericMessage& msg) {
         if (auto sim = weak_this.lock()) {
             MessageEvent event;
             event.trigger_cycle = sim->get_current_cycle() + msg.delay_cycles;
-            event.source_core_id = module->get_id();
+            event.source_core_id = module_ptr->get_id();
             event.message = msg;
             
             sim->message_queue_.push(event);

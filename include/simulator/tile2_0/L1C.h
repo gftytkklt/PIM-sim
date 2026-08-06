@@ -8,7 +8,7 @@ struct SRAM {
     int depth;     // number of lines
 };
 
-class L1C : public ModuleBase<L1C> {
+class L1C : public ModuleBase {
 public:
     L1C(const std::string& id);
     void register_processes() override final {

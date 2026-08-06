@@ -1,5 +1,16 @@
 #ifndef GRAPH_H
 #define GRAPH_H
+/// @file graph.h
+/// @brief Core dataflow graph class hierarchy: CGraph, TGraph, HGraph, DGraph.
+///
+/// Four-level graph representation for PIM architecture mapping:
+/// - CGraph (C-VDFG): Crossbar-level virtual dataflow graph
+/// - TGraph (T-VDFG): Tile-level virtual dataflow graph
+/// - HGraph (HCG):   Hardware connection graph (2D mesh NoC)
+/// - DGraph (DHCG):  Dynamic hardware connection graph (pipeline-segmented)
+///
+/// All graphs are built on Boost Graph Library (BGL).
+
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/properties.hpp>
 #include <boost/graph/graph_traits.hpp>
@@ -13,9 +24,11 @@
 #include "scheduler.h"
 #include "util.h"
 #include "strategy/StrategyBase.h"
+#include "logger.h"
+#include "errors.h"
 
 // Dep info of a kernel dep
-struct Depinfo{
+struct DepInfo{
     int dep_layer;
     std::pair<int,int> dep_chan;
 };
@@ -24,12 +37,12 @@ struct NNkernel {
     int layer;
     std::pair<int,int> wsize;   // (w, h) of kernel
     std::pair<int,int> channel; // (in, out) of channel
-    std::vector<Depinfo> depinfo; // (dep_layer, dep_channel_num)
+    std::vector<DepInfo> depinfo; // (dep_layer, dep_channel_num)
     std::pair<int,int> ifmap_size, ofmap_size;  // ofmap size(w, h)
 };
 
 enum class DepType {
-    ErrorType,
+    Error,
     Accum,  // intra-layer accumulation
     Prop,   // inter-layer propagation
     Mixed,  // tile-level deptype
@@ -37,7 +50,7 @@ enum class DepType {
 };
 
 struct CNode {
-    int layer;                          // Layer inde
+    int layer;                          // Layer index
     int ifmap_size;                     // Ifm size
     int ofmap_size;                     // Ofm size
     std::pair<int,int> id_cin, id_cout; // (cin, cout) channel index
@@ -110,6 +123,10 @@ using DEdge = HEdge;
 
 // std::ostream& operator<<(std::ostream& os, const DEdge& dedge);
 
+/// CRTP base class for all graph types.
+/// @tparam Derived  The concrete graph class (CGraph, TGraph, HGraph, DGraph).
+/// @tparam NodeProperty  Vertex property type.
+/// @tparam EdgeProperty  Edge property type.
 template <typename Derived, typename NodeProperty, typename EdgeProperty>
 class BaseGraph {
 protected:
@@ -151,7 +168,7 @@ protected:
         auto ei = edges(g);
         for (auto e = ei.first; e != ei.second; ++e) {
             if (target(*e, g) == v) { // out-edges are deleted automatically
-                remove_edge(*e, g);  // delete in-edges mauanlly
+                remove_edge(*e, g);  // delete in-edges manually
             }
         }
         boost::remove_vertex(v, g);
@@ -276,16 +293,16 @@ class CGraph : public BaseGraph<CGraph, CNode, CEdge> {
     friend class TGraph;
 public:
     // acc cnodes group with in a NN kernel
-    struct AccBlk{
+    struct AccBlock{
         std::vector<Node> vertex_id;
         std::pair<int, int> cout_id;
     };
 
     // Dep struct for a NN kernel
     struct CDep{
-        std::vector<std::vector<AccBlk>> acc_blks; // accblk group
+        std::vector<std::vector<AccBlock>> acc_blks; // accblk group
         int layer;
-        std::vector<Depinfo> dep_info;
+        std::vector<DepInfo> dep_info;
     };
 
     CGraph() = default;
@@ -378,12 +395,10 @@ public:
     // for HNode id, xy transformation
     std::pair<int, int> id_to_xy(size_t id) const;
     size_t xy_to_id(std::pair<int, int> xy) const;
-    // use tnode to get hnode
-    auto get_hnode(Node tnode) const {return mapper.get_core(tnode);}
-    // use hnode to get tnode
-    auto get_tnode(int x, int y) const {return mapper.get_node(x, y);}
-    auto get_tnode(std::pair<int, int> xy) const {return mapper.get_node(xy);}
-    // print graph info
+    const Mapper& get_mapper() const { return *mapper_; }
+    auto get_hnode(Node tnode) const {return mapper_->get_core(tnode);}
+    auto get_tnode(int x, int y) const {return mapper_->get_node(x, y);}
+    auto get_tnode(std::pair<int, int> xy) const {return mapper_->get_node(xy);}
     void print_graph_info() const;
 
     void init_hw_setting(); // init hardware template
@@ -400,7 +415,7 @@ private:
     std::shared_ptr<const CGraph> cg_ref; // C-VDFG for HCG inference
     std::pair<int, int> tile_size; // (W, H) of tile array
     std::vector<Path> paths; // path info
-    Mapper mapper; // mapper for HCG
+    std::shared_ptr<Mapper> mapper_; // mapper for HCG, injectable dependency
     OptType opt_type = OptType::PIMAPPING; // mapping optimization flag, default true
 };
 
@@ -444,10 +459,10 @@ private:
     std::map<size_t, std::vector<std::pair<int, size_t>>> path_map; // path info with src tnode id
     std::vector<std::shared_ptr<Path>> paths; // path info
     std::vector<long long> congestion_segs; // congestion of each seg
-    Scheduler scheduler;
-    auto get_core(size_t node) const {return hg_ref->mapper.get_core(node);}
-    auto get_node(int x, int y) const {return hg_ref->mapper.get_node(x, y);}
-    auto get_node(std::pair<int, int> xy) const {return hg_ref->mapper.get_node(xy);}
+    std::shared_ptr<Scheduler> scheduler_; // injectable dependency
+    auto get_core(size_t node) const {return hg_ref->get_mapper().get_core(node);}
+    auto get_node(int x, int y) const {return hg_ref->get_mapper().get_node(x, y);}
+    auto get_node(std::pair<int, int> xy) const {return hg_ref->get_mapper().get_node(xy);}
 };
 
 #endif

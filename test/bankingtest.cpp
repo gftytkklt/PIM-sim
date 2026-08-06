@@ -39,6 +39,9 @@ TEST_F(BankingSimulatorTest, BasicSimulation) {
         case BankingSimulator::BlockStrategy::Custom:
             block_strategy_str = "16x4";
             break;
+        default:
+            block_strategy_str = "Unknown";
+            break;
     }
     simulator->dump_completed_events("banking_completed_events_" + block_strategy_str + ".csv");
     // simulator->dump_completed_events("banking_completed_events_YX.csv");

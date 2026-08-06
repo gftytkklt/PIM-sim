@@ -198,9 +198,21 @@ def booksim_eval(all_comm_segs, bus_width, freq=1000000000):
         )
         # pipe based implementation
         booksim_command = [f"{home_path}/booksim", cfg_file]
-        result = subprocess.run(
-            booksim_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
+        try:
+            result = subprocess.run(
+                booksim_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, timeout=120
+            )
+        except subprocess.TimeoutExpired:
+            print(f"Booksim timeout for layers {layers}, skipping.")
+            latency_map[tuple(layers)] = 0.0
+            power_map[tuple(layers)] = 0.0
+            continue
+        except Exception as e:
+            print(f"Booksim error for layers {layers}: {e}, skipping.")
+            latency_map[tuple(layers)] = 0.0
+            power_map[tuple(layers)] = 0.0
+            continue
         output_lines = result.stdout.strip()
 
         packet_line = re.search(r"Packet latency average = ([\d.]+)", output_lines)

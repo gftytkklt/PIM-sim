@@ -297,7 +297,7 @@ bool Mapper::map_group(const Group& group, const Group& dep_set) {
     // }
     // std::cout << std::endl;
     std::pair<int, int> best_start;
-    int min_distance;
+    // int min_distance;
 
     // auto [found, map_set] = find_best_contiguous_block(required_size, ref_points);
     auto [found, map_set] = bfs_heuristic_mapping(required_size, ref_points);
