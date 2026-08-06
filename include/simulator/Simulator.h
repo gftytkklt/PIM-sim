@@ -215,7 +215,8 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
         std::static_pointer_cast<CycleAccurateSimulator>(shared_from_this())
     );
     
-    module->set_schedule_callback([weak_this, module](
+    auto* module_ptr = module.get();
+    module->set_schedule_callback([weak_this, module_ptr](
         uint64_t valid_cycle, // latency after current cycle
         std::weak_ptr<ISimulatable> source_module,
         const std::string& signal_name,
@@ -234,11 +235,11 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
     });
 
     //这里设计的语义跟上面一样，都是提交消息事件队列。
-    module->set_message_submit_callback([weak_this, module](const GenericMessage& msg) {
+    module->set_message_submit_callback([weak_this, module_ptr](const GenericMessage& msg) {
         if (auto sim = weak_this.lock()) {
             MessageEvent event;
             event.trigger_cycle = sim->get_current_cycle() + msg.delay_cycles;
-            event.source_core_id = module->get_id();
+            event.source_core_id = module_ptr->get_id();
             event.message = msg;
             
             sim->message_queue_.push(event);
