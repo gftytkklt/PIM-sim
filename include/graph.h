@@ -13,6 +13,8 @@
 #include "scheduler.h"
 #include "util.h"
 #include "strategy/StrategyBase.h"
+#include "logger.h"
+#include "errors.h"
 
 // Dep info of a kernel dep
 struct Depinfo{

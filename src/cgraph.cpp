@@ -8,7 +8,7 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
     create_cnodes();
     conn_accblk();
     inter_layer_conn();
-    std::cout << "CGraph created" << std::endl;
+    PIM_INFO("CGraph created");
 }
 
 CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_size, int CNode_capacity, 
@@ -20,7 +20,7 @@ CGraph::CGraph(const std::vector<NNkernel> kernels, std::pair<int, int> CNode_si
     create_cnodes();
     conn_accblk();
     inter_layer_conn();
-    std::cout << "CGraph created with tile2.0 optimization" << std::endl;
+    PIM_INFO("CGraph created with tile2.0 optimization");
 }
 
 void CGraph::build_graph_subset(){

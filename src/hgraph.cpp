@@ -5,14 +5,14 @@ HGraph::HGraph(std::shared_ptr<const TGraph> tg, std::shared_ptr<const CGraph> c
       hg{}, tg_ref{tg}, cg_ref{cg}, tile_size{tile_size}, paths{}, mapper_{} {
     
     auto num_tile = tg_ref->num_nodes(tg_ref->get_graph());
-    std::cout << "[HG]: num tile: " << num_tile << std::endl;
+    PIM_INFO("[HG] num tile: " << num_tile);
     
     if (tile_size.first * tile_size.second < num_tile) {
         auto tile_x = static_cast<int>(std::ceil(std::sqrt(num_tile)));
         this->tile_size = std::make_pair(std::max(tile_size.first,tile_x), std::max(tile_size.second,tile_x));
-        std::cout << "Reshape to " << this->tile_size.first << " x " << this->tile_size.second << " to fit algorithm size" << std::endl;
+        PIM_INFO("[HG] Reshape to " << this->tile_size.first << " x " << this->tile_size.second << " to fit algorithm size");
     } else {
-        std::cout << "Tile size: " << this->tile_size.first << " x " << this->tile_size.second << std::endl;
+        PIM_INFO("[HG] Tile size: " << this->tile_size.first << " x " << this->tile_size.second);
     }
     
     mapper_ = std::make_shared<Mapper>(this->tile_size);
