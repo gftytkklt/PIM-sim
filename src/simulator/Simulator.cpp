@@ -237,7 +237,7 @@ void CycleAccurateSimulator::dump_completed_events(const std::string& filename) 
                 if (stats.find("trigger_time") != stats.end() && stats.find("end_time") != stats.end()) {
                     uint64_t trigger_time = stats.at("trigger_time");
                     uint64_t end_time = stats.at("end_time");
-                    uint64_t latency = end_time - trigger_time;
+                    // uint64_t latency = end_time - trigger_time;
                     ofs << "trigger_time=" << trigger_time 
                         << ", end_time=" << end_time;
                 }

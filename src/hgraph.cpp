@@ -24,9 +24,7 @@ void HGraph::init_hw_setting() {
     for (int i = 0; i < tile_size.first; i++) {
         for (int j = 0; j < tile_size.second; j++) {
             auto hnode = HNode{0, std::make_pair(i, j), false};
-            // add_node(hnode, hg);
-            auto hid = add_node(hnode, hg);
-            // std::cout << "Add node: " << i << "," << j << "to" << hid << std::endl;
+            add_node(hnode, hg);
         }
     }
     // 2D-mesh connection
@@ -59,7 +57,7 @@ void HGraph::greedy_mapping() {
     const auto& tg = tg_ref->get_graph();
     const auto& tdeps = tg_ref->get_tdep();
     // map tgrp to HNodes
-    int i = 0;
+    // int i = 0;
     for (const auto& tdep : tdeps) {
         std::set<size_t> dep_set{};
         // get dep set

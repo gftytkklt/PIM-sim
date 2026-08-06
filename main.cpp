@@ -41,7 +41,7 @@ void check_data(const std::vector<NNkernel>& kernels) {
     //检查算子顺序是否违背数据依赖关系
     for (const auto& kernel : kernels) {
         for (const auto& dep : kernel.depinfo) {
-            if (dep.dep_layer < kernel.layer & dep.dep_layer >= 0 ){
+            if ((dep.dep_layer < kernel.layer) & (dep.dep_layer >= 0) ){
                 std::cout << "Error: Layer " << dep.dep_layer << " depends on layer " << kernel.layer << ", but " << kernel.layer << " comes after " << dep.dep_layer << std::endl;
             }
         }

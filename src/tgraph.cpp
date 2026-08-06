@@ -52,7 +52,6 @@ void TGraph::create_tnodes_MNSIM() {
 }
 
 void TGraph::create_tnodes() {
-    const auto& cg = cg_ref->get_graph();
     const auto& cdeps = cg_ref->get_cdep();
     for (const auto& cdep: cdeps) {
         // get cnode size
