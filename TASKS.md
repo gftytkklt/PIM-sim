@@ -36,7 +36,7 @@
 
 ### Python 集成
 - [ ] **pybind11 绑定扩展**：导出 Simulator 相关类（`Process`、`ModuleBase`、`Simulator`），支持 Python 侧构造和运行模拟
-- [ ] **`perf.py` 重构**：1778 行单文件，职责混杂（分析、可视化、缓存、并行）。拆分为 `analysis.py`、`plotting.py`、`cache.py`
+- [x] **`perf.py` 重构**：从 1778 行拆分为 `analysis.py`（分析函数）+ `plotting.py`（可视化）+ `perf.py`（入口，35 行）
 - [ ] **配置校验**：`SimConfig.ini` 缺少参数校验，添加 schema 验证和友好错误提示
 
 ## Bug 修复
