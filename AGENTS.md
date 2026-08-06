@@ -17,7 +17,8 @@ source env.sh          # Load modules: gcc/11.4, cmake/3.28, python/3.11, boost/
 
 - `build.sh` does a **force clean** (`rm -rf build/`) every time.
 - C++ lib is `libPIMapping.a` (static). Python module is `PIModule` → output name `pimapping`.
-- `libmain.so` in repo root is a **stale pre-built artifact** tracked in git (see `.gitignore`). The current build produces `pimapping.<suffix>.so`, not `libmain.so`.
+- Build flags: `-Wall -Wextra -Wpedantic` with `-Wno-sign-compare -Wno-reorder -Wno-unused-parameter`. Default `Release` build type.
+- C++ log output: `runs/cpp_analysis.log` (via `PIM_INFO`/`PIM_WARN`/`PIM_ERROR` macros). Python log: `runs/perf.log`.
 - Tests require `pthread` (linked in test/CMakeLists.txt).
 
 ## Architecture
@@ -62,14 +63,19 @@ C++ (libPIMapping) │  Analyzer → Graph hierarchy:        │
 | `src/hgraph.cpp` | HGraph: HCG (hardware connection graph) with zigzag/greedy/SPATEM |
 | `src/dgraph.cpp` | DGraph: DHCG (dynamic) with BCE/XY routing |
 | `src/graph_io.cpp` | operator<< overloads for graph node/edge types |
+| `src/strategy/CStrategy.cpp` | CGraph strategies (Default/MNSIM/TILE2_0) |
+| `src/strategy/TStrategy.cpp` | TGraph strategies (MNSIM/PIMAPPING/SPATEM/TILE2_0) |
+| `src/strategy/HStrategy.cpp` | HGraph strategies (MNSIM/PIMAPPING/SPATEM) |
+| `src/strategy/DStrategy.cpp` | DGraph strategies (Default/PIMAPPING/TILE2_0) |
 
 ## Conventions & gotchas
 
 - **No linting, no formatting config, no CI**. No `.clang-format`, `.pre-commit`, or GitHub Actions.
-- **`.gitignore` is whitelist-style**: ignores everything (`*`), then re-includes specific extensions (`.cpp`, `.h`, `.hpp`, `.sh`, `.py`, `CMakeLists.txt`). Adding new file types requires updating `.gitignore`.
+- **`.gitignore` is whitelist-style**: ignores everything (`*`), then re-includes specific extensions (`.cpp`, `.h`, `.hpp`, `.sh`, `.py`, `CMakeLists.txt`, `.md`, `.ini`, `.cfg`). Adding new file types requires updating `.gitignore`.
 - **`source env.sh` is required** before build/test on the team's server. It uses `module load`. On other machines, install dependencies manually.
 - **`perf.py` caches results via pickle** — first run is slow (Booksim simulation), subsequent runs reuse cache.
 - **All commands must run from repo root** (relative paths throughout).
 - **`models/` directory** contains ONNX files. Default model is `resnet18.onnx`.
 - The `onnx_analysis.py` → `load_kernel()` path expects ONNX models with `.onnx` extension.
 - Python module `pimapping` must be importable — built `.so` must be in the working directory or `PYTHONPATH`.
+- **Regression tests**: `python3 result_develop/scripts/compare.py` (quick) or `--full` (all models). Reference data in `result_develop/reference/`.
