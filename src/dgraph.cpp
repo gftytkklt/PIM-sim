@@ -7,7 +7,7 @@ DGraph::DGraph(std::shared_ptr<const HGraph> hg, std::shared_ptr<const TGraph> t
       pipeline_depth{pipeline_depth}, tile_size{hg->tile_size},
       sdg{}, path_segs{}, layer_segs{}, hg_ref{hg}, tg_ref{tg}, cg_ref{cg},
       tdep_map{}, harbor_map{}, path_map{}, paths{}, congestion_segs{},
-      scheduler{hg->tile_size} {
+      scheduler_{std::make_shared<Scheduler>(hg->tile_size)} {
     this->analysis();
 }
 
@@ -161,9 +161,9 @@ void DGraph::bce_routing() {
         // std::cout << "Scheduling segment with " << seg.size() << " paths." << std::endl;
         auto pathset = get_pathset(seg);
         // std::cout << "Pathset size: " << pathset.size() << std::endl;
-        scheduler.set_path_set(pathset);
+        scheduler_->set_path_set(pathset);
         // std::cout << "Pathset set." << std::endl;
-        auto schedinfo = scheduler.schedule();
+        auto schedinfo = scheduler_->schedule();
         // std::cout << "Scheduling done." << std::endl;
         congestion_segs.push_back(schedinfo);
         for (const auto& path : pathset) {
@@ -181,8 +181,8 @@ void DGraph::xy_routing() {
         //     return *path_ptr;
         // });
         auto pathset = get_pathset(seg);
-        scheduler.set_path_set(pathset);
-        auto schedinfo = scheduler.xy_routing();
+        scheduler_->set_path_set(pathset);
+        auto schedinfo = scheduler_->xy_routing();
         congestion_segs.push_back(schedinfo);
         for (const auto& path : pathset) {
             add_path(path);

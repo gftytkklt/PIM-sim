@@ -442,7 +442,7 @@ private:
     std::map<size_t, std::vector<std::pair<int, size_t>>> path_map; // path info with src tnode id
     std::vector<std::shared_ptr<Path>> paths; // path info
     std::vector<long long> congestion_segs; // congestion of each seg
-    Scheduler scheduler;
+    std::shared_ptr<Scheduler> scheduler_; // injectable dependency
     auto get_core(size_t node) const {return hg_ref->get_mapper().get_core(node);}
     auto get_node(int x, int y) const {return hg_ref->get_mapper().get_node(x, y);}
     auto get_node(std::pair<int, int> xy) const {return hg_ref->get_mapper().get_node(xy);}
