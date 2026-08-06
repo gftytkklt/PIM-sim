@@ -7,6 +7,7 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib.ticker import PercentFormatter
 import numpy as np
 from statistics import geometric_mean as gmean
+import hashlib
 import logging
 import pickle
 import time
@@ -1640,8 +1641,13 @@ def run_booksim_task(args):
     return (model, opt, latency, power, os.getpid())
 
 
+def _make_cache_key(models, bus_width, xbar_size):
+    model_str = "_".join(sorted(models))
+    model_hash = hashlib.md5(model_str.encode()).hexdigest()[:8]
+    return f"results/noc_perf_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}_m={model_hash}.pkl"
+
+
 def get_noc_perf(comm_segs, bus_width=None, xbar_size=None, save=False):
-    # Get all combinations of model_name and opt_type
     models = list(comm_segs.keys())
     opt_combinations = sorted(set(opt for opts in comm_segs.values() for opt in opts))
 
@@ -1653,7 +1659,6 @@ def get_noc_perf(comm_segs, bus_width=None, xbar_size=None, save=False):
     global GLOBAL_COMM_SEGS
     GLOBAL_COMM_SEGS = comm_segs
 
-    # save latency dict
     with mp.Pool() as pool:
         results = pool.map(run_booksim_task, booksim_tasks)
         for model, opt, latency, power, pid in results:
@@ -1662,7 +1667,7 @@ def get_noc_perf(comm_segs, bus_width=None, xbar_size=None, save=False):
             logger.info(f"(model={model}, opt={opt}) booksim worker process PID={pid}")
 
     if save:
-        filename = f"results/noc_perf_dict_bw={bus_width}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
+        filename = _make_cache_key(models, bus_width, xbar_size)
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         with open(filename, "wb") as f:
             pickle.dump((latency_dict, power_dict), f)
@@ -1707,15 +1712,24 @@ def get_data_percentage(comm_result=None, dict_key=None):
             # print(f"opt_info={opt}, values={values}, range={value_range}")  # 打印到控制台（可选）
 
 
-def load_noc_perf(bw, xbar_size):
+def load_noc_perf(bw, xbar_size, models=None):
+    if models:
+        filename = _make_cache_key(models, bw, xbar_size)
+        if os.path.exists(filename):
+            try:
+                with open(filename, "rb") as f:
+                    return pickle.load(f)
+            except Exception:
+                pass
+    # legacy fallback
     filename = f"results/noc_perf_dict_bw={bw}_xbar={xbar_size[0]}_{xbar_size[1]}.pkl"
-    if not os.path.exists(filename):  # 检查文件是否存在
+    if not os.path.exists(filename):
         return None
     try:
         with open(filename, "rb") as f:
             perf_dict = pickle.load(f)
         return perf_dict
-    except Exception as e:  # 捕获其他异常
+    except Exception as e:
         print(f"Error loading file {filename}: {e}")
         return None
 
@@ -1774,5 +1788,5 @@ if __name__ == "__main__":
     # brkdown_analysis()
     # plot_brkdown(mapping_result, latency_dict, 1, ideal=0)
     # plot_xbarsize()
-    logger.info("Start running plot_pipeline.")
-    plot_pipeline()
+    # logger.info("Start running plot_pipeline.")
+    # plot_pipeline()

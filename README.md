@@ -206,11 +206,14 @@ source env.sh
 ### 2. 编译并测试
 
 ```bash
+./build.sh                 # 编译（force clean）
 ./test.sh                  # 编译 + 运行全部回归测试
 ./test.sh mappingalexnet   # 编译 + 运行指定测试
-```
 
-测试可执行文件与 `test/` 目录下的 `.cpp` 文件名一一对应。
+# 启用 AddressSanitizer
+cmake -S . -B build -DENABLE_ASAN=ON
+make -C build -j$(nproc)
+```
 
 ### 3. 执行性能分析
 
@@ -218,7 +221,24 @@ source env.sh
 python3 perf.py
 ```
 
-该脚本将自动完成：ONNX 模型加载 → 算子映射 → Tile 分配 → 通信路径生成 → Booksim NoC 仿真 → 延迟/吞吐量/功耗计算 → 结果可视化。首次运行耗时较长（Booksim 仿真），后续运行将复用 pickle 缓存。
+### 4. 回归测试
+
+```bash
+# 简易回归（demo 模型）
+python3 result_develop/scripts/compare.py
+
+# 全量回归（所有模型）
+python3 result_develop/scripts/compare.py --full
+
+# 一键构建 + 测试
+bash result_develop/scripts/regression_test.sh
+```
+
+### 5. 代码格式化
+
+```bash
+clang-format -i src/*.cpp include/*.h
+```
 
 ## 核心组件
 

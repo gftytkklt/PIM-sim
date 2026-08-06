@@ -11,22 +11,30 @@
 
 namespace pim {
 
+/// Log level enum for filtering log output.
 enum class LogLevel { DEBUG = 0, INFO = 1, WARN = 2, ERROR = 3 };
 
+/// Thread-safe singleton logger for C++ analysis output.
+/// Logs to stdout and optionally to a file (runs/cpp_analysis.log).
 class Logger {
 public:
+    /// Returns the global logger singleton instance.
     static Logger& instance() {
         static Logger logger;
         return logger;
     }
 
+    /// Sets the minimum log level. Messages below this level are suppressed.
     void set_level(LogLevel level) { min_level_ = level; }
+
+    /// Sets the log file path. Opens in append mode.
     void set_log_file(const std::string& path) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (file_.is_open()) file_.close();
         file_.open(path, std::ios::app);
     }
 
+    /// Logs a message with the given level, source file, and line number.
     void log(LogLevel level, const char* file, int line, const char* func, const std::string& msg) {
         if (level < min_level_) return;
         std::lock_guard<std::mutex> lock(mutex_);

@@ -1,5 +1,16 @@
 #ifndef GRAPH_H
 #define GRAPH_H
+/// @file graph.h
+/// @brief Core dataflow graph class hierarchy: CGraph, TGraph, HGraph, DGraph.
+///
+/// Four-level graph representation for PIM architecture mapping:
+/// - CGraph (C-VDFG): Crossbar-level virtual dataflow graph
+/// - TGraph (T-VDFG): Tile-level virtual dataflow graph
+/// - HGraph (HCG):   Hardware connection graph (2D mesh NoC)
+/// - DGraph (DHCG):  Dynamic hardware connection graph (pipeline-segmented)
+///
+/// All graphs are built on Boost Graph Library (BGL).
+
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/properties.hpp>
 #include <boost/graph/graph_traits.hpp>
@@ -112,6 +123,10 @@ using DEdge = HEdge;
 
 // std::ostream& operator<<(std::ostream& os, const DEdge& dedge);
 
+/// CRTP base class for all graph types.
+/// @tparam Derived  The concrete graph class (CGraph, TGraph, HGraph, DGraph).
+/// @tparam NodeProperty  Vertex property type.
+/// @tparam EdgeProperty  Edge property type.
 template <typename Derived, typename NodeProperty, typename EdgeProperty>
 class BaseGraph {
 protected:

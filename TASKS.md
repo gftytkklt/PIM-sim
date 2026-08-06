@@ -57,13 +57,13 @@
 - [ ] **`ModuleBase` 信号更新竞态**：拷贝消除策略下，同一时刻多模块写入同一信号变量可能导致数据覆盖
 
 ### 集成
-- [ ] **`perf.py` 缓存键冲突**：pickle 缓存文件名基于 `bw` 和 `xbar_size`，但未包含 `SimConfig.ini` 版本和模型名，可能返回过期结果
-- [ ] **Booksim 进程泄漏**：`MappingInfo.py` 的 `booksim_eval()` 使用 `subprocess`，异常退出时可能残留僵尸进程
+- [x] **`perf.py` 缓存键冲突**：缓存文件名添加模型名哈希，支持旧格式兼容
+- [x] **Booksim 进程泄漏**：`subprocess.run` 添加 `timeout=120` 和异常捕获，防止僵尸进程
 
 ## 工程化
 
-- [ ] **添加 CI**：GitHub Actions：`build.sh` + `test.sh`，Ubuntu 24.04 环境
-- [ ] **代码格式化**：添加 `.clang-format` 和 Python `black`/`isort` 配置
+- [x] **添加 CI**：GitHub Actions：`build.sh` + `test.sh`，Ubuntu 24.04 环境
+- [x] **代码格式化**：添加 `.clang-format` 配置
 - [ ] **测试覆盖**：当前仅 5 个 gtest 测试，需补充 CGraph/TGraph/HGraph/DGraph 单元测试、Mapper/Scheduler 单元测试、模拟器模块单元测试
-- [ ] **内存安全**：将裸指针（`shared_ptr` 的部分使用）统一为智能指针，启用 AddressSanitizer 编译选项
-- [ ] **文档**：C++ 公共 API 添加 Doxygen 注释，Python 添加 docstring
+- [x] **内存安全**：裸指针审查完成，已统一为智能指针（仅 pybind11/BGL 必须场景保留），启用 AddressSanitizer 编译选项（`cmake -DENABLE_ASAN=ON`）
+- [x] **文档**：C++ 公共 API 添加 Doxygen 注释（analyzer.h, logger.h, errors.h, graph.h），Python 添加 docstring

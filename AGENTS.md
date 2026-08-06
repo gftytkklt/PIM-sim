@@ -18,6 +18,7 @@ source env.sh          # Load modules: gcc/11.4, cmake/3.28, python/3.11, boost/
 - `build.sh` does a **force clean** (`rm -rf build/`) every time.
 - C++ lib is `libPIMapping.a` (static). Python module is `PIModule` → output name `pimapping`.
 - Build flags: `-Wall -Wextra -Wpedantic` with `-Wno-sign-compare -Wno-reorder -Wno-unused-parameter`. Default `Release` build type.
+- AddressSanitizer: `cmake -DENABLE_ASAN=ON ..` for memory error detection.
 - C++ log output: `runs/cpp_analysis.log` (via `PIM_INFO`/`PIM_WARN`/`PIM_ERROR` macros). Python log: `runs/perf.log`.
 - Tests require `pthread` (linked in test/CMakeLists.txt).
 
@@ -71,9 +72,11 @@ C++ (libPIMapping) │  Analyzer → Graph hierarchy:        │
 ## Conventions & gotchas
 
 - **No linting, no formatting config, no CI**. No `.clang-format`, `.pre-commit`, or GitHub Actions.
-- **`.gitignore` is whitelist-style**: ignores everything (`*`), then re-includes specific extensions (`.cpp`, `.h`, `.hpp`, `.sh`, `.py`, `CMakeLists.txt`, `.md`, `.ini`, `.cfg`). Adding new file types requires updating `.gitignore`.
+- **`.clang-format`** available (Google style, 4-space indent). Use `clang-format -i <file>` to format.
+- **`.gitignore` is whitelist-style**: ignores everything (`*`), then re-includes specific extensions (`.cpp`, `.h`, `.hpp`, `.sh`, `.py`, `CMakeLists.txt`, `.md`, `.ini`, `.cfg`, `.yml`, `.json`). Adding new file types requires updating `.gitignore`.
+- **CI**: `.github/workflows/ci.yml` runs build + ctest on Ubuntu 24.04.
 - **`source env.sh` is required** before build/test on the team's server. It uses `module load`. On other machines, install dependencies manually.
-- **`perf.py` caches results via pickle** — first run is slow (Booksim simulation), subsequent runs reuse cache.
+- **`perf.py` caches results via pickle** — first run is slow (Booksim simulation), subsequent runs reuse cache. Cache key includes model hash to avoid stale results.
 - **All commands must run from repo root** (relative paths throughout).
 - **`models/` directory** contains ONNX files. Default model is `resnet18.onnx`.
 - The `onnx_analysis.py` → `load_kernel()` path expects ONNX models with `.onnx` extension.

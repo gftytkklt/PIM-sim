@@ -32,6 +32,7 @@
 # 7. 特定无扩展名文件
 !booksim          # NoC 仿真器
 !booksim_cfg      # Booksim 配置模板
+!.clang-format    # 代码格式化配置
 
 # 8. 特定文本文件
 !techfile.txt
