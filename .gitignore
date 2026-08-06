@@ -51,6 +51,9 @@ inj_rate.txt
 result_develop/current/
 result_develop/logs/
 
+# But reference data is tracked as baseline
+!result_develop/reference/*.pkl
+
 # OS files
 .DS_Store
 Thumbs.db
