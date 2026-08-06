@@ -50,37 +50,17 @@ private:
     
     EventQueue signal_event_queue_;
     
-    // 连接管理映射：源模块信号 -> 目标模块信号列表
-    struct ConnectionInfo {
-        std::weak_ptr<ISimulatable> target_module;
-        std::string target_signal;
-    };
-    using ConnectionKey = std::pair<std::weak_ptr<ISimulatable>, std::string>;
-    
-    struct ConnectionKeyHash {
-        std::size_t operator()(const ConnectionKey& key) const {
-            auto module_ptr = key.first.lock();
-            if (!module_ptr) return 0;
-            return std::hash<std::string>{}(module_ptr->get_id()) ^ 
-                   (std::hash<std::string>{}(key.second) << 1);
-        }
-    };
-    
-    struct ConnectionKeyEqual {
-        bool operator()(const ConnectionKey& a, const ConnectionKey& b) const {
-            auto a_module = a.first.lock();
-            auto b_module = b.first.lock();
-            if (!a_module || !b_module) return false;
-            return a_module->get_id() == b_module->get_id() && 
-                   a.second == b.second;
-        }
-    };
+    // 连接管理映射：使用 ModuleBase.h 中定义的全局 ConnectionKey/ConnectionInfo 类型
+    using SimConnectionInfo = ConnectionInfo;
+    using SimConnectionKey = ConnectionKey;
+    using SimConnectionKeyHash = ConnectionKeyHash;
+    using SimConnectionKeyEqual = ConnectionKeyEqual;
     
     std::unordered_map<
-        ConnectionKey, 
-        std::vector<ConnectionInfo>,
-        ConnectionKeyHash,
-        ConnectionKeyEqual
+        SimConnectionKey, 
+        std::vector<SimConnectionInfo>,
+        SimConnectionKeyHash,
+        SimConnectionKeyEqual
     > connections_map_;
 
     // 消息队列

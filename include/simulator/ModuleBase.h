@@ -6,6 +6,7 @@
 #include <vector>
 #include <any>
 #include <memory>
+#include <optional>
 #include <iostream>
 #include "ISimulatable.h"
 #include "Process.h"
@@ -188,6 +189,14 @@ public:
             return it->second.value;
         }
         return {};
+    }
+
+    template<typename T>
+    std::optional<T> get_signal_as(const std::string& name) const {
+        auto it = signals_.find(name);
+        if (it == signals_.end() || !it->second.valid) return std::nullopt;
+        const auto* ptr = std::any_cast<T>(&it->second.value);
+        return ptr ? std::optional<T>(*ptr) : std::nullopt;
     }
 
     void clear_signal(const std::string& name) {

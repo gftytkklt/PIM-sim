@@ -66,7 +66,7 @@ void CycleAccurateSimulator::propagate_signal_to_targets(
     source_module->set_signal_value(source_signal, value, valid_cycle);
     
     // 查找该信号的所有连接
-    ConnectionKey key = {source_module, source_signal};
+    SimConnectionKey key = {source_module, source_signal};
     auto it = connections_map_.find(key);
     if (it == connections_map_.end()) {
         // throw std::runtime_error("No connections found for signal: " + source_signal);
@@ -128,7 +128,7 @@ void CycleAccurateSimulator::connect_modules(const std::string& src_id,
         src_it->second->connect_to(src_signal, dst_it->second, dst_signal);
         
         // 2. 在模拟器层面记录连接关系
-        ConnectionKey key = {src_it->second, src_signal};
+        SimConnectionKey key = {src_it->second, src_signal};
         connections_map_[key].push_back({
             dst_it->second, dst_signal
         });
@@ -179,13 +179,12 @@ void CycleAccurateSimulator::process_combinational_logic() {
 }
 
 void CycleAccurateSimulator::check_simulation_complete() {
-    // 简单结束条件：事件队列为空，且无信号传输事件
-    if (!signal_event_queue_.empty()) {
-        return; // 还有事件待处理，继续模拟
+    if (!signal_event_queue_.empty() || !message_queue_.empty()) {
+        return;
     }
     for (const auto& module : modules_) {
         if (!module->get_active_processes().empty()) {
-            return; // 还有活跃事件，继续模拟
+            return;
         }
     }
     std::cout << "No active events remaining. Ending simulation at cycle " << current_cycle_ << "." << std::endl;
