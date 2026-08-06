@@ -60,8 +60,8 @@
 
 ### 模拟器架构优化
 - [x] **硬编码参数替换**：`config.h` 中 13 个 `#define` 宏改为 `HardwareConfig` 结构体，支持运行时配置和参数扫描
-- [ ] **移除 CRTP 模板**：`ModuleBase<DerivedModule>` 的 CRTP 模式不提供实际收益，改为普通虚基类简化类型系统
-- [ ] **核心实例化工厂**：`membanking.cpp`/`multicore.cpp` 等 ~400 行重复模块注册代码提取为工厂函数
+- [x] **移除 CRTP 模板**：`ModuleBase<DerivedModule>` 的 CRTP 模式不提供实际收益，改为普通虚基类简化类型系统
+- [x] **核心实例化工厂**：`membanking.cpp`/`multicore.cpp` 等 ~400 行重复模块注册代码提取为工厂函数
 - [ ] **类型化信号系统**：替换字符串信号名（`"cache_read_trigger"` 等），防止拼写错误和类型不匹配
 - [ ] **模块与模拟器解耦**：`ModuleBase` 中回调函数直接访问 `Simulator` 私有队列，改为返回事件列表由模拟器处理
 - [ ] **ISimulator 抽象接口**：提取 `CycleAccurateSimulator` 的虚接口，支持模拟和测试
