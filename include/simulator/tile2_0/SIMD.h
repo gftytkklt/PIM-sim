@@ -4,7 +4,7 @@
 #include "config.h"
 
 // quant -> activate -> pooling
-class SIMD : public ModuleBase<SIMD> {
+class SIMD : public ModuleBase {
 public:
     SIMD(const std::string& id);
     void register_processes() override final{

@@ -51,7 +51,7 @@ struct BatchInfo {
     int max_batch_capacity;
 };
 
-class TaskScheduler : public ModuleBase<TaskScheduler> {
+class TaskScheduler : public ModuleBase {
 public:
     TaskScheduler(const std::string& id, const std::array<FmapTask, L1C_BANK>& task_list);
     void register_processes() override final {

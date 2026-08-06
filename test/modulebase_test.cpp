@@ -1,7 +1,7 @@
 #include "simulator/ModuleBase.h"
 #include <gtest/gtest.h>
 
-class TestModule : public ModuleBase<TestModule> {
+class TestModule : public ModuleBase {
 public:
     TestModule(const std::string& id) : ModuleBase(id) {
         add_signal(Signal("int_signal", Signal::Direction::INPUT));

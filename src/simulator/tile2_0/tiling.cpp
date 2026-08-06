@@ -1,70 +1,25 @@
 #include "simulator/tile2_0/tiling.h"
+#include "simulator/tile2_0/core_factory.h"
 
 void TilingSimulator::Init() {
-    // core 0
     int block_size0 = dynamic_banking ? 12 : 8;
-    const std::array<FmapTask, L1C_BANK> task_list0 = {{
-            {1, block_size0, block_size0, 128, true}, // Bank 0
-            {0, 0, 0, 0, 0}, // Bank 1
-            {0, 0, 0, 0, 0}, // Bank 2
-            {0, 0, 0, 0, 0}  // Bank 3
-        }};
-    register_module<SIMD>("simd0", 4);
-    register_module<Crossbar>("crossbar0", 3);
-    register_module<TaskScheduler>("task_scheduler0", 2, task_list0);
-    register_module<L1C>("L1_cache0", 1);
-    // 模块连接关系
-    // TS to L1C
-    connect_modules("task_scheduler0", "cache_read_trigger", "L1_cache0", "cache_read_trigger");
-    connect_modules("task_scheduler0", "cache_read_len", "L1_cache0", "cache_read_len");
-    connect_modules("task_scheduler0", "cache_write_trigger", "L1_cache0", "cache_write_trigger");
-    connect_modules("task_scheduler0", "cache_write_len", "L1_cache0", "cache_write_len");
-    connect_modules("L1_cache0", "cache_read_done", "task_scheduler0", "cache_read_valid");
-    connect_modules("L1_cache0", "cache_write_done", "task_scheduler0", "cache_write_done");
-    // TS to XBAR
-    connect_modules("task_scheduler0", "xbar_computation_trigger", "crossbar0", "computation_trigger");
-    connect_modules("task_scheduler0", "xbar_switching_trigger", "crossbar0", "switching_trigger");
-    connect_modules("crossbar0", "switching_done", "task_scheduler0", "xbar_switching_done");
-    // TS to SIMD
-    connect_modules("task_scheduler0", "pooling_enabled", "simd0", "SIMD_pooling_enable");
-    connect_modules("simd0", "SIMD_data_valid", "task_scheduler0", "SIMD_computation_done");
-    // XBAR to SIMD
-    connect_modules("crossbar0", "computation_done", "simd0", "SIMD_channel_batch");
-    // core 1
     int block_size1 = dynamic_banking ? 6 : 8;
-    const std::array<FmapTask, L1C_BANK> task_list1 = {{
-            {1, block_size1, block_size1, 128, true}, // Bank 0
-            {0, 0, 0, 0, 0}, // Bank 1
-            {0, 0, 0, 0, 0}, // Bank 2
-            {0, 0, 0, 0, 0}  // Bank 3
+    const std::array<FmapTask, L1C_BANK> task_list0 = {{
+            {1, block_size0, block_size0, 128, true},
+            {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}
         }};
-    register_module<SIMD>("simd1", 4);
-    register_module<Crossbar>("crossbar1", 3);
-    register_module<TaskScheduler>("task_scheduler1", 2, task_list1);
-    register_module<L1C>("L1_cache1", 1);
-    // 模块连接关系
-    // TS to L1C
-    connect_modules("task_scheduler1", "cache_read_trigger", "L1_cache1", "cache_read_trigger");
-    connect_modules("task_scheduler1", "cache_read_len", "L1_cache1", "cache_read_len");
-    connect_modules("task_scheduler1", "cache_write_trigger", "L1_cache1", "cache_write_trigger");
-    connect_modules("task_scheduler1", "cache_write_len", "L1_cache1", "cache_write_len");
-    connect_modules("L1_cache1", "cache_read_done", "task_scheduler1", "cache_read_valid");
-    connect_modules("L1_cache1", "cache_write_done", "task_scheduler1", "cache_write_done");
-    // TS to XBAR
-    connect_modules("task_scheduler1", "xbar_computation_trigger", "crossbar1", "computation_trigger");
-    connect_modules("task_scheduler1", "xbar_switching_trigger", "crossbar1", "switching_trigger");
-    connect_modules("crossbar1", "switching_done", "task_scheduler1", "xbar_switching_done");
-    // TS to SIMD
-    connect_modules("task_scheduler1", "pooling_enabled", "simd1", "SIMD_pooling_enable");
-    connect_modules("simd1", "SIMD_data_valid", "task_scheduler1", "SIMD_computation_done");
-    // XBAR to SIMD
-    connect_modules("crossbar1", "computation_done", "simd1", "SIMD_channel_batch");
-    // message handler for task completion
+    const std::array<FmapTask, L1C_BANK> task_list1 = {{
+            {1, block_size1, block_size1, 128, true},
+            {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0}
+        }};
+
+    create_core_modules(*this, "0", task_list0);
+    create_core_modules(*this, "1", task_list1);
+
     register_task_handler("task_batch_done",
             [this](const GenericMessage& msg) {
                 this->handle_batch_task_done(msg);
             });
-    // 初始化batch计数器
     core_batch_num_map_["task_scheduler0"] = 0;
     core_batch_num_map_["task_scheduler1"] = 0;
 }

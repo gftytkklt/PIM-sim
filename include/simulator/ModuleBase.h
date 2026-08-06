@@ -62,12 +62,11 @@ struct ConnectionKeyEqual {
 };
 
 /**
- * 模块基类模板
- * 实现ISimulatable接口，同时保持具体模块类型的类型安全
+ * 模块基类
+ * 实现ISimulatable接口
  */
-template <typename DerivedModule>
 class ModuleBase : public ISimulatable, 
-                   public std::enable_shared_from_this<DerivedModule> {
+                   public std::enable_shared_from_this<ISimulatable> {
 protected:
     std::string id_;
     int topological_depth_{0};
@@ -168,7 +167,7 @@ public:
     }
     
     std::type_index get_module_type() const override { 
-        return typeid(DerivedModule); 
+        return typeid(*this); 
     }
     
     int get_topological_depth() const override { 
@@ -226,7 +225,7 @@ public:
             if (schedule_signal_update_callback_) {
                 schedule_signal_update_callback_(
                     valid_cycle, 
-                    std::weak_ptr<ISimulatable>(this->shared_from_this()),
+                    shared_from_this(),
                     name, 
                     value
                 );
@@ -308,11 +307,7 @@ public:
     
     void get_performance_stats(std::unordered_map<std::string, uint64_t>& stats) const override {
         stats = performance_stats_;
-        
-        // 添加模块特定统计
-        auto derived = static_cast<const DerivedModule*>(this);
-        // auto module_stats = derived->get_module_specific_stats();
-        auto module_stats = derived->get_process_stats();
+        auto module_stats = get_process_stats();
         stats.insert(module_stats.begin(), module_stats.end());
     }
 
