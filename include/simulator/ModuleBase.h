@@ -356,8 +356,8 @@ protected:
     }
 
     // 派生类可访问的进程管理器
-    ProcessManager* get_process_manager() { return process_manager_.get(); }
-    const ProcessManager* get_process_manager() const { return process_manager_.get(); }
+    ProcessManager& get_process_manager() { return *process_manager_; }
+    const ProcessManager& get_process_manager() const { return *process_manager_; }
     // 具体模块需要实现的接口
     virtual void register_processes() = 0; // 由派生类实现，注册自己的进程类型和条件函数
     virtual void register_message_handlers() = 0; // 由派生类实现，注册自己的消息处理函数

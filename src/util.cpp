@@ -94,7 +94,7 @@ std::vector<std::vector<std::pair<int, int>>> uniformsplit(int M, int N, int K) 
  * @param pair2 new interval
  * @return int unique elements num in the new interval
  */
-int UniqueElements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2) {
+int unique_elements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2) {
     int start1 = pair1.first, end1 = pair1.second;
     int start2 = pair2.first, end2 = pair2.second;
 
@@ -132,7 +132,7 @@ int manhattan_distance(std::pair<int, int> p1, std::pair<int, int> p2) {
  * @param dst 
  * @return std::vector<std::pair<int, int>> 
  */
-std::vector<std::pair<int, int>> XYinit(std::pair<int, int> src, std::pair<int, int> dst)
+std::vector<std::pair<int, int>> xy_init(std::pair<int, int> src, std::pair<int, int> dst)
 {
     int x1 = src.first;
     int y1 = src.second;
@@ -235,14 +235,14 @@ std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec) {
         return manhattan_distance(a, mid_pt) < manhattan_distance(b, mid_pt);
     });
 }
- int Combination(int n, int k) {
+ int combination(int n, int k) {
     if (k == 0 || k == n) {
         return 1;
     }
-    return Combination(n - 1, k - 1) + Combination(n - 1, k);
+    return combination(n - 1, k - 1) + combination(n - 1, k);
  }
 
- long long fast_Combination(long long n, long long k) {
+ long long fast_combination(long long n, long long k) {
     if (k == 0 || k == n) {
         return 1;
     }
@@ -260,8 +260,8 @@ std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec) {
  long long shortest_path_num(std::pair<int, int> src, std::pair<int, int> dst) {
     auto n = manhattan_distance(src, dst);
     auto k = std::min(std::abs(src.first - dst.first), std::abs(src.second - dst.second));
-    // return Combination(n, k);
-    return fast_Combination(n, k);
+    // return combination(n, k);
+    return fast_combination(n, k);
  }
 
  std::vector<int> dup_to_dup(int M, int N, int dup_id) {

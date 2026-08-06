@@ -132,7 +132,7 @@ void HGraph::init_path() {
         auto src_h = mapper_->get_core(src);
         auto dst_h = mapper_->get_core(dst);
         // get path
-        auto path = XYinit(src_h, dst_h);
+        auto path = xy_init(src_h, dst_h);
         // add path to paths
         // paths.push_back(Path{path, datavolume});
         // auto path_index = paths.size() - 1;

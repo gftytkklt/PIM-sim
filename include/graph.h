@@ -17,7 +17,7 @@
 #include "errors.h"
 
 // Dep info of a kernel dep
-struct Depinfo{
+struct DepInfo{
     int dep_layer;
     std::pair<int,int> dep_chan;
 };
@@ -26,12 +26,12 @@ struct NNkernel {
     int layer;
     std::pair<int,int> wsize;   // (w, h) of kernel
     std::pair<int,int> channel; // (in, out) of channel
-    std::vector<Depinfo> depinfo; // (dep_layer, dep_channel_num)
+    std::vector<DepInfo> depinfo; // (dep_layer, dep_channel_num)
     std::pair<int,int> ifmap_size, ofmap_size;  // ofmap size(w, h)
 };
 
 enum class DepType {
-    ErrorType,
+    Error,
     Accum,  // intra-layer accumulation
     Prop,   // inter-layer propagation
     Mixed,  // tile-level deptype
@@ -39,7 +39,7 @@ enum class DepType {
 };
 
 struct CNode {
-    int layer;                          // Layer inde
+    int layer;                          // Layer index
     int ifmap_size;                     // Ifm size
     int ofmap_size;                     // Ofm size
     std::pair<int,int> id_cin, id_cout; // (cin, cout) channel index
@@ -153,7 +153,7 @@ protected:
         auto ei = edges(g);
         for (auto e = ei.first; e != ei.second; ++e) {
             if (target(*e, g) == v) { // out-edges are deleted automatically
-                remove_edge(*e, g);  // delete in-edges mauanlly
+                remove_edge(*e, g);  // delete in-edges manually
             }
         }
         boost::remove_vertex(v, g);
@@ -278,16 +278,16 @@ class CGraph : public BaseGraph<CGraph, CNode, CEdge> {
     friend class TGraph;
 public:
     // acc cnodes group with in a NN kernel
-    struct AccBlk{
+    struct AccBlock{
         std::vector<Node> vertex_id;
         std::pair<int, int> cout_id;
     };
 
     // Dep struct for a NN kernel
     struct CDep{
-        std::vector<std::vector<AccBlk>> acc_blks; // accblk group
+        std::vector<std::vector<AccBlock>> acc_blks; // accblk group
         int layer;
-        std::vector<Depinfo> dep_info;
+        std::vector<DepInfo> dep_info;
     };
 
     CGraph() = default;

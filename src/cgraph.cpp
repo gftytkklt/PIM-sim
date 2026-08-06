@@ -94,11 +94,11 @@ void CGraph::build_graph_subset(){
     // erase deps of unselected layers
     for (auto& ker : kernels) {
         auto& depinfo = ker.depinfo;
-        depinfo.erase(std::remove_if(depinfo.begin(), depinfo.end(), [&](const Depinfo& dep){
+        depinfo.erase(std::remove_if(depinfo.begin(), depinfo.end(), [&](const DepInfo& dep){
             return selected_layers.find(dep.dep_layer) == selected_layers.end();
         }), depinfo.end());
         if (depinfo.empty()) {
-            depinfo.push_back(Depinfo{-1, {-1, -1}}); // add dummy dep for output layer
+            depinfo.push_back(DepInfo{-1, {-1, -1}}); // add dummy dep for output layer
         }
     }
     // rebuild depth_map
@@ -189,7 +189,7 @@ void CGraph::build_depth_map() {
         const auto& cur_dep = i.depinfo;
         depth_map.try_emplace(cur_layer, 0);
         int child_depth = depth_map[cur_layer] + 1;
-        std::for_each(cur_dep.begin(), cur_dep.end(), [&](const Depinfo& dep) {
+        std::for_each(cur_dep.begin(), cur_dep.end(), [&](const DepInfo& dep) {
             if (dep.dep_layer != -1) { // skip output dep
                 depth_map[dep.dep_layer] = std::max(depth_map[dep.dep_layer], child_depth);
             }
@@ -213,11 +213,11 @@ void CGraph::create_cnodes() {
         // construct nodes under the size constraints of (in_chan, out_chan)
         auto cur_dup = dup_num[cur_l];
         // for dup accblk group
-        std::vector<std::vector<AccBlk>> accblks_group{};
+        std::vector<std::vector<AccBlock>> accblks_group{};
         // create duplicated dep
         for (int d = 0; d < cur_dup; d++) {
             int co_begin = 0;
-            std::vector<AccBlk> accblks{};
+            std::vector<AccBlock> accblks{};
             while (co_begin < ker_out) {
                 // create the segmentation along the output channel dimension
                 int co_end = std::min(co_begin + out_chan, ker_out);
@@ -248,7 +248,7 @@ void CGraph::create_cnodes() {
                     ci_begin = ci_end;
                 }
                 // add accblk to accblks group
-                accblks.emplace_back(AccBlk{accblk, co_id});
+                accblks.emplace_back(AccBlock{accblk, co_id});
                 // update co_begin
                 co_begin = co_end;
             }
@@ -329,12 +329,12 @@ void CGraph::inter_layer_conn() {
 void CGraph::print_graph_info() const{ 
     std::cout << "Graph info:" << std::endl;
     BaseGraph<CGraph, CNode, CEdge>::print_graph_info(cg);
-    std::cout << "AccBlk info:" << std::endl;
+    std::cout << "AccBlock info:" << std::endl;
     for(const auto&v : cdeps) {
         std::cout << "Layer: " << v.layer << std::endl;
         for (const auto& blk_grp : v.acc_blks) {
             for(const auto& blk : blk_grp) {
-                std::cout << "AccBlk: " << blk.cout_id.first << " - " << blk.cout_id.second << std::endl;
+                std::cout << "AccBlock: " << blk.cout_id.first << " - " << blk.cout_id.second << std::endl;
                 for(const auto& node : blk.vertex_id) {
                     std::cout << "Node: " << node << std::endl;
                 }

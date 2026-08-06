@@ -12,12 +12,12 @@
 #include <queue>
 
 std::vector<std::vector<std::pair<int, int>>> uniformsplit(int M, int N, int K);
-int UniqueElements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2);
+int unique_elements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2);
 // manhattan distance
 int manhattan_distance(int x1, int y1, int x2, int y2);
 int manhattan_distance(std::pair<int, int> p1, std::pair<int, int> p2);
 // xy init
-std::vector<std::pair<int, int>> XYinit(std::pair<int, int> src, std::pair<int, int> dst);
+std::vector<std::pair<int, int>> xy_init(std::pair<int, int> src, std::pair<int, int> dst);
 // median compute
 int compute_median(std::vector<int>& vec);
 // fast median compute
@@ -26,8 +26,8 @@ int fast_compute_median(std::vector<int>& vec);
 std::pair<int, int> fast_compute_median(std::vector<std::pair<int, int>>& vec);
 // get median point, not coordinates
 std::pair<int, int> get_median_point(std::vector<std::pair<int, int>>& vec);
-// Combination C(n, k)
-int Combination(int n, int k);
+// combination C(n, k)
+int combination(int n, int k);
 // 2D shortest path num
 long long shortest_path_num(std::pair<int, int> src, std::pair<int, int> dst);
 // M dup to N dup corresponding, dup_id is cur dup in [1, M]
@@ -123,7 +123,7 @@ std::vector<std::vector<T>> chunk_vector(const std::vector<T>& vec, size_t chunk
 }
 
 template<typename T>
-void splitAndAppend(const std::vector<T>& source,
+void split_and_append(const std::vector<T>& source,
                             std::vector<std::vector<T>>& dest,
                             std::size_t chunkSize) {
     if (chunkSize == 0) throw std::invalid_argument("chunk size must be greater than 0.");

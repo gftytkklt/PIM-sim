@@ -91,7 +91,7 @@ void DGraph::set_sdg() {
         auto src_d = get_core(src);
         auto dst_d = get_core(dst);
         // get path
-        auto path = XYinit(src_d, dst_d);
+        auto path = xy_init(src_d, dst_d);
         // traverse edges in tedge_layermap
         for (const auto& [layer, datavolume] : tedge_layermap) {
             // add path to paths

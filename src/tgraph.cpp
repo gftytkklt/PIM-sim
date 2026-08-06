@@ -336,7 +336,7 @@ void TGraph::create_tnodes_TILE2_0() {
                 return cnode_info[cid].pcluster_assigned == true; // already assigned
             }), unmapped_cnodes.end());
         // std::cout << "[TG] Unmapped node num " << unmapped_cnodes.size() << std::endl;
-        splitAndAppend(unmapped_cnodes, physical_clusters, tile_num);
+        split_and_append(unmapped_cnodes, physical_clusters, tile_num);
         // update passigned flag
         for (const auto& cid: unmapped_cnodes) {
             cnode_info[cid].pcluster_assigned = true;
@@ -495,7 +495,7 @@ void TGraph::inter_tile_conn() {
             });
             CEdge merged_edge{cedge_vec[0]};
             for (int i = 1;i < cedge_vec.size(); i++) {
-                auto unique_chan = UniqueElements(merged_edge.channel_id, cedge_vec[i].channel_id);
+                auto unique_chan = unique_elements(merged_edge.channel_id, cedge_vec[i].channel_id);
                 merged_edge.datavolume += cedge_vec[i].datavolume * unique_chan / (cedge_vec[i].channel_id.second - cedge_vec[i].channel_id.first + 1);
                 // update end channel range
                 merged_edge.channel_id.second = std::max(merged_edge.channel_id.second, cedge_vec[i].channel_id.second);
