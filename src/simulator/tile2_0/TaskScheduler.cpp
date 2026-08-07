@@ -2,28 +2,28 @@
 
 TaskScheduler::TaskScheduler(const std::string& id, const std::array<FmapTask, L1C_BANK>& task_list) : ModuleBase(id), task_list_(task_list) {
     // 写两列的任务触发请求，该请求受多核反压机制控制，有效时一定允许执行。
-    add_signal(Signal(SignalID::batch_wr_bank, Signal::Direction::INPUT)); // int, batch写入的bank id
+    add_signal(Signal("batch_wr_bank", Signal::Direction::INPUT)); // int, batch写入的bank id
     // 这个信号被wtask的cache_write_done替代了。
     // add_signal(Signal("batch_wr_done", Signal::Direction::OUTPUT, false)); // bool, batch写入完成信号
     // L1C接口
-    add_signal(Signal(SignalID::cache_read_trigger, Signal::Direction::OUTPUT)); // int, bank id
-    add_signal(Signal(SignalID::cache_read_len, Signal::Direction::OUTPUT)); // int, valid_lines
-    add_signal(Signal(SignalID::cache_write_trigger, Signal::Direction::OUTPUT)); // int, bank id
-    add_signal(Signal(SignalID::cache_write_len, Signal::Direction::OUTPUT)); // int sram lines to write
-    add_signal(Signal(SignalID::cache_read_valid, Signal::Direction::INPUT)); // bool, 读有效信号
-    add_signal(Signal(SignalID::cache_write_done, Signal::Direction::INPUT)); // bool, 写响应信号
+    add_signal(Signal("cache_read_trigger", Signal::Direction::OUTPUT)); // int, bank id
+    add_signal(Signal("cache_read_len", Signal::Direction::OUTPUT)); // int, valid_lines
+    add_signal(Signal("cache_write_trigger", Signal::Direction::OUTPUT)); // int, bank id
+    add_signal(Signal("cache_write_len", Signal::Direction::OUTPUT)); // int sram lines to write
+    add_signal(Signal("cache_read_valid", Signal::Direction::INPUT)); // bool, 读有效信号
+    add_signal(Signal("cache_write_done", Signal::Direction::INPUT)); // bool, 写响应信号
     // xbar接口，当前通过TS等待XBAR的计算完成再发送下一次来实现控制依赖，不对ready建模
-    add_signal(Signal(SignalID::xbar_computation_trigger, Signal::Direction::OUTPUT)); // bool
-    add_signal(Signal(SignalID::xbar_switching_trigger, Signal::Direction::OUTPUT)); // int, target xbar id
-    add_signal(Signal(SignalID::xbar_computation_done, Signal::Direction::INPUT, false)); // bool
-    add_signal(Signal(SignalID::xbar_switching_done, Signal::Direction::INPUT, false)); // bool
+    add_signal(Signal("xbar_computation_trigger", Signal::Direction::OUTPUT)); // bool
+    add_signal(Signal("xbar_switching_trigger", Signal::Direction::OUTPUT)); // int, target xbar id
+    add_signal(Signal("xbar_computation_done", Signal::Direction::INPUT, false)); // bool
+    add_signal(Signal("xbar_switching_done", Signal::Direction::INPUT, false)); // bool
     // SIMD接口，当前通过TS等待SIMD的计算完成再发送下一次来实现控制依赖，不对ready建模
-    add_signal(Signal(SignalID::pooling_enabled, Signal::Direction::OUTPUT, false)); // bool
-    add_signal(Signal(SignalID::SIMD_computation_done, Signal::Direction::INPUT)); // int, output channel num
+    add_signal(Signal("pooling_enabled", Signal::Direction::OUTPUT, false)); // bool
+    add_signal(Signal("SIMD_computation_done", Signal::Direction::INPUT)); // int, output channel num
     // 内部信号
-    add_signal(Signal(SignalID::current_task_id, Signal::Direction::INTERNAL)); // int, 当前执行的任务ID
-    add_signal(Signal(SignalID::switching_process, Signal::Direction::INTERNAL)); // bool，是否正在切换
-    add_signal(Signal(SignalID::computation_process, Signal::Direction::INTERNAL)); // bool，是否正在计算
+    add_signal(Signal("current_task_id", Signal::Direction::INTERNAL)); // int, 当前执行的任务ID
+    add_signal(Signal("switching_process", Signal::Direction::INTERNAL)); // bool，是否正在切换
+    add_signal(Signal("computation_process", Signal::Direction::INTERNAL)); // bool，是否正在计算
 
     // 初始化任务计数
     // 这个任务计数没有考虑容量问题，
@@ -67,7 +67,7 @@ TaskScheduler::TaskScheduler(const std::string& id, const std::array<FmapTask, L
 
 // 重置有效请求的条件由外部模块实现
 bool TaskScheduler::check_wtask_trigger() {
-    auto batch_wr_bank_val = get_signal_value(SignalID::batch_wr_bank);
+    auto batch_wr_bank_val = get_signal_value("batch_wr_bank");
     if (batch_wr_bank_val.has_value()) {
         int bank_id = std::any_cast<int>(batch_wr_bank_val);
         // 只有当对应bank的写任务未完成且有数据要写时，才触发写任务
@@ -86,7 +86,7 @@ bool TaskScheduler::check_wtask_trigger() {
 // 一次仅触发一个batch的写任务。
 // 由于写任务在架构中是原子化的批处理操作，因此只考虑整体写入延迟，暂时不实现单个点的写入。
 bool TaskScheduler::check_wtask_exec() {
-    auto batch_wr_bank_val = get_signal_value(SignalID::batch_wr_bank);
+    auto batch_wr_bank_val = get_signal_value("batch_wr_bank");
     int bank_id = std::any_cast<int>(batch_wr_bank_val);
     auto batch_lines_val = batch_data_info[bank_id].batch_lines;
     // 提交写任务执行，写任务的长度由当前有效数据量决定
@@ -99,9 +99,9 @@ bool TaskScheduler::check_wtask_exec() {
 // 可以在这里添加多核随机延迟，以简化建模实现
 bool TaskScheduler::check_wtask_finish() {
     // 在这里触发多核反压的更新
-    auto write_done_val = get_signal_value(SignalID::cache_write_done);
+    auto write_done_val = get_signal_value("cache_write_done");
     if(write_done_val.has_value() && std::any_cast<bool>(write_done_val)) {
-        auto batch_wr_bank_val = get_signal_value(SignalID::batch_wr_bank);
+        auto batch_wr_bank_val = get_signal_value("batch_wr_bank");
         int bank_id = std::any_cast<int>(batch_wr_bank_val);
         // 写任务完成后，更新对应bank的任务状态和有效数据量
         batch_data_info[bank_id].valid_batch_num += 1; // 写入一个batch的数据
@@ -134,9 +134,9 @@ bool TaskScheduler::check_rtask_exec() {
         return false; // 切换任务优先级高于读任务，先执行切换任务
     }
     // 如果当前处在切换状态中，则等待切换完成后再执行读任务
-    auto switching_process_val = get_signal_value(SignalID::switching_process);
+    auto switching_process_val = get_signal_value("switching_process");
     if (switching_process_val.has_value() && std::any_cast<bool>(switching_process_val)) {
-        auto switch_done_val = get_signal_value(SignalID::xbar_switching_done);
+        auto switch_done_val = get_signal_value("xbar_switching_done");
         if (switch_done_val.has_value() && std::any_cast<bool>(switch_done_val)) {
             invalidate_switch_task_trigger(); // 切换完成，重置切换触发信号
             return true; // 切换完成，可以执行读任务
@@ -162,7 +162,7 @@ bool TaskScheduler::check_rtask_finish() {
         // 在TS逻辑里，在检测到done信号的周期进入计算，并且在下一个周期重置读请求
         // 因此下一个周期检测trigger条件的时候不会被触发，符合握手语义
         case TaskStatus::READ_DATA: {
-            auto read_valid_val = get_signal_value(SignalID::cache_read_valid);
+            auto read_valid_val = get_signal_value("cache_read_valid");
             if (read_valid_val.has_value() && std::any_cast<bool>(read_valid_val)) {
                 // 读数据准备好了，触发计算
                 // submit_signal_value("xbar_computation_trigger", true, 1); // 触发计算
@@ -178,7 +178,7 @@ bool TaskScheduler::check_rtask_finish() {
         case TaskStatus::COMPUTE: {
             invalidate_xbar_computation_trigger(); // 重置计算触发信号
             // auto compute_done_val = get_signal_value("SIMD_computation_done");
-            auto compute_done_val = get_signal_value(SignalID::xbar_computation_done);
+            auto compute_done_val = get_signal_value("xbar_computation_done");
             // if (compute_done_val.has_value() && std::any_cast<bool>(compute_done_val)) {
             if (compute_done_val.has_value() && std::any_cast<int>(compute_done_val)) {
                 // 计算完成，任务完成

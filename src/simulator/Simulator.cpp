@@ -59,7 +59,7 @@ void CycleAccurateSimulator::process_signal_events(uint64_t current_cycle) {
 
 void CycleAccurateSimulator::propagate_signal_to_targets(
     std::shared_ptr<ISimulatable> source_module,
-    SignalID source_signal,
+    const std::string& source_signal,
     const std::any& value,
     uint64_t valid_cycle) {
     // 更新源模块信号值
@@ -117,24 +117,53 @@ void CycleAccurateSimulator::run() {
 }
 
 void CycleAccurateSimulator::connect_modules(const std::string& src_id, 
-                                            SignalID src_signal,
+                                            const std::string& src_signal,
                                             const std::string& dst_id, 
-                                            SignalID dst_signal) {
+                                            const std::string& dst_signal) {
     auto src_it = module_map_.find(src_id);
     auto dst_it = module_map_.find(dst_id);
     
-    if (src_it != module_map_.end() && dst_it != module_map_.end()) {
-        // 1. 在模块层面建立连接
-        src_it->second->connect_to(src_signal, dst_it->second, dst_signal);
-        
-        // 2. 在模拟器层面记录连接关系
-        SimConnectionKey key = {src_it->second, src_signal};
-        connections_map_[key].push_back({
-            dst_it->second, dst_signal
-        });
-    } else {
+    if (src_it == module_map_.end() || dst_it == module_map_.end()) {
         throw std::runtime_error("Failed to connect modules. Source or target not found: " + src_id + " -> " + dst_id);
     }
+
+    // 信号注册表验证：源/目标信号必须已声明
+    auto src_reg = signal_registry_.find(src_id);
+    auto dst_reg = signal_registry_.find(dst_id);
+    if (src_reg == signal_registry_.end() ||
+        src_reg->second.find(src_signal) == src_reg->second.end()) {
+        throw std::runtime_error("Source signal '" + src_signal + "' not declared by module '" + src_id + "'");
+    }
+    if (dst_reg == signal_registry_.end() ||
+        dst_reg->second.find(dst_signal) == dst_reg->second.end()) {
+        throw std::runtime_error("Target signal '" + dst_signal + "' not declared by module '" + dst_id + "'");
+    }
+
+    // 方向验证：源必须是 OUTPUT，目标必须是 INPUT
+    if (src_reg->second.at(src_signal).direction != Signal::Direction::OUTPUT) {
+        throw std::runtime_error("Source signal '" + src_signal + "' of '" + src_id + "' is not OUTPUT");
+    }
+    if (dst_reg->second.at(dst_signal).direction != Signal::Direction::INPUT) {
+        throw std::runtime_error("Target signal '" + dst_signal + "' of '" + dst_id + "' is not INPUT");
+    }
+
+    // 类型验证：源信号值类型与目标信号声明类型一致
+    auto src_type = src_reg->second.at(src_signal).value_type;
+    auto dst_type = dst_reg->second.at(dst_signal).value_type;
+    if (src_type != typeid(void) && dst_type != typeid(void) && src_type != dst_type) {
+        throw std::runtime_error("Signal type mismatch connecting '" + src_id + "." + src_signal +
+                                 "' (" + src_type.name() + ") to '" + dst_id + "." + dst_signal +
+                                 "' (" + dst_type.name() + ")");
+    }
+
+    // 1. 在模块层面建立连接
+    src_it->second->connect_to(src_signal, dst_it->second, dst_signal);
+    
+    // 2. 在模拟器层面记录连接关系
+    SimConnectionKey key = {src_it->second, src_signal};
+    connections_map_[key].push_back({
+        dst_it->second, dst_signal
+    });
 }
 
 const std::vector<std::shared_ptr<ISimulatable>>& CycleAccurateSimulator::get_all_modules() const {
@@ -177,8 +206,7 @@ void CycleAccurateSimulator::simulate_cycle() {
 void CycleAccurateSimulator::dispatch_simulator_event(const SimulatorEvent& ev) {
     switch (ev.kind) {
         case SimulatorEvent::Kind::SIGNAL_UPDATE: {
-            // 模块在 evaluate(current_cycle) 内已知当前周期，
-            // ev.cycle 为相对延迟，转成绝对生效周期
+            // 模块在 evaluate(current_cycle) 内提交相对延迟，转成绝对生效周期
             SignalUpdateEvent signal_ev;
             signal_ev.cycle = current_cycle_ + ev.cycle;
             signal_ev.module = ev.src_module;

@@ -21,19 +21,19 @@ inline void create_core_modules(SimulatorType& sim, const std::string& suffix,
     auto l1c = "L1_cache" + suffix;
     auto xb = "crossbar" + suffix;
     auto sd = "simd" + suffix;
-    sim.connect_modules(ts, SignalID::cache_read_trigger, l1c, SignalID::cache_read_trigger);
-    sim.connect_modules(ts, SignalID::cache_read_len, l1c, SignalID::cache_read_len);
-    sim.connect_modules(ts, SignalID::cache_write_trigger, l1c, SignalID::cache_write_trigger);
-    sim.connect_modules(ts, SignalID::cache_write_len, l1c, SignalID::cache_write_len);
-    sim.connect_modules(l1c, SignalID::cache_read_done, ts, SignalID::cache_read_valid);
-    sim.connect_modules(l1c, SignalID::cache_write_done, ts, SignalID::cache_write_done);
-    sim.connect_modules(ts, SignalID::xbar_computation_trigger, xb, SignalID::computation_trigger);
-    sim.connect_modules(ts, SignalID::xbar_switching_trigger, xb, SignalID::switching_trigger);
-    sim.connect_modules(xb, SignalID::switching_done, ts, SignalID::xbar_switching_done);
-    sim.connect_modules(xb, SignalID::computation_done, ts, SignalID::xbar_computation_done);
-    sim.connect_modules(ts, SignalID::pooling_enabled, sd, SignalID::SIMD_pooling_enable);
-    sim.connect_modules(sd, SignalID::SIMD_data_valid, ts, SignalID::SIMD_computation_done);
-    sim.connect_modules(xb, SignalID::computation_done, sd, SignalID::SIMD_channel_batch);
+    sim.connect_modules(ts, "cache_read_trigger", l1c, "cache_read_trigger");
+    sim.connect_modules(ts, "cache_read_len", l1c, "cache_read_len");
+    sim.connect_modules(ts, "cache_write_trigger", l1c, "cache_write_trigger");
+    sim.connect_modules(ts, "cache_write_len", l1c, "cache_write_len");
+    sim.connect_modules(l1c, "cache_read_done", ts, "cache_read_valid");
+    sim.connect_modules(l1c, "cache_write_done", ts, "cache_write_done");
+    sim.connect_modules(ts, "xbar_computation_trigger", xb, "computation_trigger");
+    sim.connect_modules(ts, "xbar_switching_trigger", xb, "switching_trigger");
+    sim.connect_modules(xb, "switching_done", ts, "xbar_switching_done");
+    sim.connect_modules(xb, "computation_done", ts, "xbar_computation_done");
+    sim.connect_modules(ts, "pooling_enabled", sd, "SIMD_pooling_enable");
+    sim.connect_modules(sd, "SIMD_data_valid", ts, "SIMD_computation_done");
+    sim.connect_modules(xb, "computation_done", sd, "SIMD_channel_batch");
 }
 
 #endif

@@ -17,7 +17,7 @@
 struct SignalUpdateEvent {
     uint64_t cycle;                      // 生效周期
     std::weak_ptr<ISimulatable> module;  // 源模块
-    SignalID signal_name;                // 信号名
+    std::string signal_name;             // 信号名
     std::any value;                      // 信号值
     
     // 比较函数，用于优先队列
@@ -83,9 +83,16 @@ private:
     void process_signal_events(uint64_t current_cycle);
     void dispatch_simulator_event(const SimulatorEvent& event);
     void propagate_signal_to_targets(std::shared_ptr<ISimulatable> source_module,
-                                    SignalID source_signal,
+                                    const std::string& source_signal,
                                     const std::any& value,
                                     uint64_t valid_cycle);
+
+    // 信号注册表：模块ID -> (信号名 -> (方向, 值类型))
+    struct SignalMeta {
+        Signal::Direction direction;
+        std::type_index value_type{typeid(void)};
+    };
+    std::unordered_map<std::string, std::unordered_map<std::string, SignalMeta>> signal_registry_;
 
     std::vector<std::shared_ptr<ISimulatable>> modules_;
     std::vector<std::shared_ptr<ISimulatable>> combinational_modules_; // 组合逻辑模块
@@ -122,8 +129,8 @@ public:
     std::shared_ptr<ModuleType> register_module(const std::string& id, int topological_depth, Args... args);
     
     // 连接模块
-    void connect_modules(const std::string& src_id, SignalID src_signal,
-                        const std::string& dst_id, SignalID dst_signal);
+    void connect_modules(const std::string& src_id, const std::string& src_signal,
+                        const std::string& dst_id, const std::string& dst_signal);
     
     // 运行模拟
     void run();
@@ -195,6 +202,12 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
     module->register_processes();
 
     module->register_message_handlers();
+    
+    // 收集模块声明的信号到注册表（模拟器统一管理）
+    auto& registry = signal_registry_[id];
+    for (const auto& [sig_name, direction] : module->get_signal_declarations()) {
+        registry[sig_name] = SignalMeta{direction, module->get_signal_value_type(sig_name)};
+    }
     
     modules_.push_back(module);
     module_map_[id] = module;

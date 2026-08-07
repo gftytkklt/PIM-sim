@@ -171,43 +171,43 @@ private:
     }
 
     void raise_sram_wr_req(int bank_id, int lines) {
-        submit_signal_value(SignalID::cache_write_trigger, bank_id, 1); // 触发写任务
-        submit_signal_value(SignalID::cache_write_len, lines, 1); // 写任务长度
+        submit_signal_value("cache_write_trigger", bank_id, 1); // 触发写任务
+        submit_signal_value("cache_write_len", lines, 1); // 写任务长度
     }
 
     void invalidate_sram_wr_req() {
-        submit_signal_value(SignalID::cache_write_trigger, {}, 1); // 重置写任务触发信号
-        submit_signal_value(SignalID::cache_write_len, {}, 1); // 重置写任务长度
+        submit_signal_value("cache_write_trigger", {}, 1); // 重置写任务触发信号
+        submit_signal_value("cache_write_len", {}, 1); // 重置写任务长度
     }
 
     void raise_sram_rd_req(int bank_id, int lines) {
-        submit_signal_value(SignalID::cache_read_trigger, bank_id, 1); // 触发读任务
-        submit_signal_value(SignalID::cache_read_len, lines, 1); // 读任务长度
+        submit_signal_value("cache_read_trigger", bank_id, 1); // 触发读任务
+        submit_signal_value("cache_read_len", lines, 1); // 读任务长度
     }
 
     void invalidate_sram_rd_req() {
-        submit_signal_value(SignalID::cache_read_trigger, {}, 1); // 重置读任务触发信号
-        submit_signal_value(SignalID::cache_read_len, {}, 1); // 重置读任务长度
+        submit_signal_value("cache_read_trigger", {}, 1); // 重置读任务触发信号
+        submit_signal_value("cache_read_len", {}, 1); // 重置读任务长度
     }
 
     void raise_xbar_computation_trigger() {
-        submit_signal_value(SignalID::xbar_computation_trigger, true, 1); // 触发计算
-        submit_signal_value(SignalID::pooling_enabled, task_list_[current_task_id_].pooling, 1); // 设置pooling使能信号
+        submit_signal_value("xbar_computation_trigger", true, 1); // 触发计算
+        submit_signal_value("pooling_enabled", task_list_[current_task_id_].pooling, 1); // 设置pooling使能信号
     }
 
     void invalidate_xbar_computation_trigger() {
-        submit_signal_value(SignalID::xbar_computation_trigger, {}, 1); // 重置计算触发信号
-        submit_signal_value(SignalID::pooling_enabled, {}, 1); // 重置pooling使能信号
+        submit_signal_value("xbar_computation_trigger", {}, 1); // 重置计算触发信号
+        submit_signal_value("pooling_enabled", {}, 1); // 重置pooling使能信号
     }
 
     void raise_switch_task_trigger() {
-        submit_signal_value(SignalID::xbar_switching_trigger, current_task_id_, 1); // 触发任务切换
-        submit_signal_value(SignalID::switching_process, true, 1); // 设置切换中标志
+        submit_signal_value("xbar_switching_trigger", current_task_id_, 1); // 触发任务切换
+        submit_signal_value("switching_process", true, 1); // 设置切换中标志
     }
 
     void invalidate_switch_task_trigger() {
-        submit_signal_value(SignalID::xbar_switching_trigger, {}, 1); // 重置任务切换触发信号
-        submit_signal_value(SignalID::switching_process, {}, 1); // 重置切换中标志
+        submit_signal_value("xbar_switching_trigger", {}, 1); // 重置任务切换触发信号
+        submit_signal_value("switching_process", {}, 1); // 重置切换中标志
     }
 
     // 每个xbar维护自己当前的任务计数器
