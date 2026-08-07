@@ -11,6 +11,7 @@
 #include "Process.h"
 #include "MessageBase.h"
 #include "signals.h"
+#include "SimulatorEvent.h"
 
 /**
  * 模拟模块抽象接口
@@ -25,7 +26,8 @@ public:
     virtual std::type_index get_module_type() const = 0;
     
     // 事件驱动接口 (对应算法5.2)
-    virtual void evaluate(uint64_t current_cycle) = 0;
+    // 返回本周期产生的待调度事件（信号更新/消息发送），由模拟器统一入队
+    virtual std::vector<SimulatorEvent> evaluate(uint64_t current_cycle) = 0;
     virtual const std::vector<ProcessEventPtr>& get_active_processes() const = 0;
     virtual const std::vector<ProcessEventPtr>& get_completed_processes() const = 0;
     

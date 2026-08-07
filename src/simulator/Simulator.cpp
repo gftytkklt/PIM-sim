@@ -157,10 +157,13 @@ void CycleAccurateSimulator::simulate_cycle() {
     // 处理组合逻辑模块（如果有的话）
     process_combinational_logic();
     
-    // 评估所有模块的活跃事件
+    // 评估所有模块的活跃事件，收集模块返回的待调度事件
     stats_.modules_processed = 0;
     for (auto& module : modules_) {
-        module->evaluate(current_cycle_);
+        auto events = module->evaluate(current_cycle_);
+        for (const auto& ev : events) {
+            dispatch_simulator_event(ev);
+        }
         stats_.modules_processed++;
     }
     
@@ -171,10 +174,36 @@ void CycleAccurateSimulator::simulate_cycle() {
     check_simulation_complete();
 }
 
+void CycleAccurateSimulator::dispatch_simulator_event(const SimulatorEvent& ev) {
+    switch (ev.kind) {
+        case SimulatorEvent::Kind::SIGNAL_UPDATE: {
+            // 模块在 evaluate(current_cycle) 内已知当前周期，
+            // ev.cycle 为相对延迟，转成绝对生效周期
+            SignalUpdateEvent signal_ev;
+            signal_ev.cycle = current_cycle_ + ev.cycle;
+            signal_ev.module = ev.src_module;
+            signal_ev.signal_name = ev.signal_name;
+            signal_ev.value = ev.signal_value;
+            signal_event_queue_.push(signal_ev);
+            break;
+        }
+        case SimulatorEvent::Kind::MESSAGE_SEND: {
+            MessageEvent msg_ev;
+            msg_ev.trigger_cycle = current_cycle_ + ev.cycle;
+            msg_ev.message = ev.message;
+            message_queue_.push(msg_ev);
+            break;
+        }
+    }
+}
+
 void CycleAccurateSimulator::process_combinational_logic() {
     // 处理延迟为0的组合逻辑模块
     for (auto& module : combinational_modules_) {
-        module->evaluate(current_cycle_);
+        auto events = module->evaluate(current_cycle_);
+        for (const auto& ev : events) {
+            dispatch_simulator_event(ev);
+        }
     }
 }
 
