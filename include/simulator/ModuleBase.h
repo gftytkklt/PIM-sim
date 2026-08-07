@@ -11,25 +11,23 @@
 #include "ISimulatable.h"
 #include "Process.h"
 #include "MessageBase.h"
+#include "signals.h"
 
 /**
  * 信号定义
  */
 struct Signal {
-    std::string name;
+    SignalID name;
     enum class Direction { INPUT, OUTPUT, INTERNAL} direction;
     bool valid{false};
     uint64_t valid_cycle{0};
     std::any value;
 
     template<typename T>
-    Signal(const std::string& n, Signal::Direction d, T&& v)
-        : name(n), direction(d), value(std::forward<T>(v)) {
-            // std::cout << "Initialized signal '" << name << "' with value of type " 
-            //           << value.type().name() << std::endl;
-        }
+    Signal(SignalID n, Signal::Direction d, T&& v)
+        : name(n), direction(d), value(std::forward<T>(v)) {}
 
-    Signal(const std::string& n, Signal::Direction d)
+    Signal(SignalID n, Signal::Direction d)
         : name(n), direction(d) {}
     
     Signal() = default;
@@ -38,16 +36,16 @@ struct Signal {
 // 连接管理映射：源模块信号 -> 目标模块信号列表
 struct ConnectionInfo {
     std::weak_ptr<ISimulatable> target_module;
-    std::string target_signal;
+    SignalID target_signal;
 };
-using ConnectionKey = std::pair<std::weak_ptr<ISimulatable>, std::string>;
+using ConnectionKey = std::pair<std::weak_ptr<ISimulatable>, SignalID>;
 
 struct ConnectionKeyHash {
     std::size_t operator()(const ConnectionKey& key) const {
         auto module_ptr = key.first.lock();
         if (!module_ptr) return 0;
         return std::hash<std::string>{}(module_ptr->get_id()) ^ 
-                (std::hash<std::string>{}(key.second) << 1);
+                (std::hash<int>{}(static_cast<int>(key.second)) << 1);
     }
 };
 
@@ -72,24 +70,24 @@ protected:
     int topological_depth_{0};
     
     // 信号管理
-    std::unordered_map<std::string, Signal> signals_;
+    std::unordered_map<SignalID, Signal> signals_;
     
     // 连接管理
     struct Connection {
-        std::string local_signal;
+        SignalID local_signal;
         std::weak_ptr<ISimulatable> target_module;
-        std::string target_signal;
+        SignalID target_signal;
     };
     std::vector<Connection> connections_;
 
     //进程管理
     std::unique_ptr<ProcessManager> process_manager_;
     // 信号到进程类型的映射（用于快速检查哪些进程受信号影响）
-    std::unordered_map<std::string, std::vector<std::string>> signal_to_processes_;
+    std::unordered_map<SignalID, std::vector<std::string>> signal_to_processes_;
 
     // 添加：用于提交信号更新事件的函数指针
     std::function<void(uint64_t, std::weak_ptr<ISimulatable>, 
-                      std::string, std::any)> schedule_signal_update_callback_;
+                      SignalID, std::any)> schedule_signal_update_callback_;
 
     // 用于提交消息的函数指针
     using MessageHandlerFunc = std::function<void(const GenericMessage&)>;
@@ -110,7 +108,7 @@ public:
 
     // 设置信号更新回调
     void set_schedule_callback(std::function<void(uint64_t, std::weak_ptr<ISimulatable>, 
-                                                std::string, std::any)> callback) {
+                                                SignalID, std::any)> callback) {
         schedule_signal_update_callback_ = callback;
     }
 
@@ -178,11 +176,11 @@ public:
         topological_depth_ = depth; 
     }
     
-    bool has_signal(const std::string& name) const override {
+    bool has_signal(SignalID name) const override {
         return signals_.find(name) != signals_.end();
     }
     
-    std::any get_signal_value(const std::string& name) const override {
+    std::any get_signal_value(SignalID name) const override {
         auto it = signals_.find(name);
         if (it != signals_.end() && it->second.valid) {
             return it->second.value;
@@ -191,34 +189,28 @@ public:
     }
 
     template<typename T>
-    std::optional<T> get_signal_as(const std::string& name) const {
+    std::optional<T> get_signal_as(SignalID name) const {
         auto it = signals_.find(name);
         if (it == signals_.end() || !it->second.valid) return std::nullopt;
         const auto* ptr = std::any_cast<T>(&it->second.value);
         return ptr ? std::optional<T>(*ptr) : std::nullopt;
     }
 
-    void clear_signal(const std::string& name) {
+    void clear_signal(SignalID name) {
         auto it = signals_.find(name);
         if (it != signals_.end()) {
             it->second.valid = false;
             it->second.value.reset();
-            // keep previous valid_cycle info
-            // it->second.valid_cycle = 0;
         }
     }
 
     // 这是将setter函数延迟到对应周期的接口
     // 当模块产生输出的时候，不直接修改信号的值，通过该接口提交一个信号更新事件。
-    void submit_signal_value(const std::string& name, 
+    void submit_signal_value(SignalID name, 
                          const std::any& value, 
                          uint64_t valid_cycle) {
         auto it = signals_.find(name);
         if (it != signals_.end()) {
-            // it->second.value = value;
-            // it->second.valid = true;
-            // it->second.valid_cycle = valid_cycle; // 经多少周期以后信号生效。
-            
             performance_stats_["signal_updates"]++;
             
             // 提交信号更新事件
@@ -232,11 +224,8 @@ public:
             }
         }
         else {
-            throw std::runtime_error("Attempting to submit value for non-existent signal: " + name);
+            throw std::runtime_error(std::string("Attempting to submit value for non-existent signal: ") + signal_name(name));
         }
-        // std::cout << "Module " << id_ << " submitted signal update: " 
-        //           << name << " = " << value.type().name() 
-        //           << " (valid after cycle " << valid_cycle << ")" << std::endl;
     }
 
     // 提交GenericMessage
@@ -254,18 +243,16 @@ public:
         submit_message(GenericMessage(task_id, body, delay_cycles));
     }
 
-    void invalidate_signal(const std::string& name) {
+    void invalidate_signal(SignalID name) {
         auto it = signals_.find(name);
         if (it != signals_.end()) {
             it->second.valid = false;
             it->second.value.reset();
-            // keep previous valid_cycle info
-            // it->second.valid_cycle = 0;
         }
     }
     
     // setter函数
-    void set_signal_value(const std::string& name, 
+    void set_signal_value(SignalID name, 
                          const std::any& value, 
                          uint64_t valid_cycle) override {
         auto it = signals_.find(name);
@@ -277,9 +264,9 @@ public:
     }
     // 目前没有用到这个函数，但为了实现嵌套module的连接，需要保留这个接口
     // 当前的实现是在simulator里例化flatten的module，然后定义它们的connection
-    void connect_to(const std::string& local_signal,
+    void connect_to(SignalID local_signal,
                    std::shared_ptr<ISimulatable> target_module,
-                   const std::string& target_signal) override {
+                   SignalID target_signal) override {
         connections_.push_back({local_signal, target_module, target_signal});
     }
     
@@ -323,14 +310,14 @@ public:
     }
 
     // 绑定信号到进程（用于优化性能）
-    void bind_signal_to_process(const std::string& signal_name, 
+    void bind_signal_to_process(SignalID signal_name, 
                                const std::string& process_name) {
         signal_to_processes_[signal_name].push_back(process_name);
     }
 
     // 获取受信号影响的进程列表
     // 可以基于此函数构建一个反向索引，快速找到受某个信号影响的进程列表，在信号更新时直接检查这些进程的触发条件，而不是每次都遍历所有进程。
-    const std::vector<std::string>& get_processes_by_signal(const std::string& signal_name) const {
+    const std::vector<std::string>& get_processes_by_signal(SignalID signal_name) const {
         static const std::vector<std::string> empty_list;
         auto it = signal_to_processes_.find(signal_name);
         if (it != signal_to_processes_.end()) {
@@ -351,11 +338,11 @@ protected:
     }
     
     // 获取信号
-    Signal& get_signal(const std::string& name) {
+    Signal& get_signal(SignalID name) {
         return signals_.at(name);
     }
     
-    const Signal& get_signal(const std::string& name) const {
+    const Signal& get_signal(SignalID name) const {
         return signals_.at(name);
     }
 

@@ -59,7 +59,7 @@ void CycleAccurateSimulator::process_signal_events(uint64_t current_cycle) {
 
 void CycleAccurateSimulator::propagate_signal_to_targets(
     std::shared_ptr<ISimulatable> source_module,
-    const std::string& source_signal,
+    SignalID source_signal,
     const std::any& value,
     uint64_t valid_cycle) {
     // 更新源模块信号值
@@ -117,9 +117,9 @@ void CycleAccurateSimulator::run() {
 }
 
 void CycleAccurateSimulator::connect_modules(const std::string& src_id, 
-                                            const std::string& src_signal,
+                                            SignalID src_signal,
                                             const std::string& dst_id, 
-                                            const std::string& dst_signal) {
+                                            SignalID dst_signal) {
     auto src_it = module_map_.find(src_id);
     auto dst_it = module_map_.find(dst_id);
     

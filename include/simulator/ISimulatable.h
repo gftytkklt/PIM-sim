@@ -10,6 +10,7 @@
 #include <vector>
 #include "Process.h"
 #include "MessageBase.h"
+#include "signals.h"
 
 /**
  * 模拟模块抽象接口
@@ -28,8 +29,6 @@ public:
     virtual const std::vector<ProcessEventPtr>& get_active_processes() const = 0;
     virtual const std::vector<ProcessEventPtr>& get_completed_processes() const = 0;
     
-     // 消息传递接口
-
     // 消息传递接口
     virtual void handle_message(const GenericMessage& msg) = 0;
     
@@ -37,17 +36,17 @@ public:
     virtual int get_topological_depth() const = 0;
     virtual void set_topological_depth(int depth) = 0;
     
-    // 信号管理接口
-    virtual bool has_signal(const std::string& name) const = 0;
-    virtual std::any get_signal_value(const std::string& name) const = 0;
-    virtual void set_signal_value(const std::string& name, 
+    // 信号管理接口（类型化 SignalID）
+    virtual bool has_signal(SignalID name) const = 0;
+    virtual std::any get_signal_value(SignalID name) const = 0;
+    virtual void set_signal_value(SignalID name, 
                                  const std::any& value, 
                                  uint64_t valid_cycle) = 0;
     
     // 连接管理
-    virtual void connect_to(const std::string& local_signal, 
+    virtual void connect_to(SignalID local_signal, 
                            std::shared_ptr<ISimulatable> target_module,
-                           const std::string& target_signal) = 0;
+                           SignalID target_signal) = 0;
     
     // 性能统计
     virtual void get_performance_stats(std::unordered_map<std::string, uint64_t>& stats) const = 0;

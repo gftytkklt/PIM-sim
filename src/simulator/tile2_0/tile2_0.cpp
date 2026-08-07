@@ -9,19 +9,19 @@ void OPUSimulator::Init() {
     register_module<Crossbar>("crossbar", 3);
     register_module<TaskScheduler>("task_scheduler", 2, task_list);
     register_module<L1C>("L1_cache", 1);
-    connect_modules("task_scheduler", "cache_read_trigger", "L1_cache", "cache_read_trigger");
-    connect_modules("task_scheduler", "cache_read_len", "L1_cache", "cache_read_len");
-    connect_modules("task_scheduler", "cache_write_trigger", "L1_cache", "cache_write_trigger");
-    connect_modules("task_scheduler", "cache_write_len", "L1_cache", "cache_write_len");
-    connect_modules("L1_cache", "cache_read_done", "task_scheduler", "cache_read_valid");
-    connect_modules("L1_cache", "cache_write_done", "task_scheduler", "cache_write_done");
-    connect_modules("task_scheduler", "xbar_computation_trigger", "crossbar", "computation_trigger");
-    connect_modules("task_scheduler", "xbar_switching_trigger", "crossbar", "switching_trigger");
-    connect_modules("crossbar", "switching_done", "task_scheduler", "xbar_switching_done");
-    connect_modules("crossbar", "computation_done", "task_scheduler", "xbar_computation_done");
-    connect_modules("task_scheduler", "pooling_enabled", "simd", "SIMD_pooling_enable");
-    connect_modules("simd", "SIMD_data_valid", "task_scheduler", "SIMD_computation_done");
-    connect_modules("crossbar", "computation_done", "simd", "SIMD_channel_batch");
+    connect_modules("task_scheduler", SignalID::cache_read_trigger, "L1_cache", SignalID::cache_read_trigger);
+    connect_modules("task_scheduler", SignalID::cache_read_len, "L1_cache", SignalID::cache_read_len);
+    connect_modules("task_scheduler", SignalID::cache_write_trigger, "L1_cache", SignalID::cache_write_trigger);
+    connect_modules("task_scheduler", SignalID::cache_write_len, "L1_cache", SignalID::cache_write_len);
+    connect_modules("L1_cache", SignalID::cache_read_done, "task_scheduler", SignalID::cache_read_valid);
+    connect_modules("L1_cache", SignalID::cache_write_done, "task_scheduler", SignalID::cache_write_done);
+    connect_modules("task_scheduler", SignalID::xbar_computation_trigger, "crossbar", SignalID::computation_trigger);
+    connect_modules("task_scheduler", SignalID::xbar_switching_trigger, "crossbar", SignalID::switching_trigger);
+    connect_modules("crossbar", SignalID::switching_done, "task_scheduler", SignalID::xbar_switching_done);
+    connect_modules("crossbar", SignalID::computation_done, "task_scheduler", SignalID::xbar_computation_done);
+    connect_modules("task_scheduler", SignalID::pooling_enabled, "simd", SignalID::SIMD_pooling_enable);
+    connect_modules("simd", SignalID::SIMD_data_valid, "task_scheduler", SignalID::SIMD_computation_done);
+    connect_modules("crossbar", SignalID::computation_done, "simd", SignalID::SIMD_channel_batch);
 
     register_task_handler("SIMD_computation_done", 
             [this](const GenericMessage& msg) {

@@ -16,7 +16,7 @@
 struct SignalUpdateEvent {
     uint64_t cycle;                      // 生效周期
     std::weak_ptr<ISimulatable> module;  // 源模块
-    std::string signal_name;             // 信号名
+    SignalID signal_name;                // 信号名
     std::any value;                      // 信号值
     
     // 比较函数，用于优先队列
@@ -82,7 +82,7 @@ private:
     // 私有方法
     void process_signal_events(uint64_t current_cycle);
     void propagate_signal_to_targets(std::shared_ptr<ISimulatable> source_module,
-                                    const std::string& source_signal,
+                                    SignalID source_signal,
                                     const std::any& value,
                                     uint64_t valid_cycle);
 
@@ -121,8 +121,8 @@ public:
     std::shared_ptr<ModuleType> register_module(const std::string& id, int topological_depth, Args... args);
     
     // 连接模块
-    void connect_modules(const std::string& src_id, const std::string& src_signal,
-                        const std::string& dst_id, const std::string& dst_signal);
+    void connect_modules(const std::string& src_id, SignalID src_signal,
+                        const std::string& dst_id, SignalID dst_signal);
     
     // 运行模拟
     void run();
@@ -199,7 +199,7 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
     module->set_schedule_callback([weak_this, module_ptr](
         uint64_t valid_cycle, // latency after current cycle
         std::weak_ptr<ISimulatable> source_module,
-        const std::string& signal_name,
+        SignalID signal_name,
         const std::any& value) {
         
         if (auto sim = weak_this.lock()) {
