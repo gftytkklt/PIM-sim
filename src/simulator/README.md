@@ -1,23 +1,18 @@
-# PIM-sim 模拟器架构说明
+# PIM-sim 模拟器说明
 
-> 对应论文《存算一体芯片协同工具链关键技术研究》第 5 章
-> （异构多核存算芯片性能模拟框架研究）
->
-> 本目录（`src/simulator/`）与 `include/simulator/` 共同构成 PIM-sim 的
-> 周期精确（cycle-accurate）存算架构模拟后端。
+本目录（`src/simulator/`）与 `include/simulator/` 共同构成 PIM-sim 的周期精确
+（cycle-accurate）存算架构模拟器，实现基于事件驱动的微架构性能仿真。
 
 ---
 
 ## 1. 总体定位
 
-模拟器是 PIM-sim 工具链的**性能模拟后端**，接收算子映射前端（`CGraph`→`TGraph`→`HGraph`→`DGraph`）生成的
-推理任务与硬件映射结果，通过事件驱动的周期精确仿真，输出延迟、吞吐量、功耗等性能指标。
+模拟器接收算子映射前端生成的推理任务与硬件映射结果，通过事件驱动仿真输出
+延迟、吞吐量、功耗等性能指标。核心设计：
 
-其核心设计目标（与论文 5.2 一致）：
-
-1. **与微架构细节解耦的性能建模**：用户以"模块 + 信号 + 事件"描述微架构行为，无需关心底层信号传播实现。
-2. **周期精确的事件驱动机制**：自动维护事件队列的执行顺序与触发时序。
-3. **统一建模范式**：为多核芯片中的异构功能组件（数字电路、易失存储、非易失存算器件）提供统一的数据接口。
+- **与微架构细节解耦**：用户以"模块 + 信号 + 事件"描述微架构行为
+- **周期精确事件驱动**：自动维护事件队列的执行顺序与触发时序
+- **统一建模范式**：为异构功能组件提供统一的数据接口
 
 ```
 算子映射前端 (Analyzer → CGraph → TGraph → HGraph → DGraph)
@@ -42,56 +37,35 @@
 
 ### 2.1 模拟器框架层（`include/simulator/`, `src/simulator/`）
 
-| 文件 | 职责 | 对应论文 |
-|------|------|----------|
-| `ISimulatable.h` | 模块抽象接口 + `Signal` 信号结构 | 5.2.1 模块原语（信号属性） |
-| `ModuleBase.h` | 模块基类（信号管理、事件缓冲、消息处理） | 5.2.1 模块原语 |
-| `Process.h` / `Proecss.cpp` | `ProcessEvent`（事件实例）、`ProcessType`（进程类型）、`ProcessManager`（状态机） | 5.2.1 事件原语 + 5.2.2 状态更新模型 |
-| `Simulator.h` / `Simulator.cpp` | `CycleAccurateSimulator`（事件驱动引擎、信号注册表、连接管理） | 5.2.2 事件驱动机制 |
-| `SimulatorEvent.h` | 统一事件类型（信号更新/消息发送），`evaluate()` 返回值 | 5.2.2 |
-| `MessageBase.h` | `GenericMessage` 通用消息（task_id + body） | 5.3.1 消息原语 |
+| 文件 | 职责 |
+|------|------|
+| `ISimulatable.h` | 模块抽象接口 + `Signal` 信号结构 |
+| `ModuleBase.h` | 模块基类（信号管理、事件缓冲、消息处理） |
+| `Process.h` / `Proecss.cpp` | `ProcessEvent`（事件实例）、`ProcessType`（进程类型）、`ProcessManager`（状态机） |
+| `Simulator.h` / `Simulator.cpp` | `CycleAccurateSimulator`（事件驱动引擎、信号注册表、连接管理） |
+| `SimulatorEvent.h` | 统一事件类型（信号更新/消息发送），`evaluate()` 返回值 |
+| `MessageBase.h` | `GenericMessage` 通用消息（task_id + body） |
 
 ### 2.2 Tile2.0 架构模型层（`include/simulator/tile2_0/`, `src/simulator/tile2_0/`）
 
-| 文件 | 职责 | 对应 OPU-Tile2.0 组件 |
-|------|------|----------------------|
-| `config.h` | `hw_config` 命名空间硬件参数（constexpr） | 5.4.1 表5-6 参数 |
-| `Crossbar.h/.cpp` | 存算阵列：计算 + 切换 | 存算阵列（WL/BL=1152/256, 40 周期） |
-| `SIMD.h/.cpp` | 后处理：量化→激活→池化流水 | 后处理单元（16 宽, 2/3 周期） |
-| `L1C.h/.cpp` | 本地缓存（多 bank SRAM） | 本地缓存（4KB×3, 128-bit, 1 周期） |
-| `TaskScheduler.h/.cpp` | 任务调度：数据搬运 + 计算触发 | 任务控制器（静态调度, 1 周期） |
-| `core_factory.h` | `create_core_modules()` 核心模块工厂 | 单核模块组标准化实例化 |
-| `membanking.h/.cpp` | 内存 banking 模拟（XY/YX/Custom 策略） | 多核分块 |
-| `multicore.h/.cpp` | 多核并行模拟（6 核，硬编码依赖） | 多核事务 |
-| `tiling.h/.cpp` | 动态 banking tiling 模拟 | 分块策略 |
-| `tile2_0.h/.cpp` | OPU 单 tile 全流水线模拟 | 单核推理 |
+| 文件 | 职责 |
+|------|------|
+| `config.h` | `hw_config` 命名空间硬件参数（constexpr） |
+| `Crossbar.h/.cpp` | 存算阵列：计算 + 切换 |
+| `SIMD.h/.cpp` | 后处理：量化→激活→池化流水 |
+| `L1C.h/.cpp` | 本地缓存（多 bank SRAM） |
+| `TaskScheduler.h/.cpp` | 任务调度：数据搬运 + 计算触发 |
+| `core_factory.h` | `create_core_modules()` 核心模块工厂 |
+| `membanking.h/.cpp` | 内存 banking 模拟（XY/YX/Custom 策略） |
+| `multicore.h/.cpp` | 多核并行模拟（6 核，硬编码依赖） |
+| `tiling.h/.cpp` | 动态 banking tiling 模拟 |
+| `tile2_0.h/.cpp` | OPU 单 tile 全流水线模拟 |
 
 ---
 
 ## 3. 模拟机制
 
-### 3.1 三层数据流模型（论文 5.1.1）
-
-仿真器将计算数据流抽象为三层：
-
-| 层级 | 定义 | 粒度 |
-|------|------|------|
-| **全局数据流** | 系统级输入激励，预加载至全局缓存 | 完整计算图 |
-| **分块数据流** | 存算核心间算子的输入-输出关系 | 特征图分块 |
-| **MVM 数据流** | 存算阵列内部的乘累加批次 | 分块内的批次/激励点 |
-
-### 3.2 微架构图与拓扑属性（论文 5.1.1）
-
-- **微架构行为集合**：`Behav_j = { behav_i^j | μop_i → μarch_j }`，即所有计算操作在节点 j 上的行为集合。
-- **微架构节点依赖**：若 `behav_i^j` 的输出被 `behav_i^k` 用作输入，则存在依赖 `μarch_j → μarch_k`。
-- **拓扑深度**：`Depth(μarch_j)` 为起点到该节点的最长路径长度（环检测时忽略回边）。
-- **依赖方向**：与数据流参考方向一致为**前向依赖**（生产-消费），反之为**反馈依赖**（控制流反馈）。
-
-代码对应：`ModuleBase::topological_depth_`，由 `register_module` 设置。
-
-### 3.3 事件驱动机制（论文 5.2.2）
-
-#### 事件状态机（对应 `ProcessEvent`）
+### 3.1 事件状态机（`ProcessEvent`）
 
 `ProcessEvent` 定义五阶段状态：
 
@@ -100,29 +74,28 @@ IDLE ──触发──▶ TRIGGERED ──执行──▶ EXECUTING ──完�
   (空闲)        (已触发)            (执行中)            (执行完成)        (事件结束)
 ```
 
-对应论文 5.2.1 事件原语的五类时间戳：
-- **触发时间戳** `T_trigger`：上级模块已产生所有有效输出
-- **执行时间戳** `T_exec`：本模块开始接收数据并计算，状态更新为"占用"
-- **完成时间戳** `T_finish`：计算结束，输出置为有效
-- **结束时间戳** `T_end`：模块状态恢复可用，输出-输入信号组无效化
-- **性能计数时间戳**：事件占用硬件资源的周期数
+`ProcessEvent` 维护四类时间戳（触发/执行/完成/结束），`get_timing_stats()`
+返回各类延迟（trigger→exec、exec→finish、finish→end、total）。
 
-代码实现：`Process.h` 的 `ProcessEvent`（状态 + 4 个时间戳字段），
-`get_timing_stats()` 返回各类延迟（trigger→exec、exec→finish、finish→end、total）。
-
-#### 状态转移驱动（`ProcessManager::drive_state_transitions`）
+### 3.2 状态转移驱动（`ProcessManager::drive_state_transitions`）
 
 每个模块在 `evaluate(current_cycle)` 时调用，流程：
 
-1. **触发检查**：遍历 `process_types_`，若无活跃同类事件且触发条件满足，`create_active_event` 创建新事件。
-2. **状态推进**：对每个活跃事件，用 `while(state_changed)` 循环检查 `check_exec/check_finish/check_end`，允许单周期内连续状态转换（对应真实硬件中"一旦条件满足立即执行"）。
-3. **清理**：`cleanup_ended_events()` 将 ENDED 事件移入 `completed_events_` 供性能统计。
+1. **触发检查**：遍历 `process_types_`，若无活跃同类事件且触发条件满足，
+   `create_active_event` 创建新事件。
+2. **状态推进**：对每个活跃事件，用 `while(state_changed)` 循环检查
+   `check_exec/check_finish/check_end`，允许单周期内连续状态转换。
+3. **清理**：`cleanup_ended_events()` 将 ENDED 事件移入 `completed_events_`
+   供性能统计。
 
-#### 事件调度（`CycleAccurateSimulator`）
+### 3.3 事件调度（`CycleAccurateSimulator`）
 
-- 每个模块的 `evaluate()` 返回 `std::vector<SimulatorEvent>`（解耦后设计）。
-- 模块内部通过 `submit_signal_value()` / `submit_message()` 将事件累积到 `pending_events_`。
-- 模拟器在 `simulate_cycle()` 中收集各模块事件，`dispatch_simulator_event()` 将**相对延迟周期** + `current_cycle_` 转为**绝对生效周期**，推入 `signal_event_queue_` / `message_queue_`（最小堆优先队列）。
+- 每个模块的 `evaluate()` 返回 `std::vector<SimulatorEvent>`。
+- 模块内部通过 `submit_signal_value()` / `submit_message()` 将事件累积到
+  `pending_events_`。
+- 模拟器在 `simulate_cycle()` 中收集各模块事件，`dispatch_simulator_event()`
+  将**相对延迟周期** + `current_cycle_` 转为**绝对生效周期**，推入
+  `signal_event_queue_` / `message_queue_`（最小堆优先队列）。
 
 ```
 simulate_cycle():
@@ -133,17 +106,15 @@ simulate_cycle():
   5. check_simulation_complete()
 ```
 
-#### 仿真拓扑序（论文 5.2.2 并发事件）
+### 3.4 仿真拓扑序
 
-事件按**拓扑深度降序**（逆流水线方向）执行，保证"在 T 时刻所有输入数据已就绪，且当前输出更新不影响同一时刻未执行事件的输入"。`register_module` 按拓扑深度排序 `modules_`。
+事件按**拓扑深度降序**（逆流水线方向）执行，保证"在 T 时刻所有输入数据
+已就绪，且当前输出更新不影响同一时刻未执行事件的输入"。
+`register_module` 按拓扑深度排序 `modules_`。
 
-两类违例依赖及消除方法（论文 5.2.2）：
-- **前向组合逻辑依赖**（延迟为 0 的传播，如加法器）：当前时刻后级依赖前级未执行事件的输出 → 框架自动检测并插入高优先级事件栈优先执行。
-- **反馈时序逻辑依赖**（后级在 >T 时刻修改前级信号）：通过数据队列化（入队）防止当前有效数据被覆盖。队列长度 ≤ 2（正确反压条件下）。
+### 3.5 信号系统（结构类型化 + 运行时注册表）
 
-### 3.4 信号系统（结构类型化 + 运行时注册表）
-
-信号系统**只约定结构，不预设具体信号**：
+信号系统只约定结构，不预设具体信号：
 
 ```cpp
 struct Signal {
@@ -154,18 +125,17 @@ struct Signal {
 };
 ```
 
-**用户建模层**：在模块构造函数中 `add_signal(Signal("my_sig", Direction::INPUT, 0))` 声明自己的信号
+**用户建模层**：在模块构造函数中 `add_signal(...)` 声明自己的信号
 （名称、数量、方向、类型完全由用户决定）。
 
 **模拟器统一管理**（`CycleAccurateSimulator`）：
-- `register_module()` 自动收集模块信号声明到 `signal_registry_`（模块ID → 信号名 → {方向, 值类型}）。
-- `connect_modules()` 自动验证：信号存在性、方向（源 OUTPUT → 目标 INPUT）、值类型匹配。
+- `register_module()` 自动收集模块信号声明到 `signal_registry_`
+  （模块ID → 信号名 → {方向, 值类型}）。
+- `connect_modules()` 自动验证：信号存在性、方向（源 OUTPUT → 目标 INPUT）、
+  值类型匹配。
 - `submit_signal_value()` 校验赋值类型与声明类型一致。
 
-**拷贝消除策略**：论文 5.2.2 提到接口原语采用拷贝消除——用单一变量表示绑定的输入/输出信号组有效值，
-正确性依赖事件执行顺序（拓扑序）合理安排。
-
-### 3.5 模块执行链路（`ModuleBase`）
+### 3.6 模块执行链路（`ModuleBase`）
 
 模块基类职责：
 - **信号管理**：`signals_` 映射 + `add_signal/get_signal/get_signal_as<T>/set_signal_value/clear_signal/invalidate_signal`
@@ -174,7 +144,7 @@ struct Signal {
 - **消息处理**：`message_handlers_` + `register_message_handler/handle_message`
 - **信号注册表查询**：`get_signal_declarations/get_signal_value_type/get_signal_direction`
 
-### 3.6 多核事务机制（论文 5.3.1）
+### 3.7 多核事务机制
 
 多核模拟通过三层抽象扩展单核事件驱动：
 
@@ -184,14 +154,14 @@ struct Signal {
 | **事务分配** | 硬件映射 | 核心/模块注册（`register_module`） |
 | **事务间消息传递** | 多核调度 | `GenericMessage` + `task_handlers_` 消息分发 |
 
-**任务依赖原语**（论文 5.3.1 表5-4）：维护活跃计算任务表 `core_batch_num_map_`
-（记录每个核心/ bank 的批次数），监视多核数据传输触发条件。
+**任务依赖表**：`core_batch_num_map_`（记录每个核心/ bank 的批次数），
+监视多核数据传输触发条件。
 
-**消息原语**（论文 5.3.1 表5-5）：`GenericMessage` 封装核间通信事件参数
+**消息**：`GenericMessage` 封装核间通信事件参数
 （`task_id` + `body` + `delay_cycles`），驱动顶层任务状态更新。
 
-当前多核实现（`multicore.cpp`）以 6 核硬编码依赖关系（`handle_batch_task_done` 的 switch 逻辑）
-模拟 OPU-Tile2.0 的数据依赖反压机制与计算批次模式。
+当前多核实现（`multicore.cpp`）以 6 核硬编码依赖关系
+（`handle_batch_task_done` 的 switch 逻辑）模拟数据依赖反压与计算批次模式。
 
 ---
 
@@ -331,19 +301,6 @@ public:
 | `tilingtest.cpp` | TilingSimulator 动态策略 |
 | `mappingalexnet.cpp` | Analyzer 全流程（无模拟器，ASan 0 泄漏） |
 
-> 注意：ASan 构建下模拟器测试会运行到 max_cycles 而非提前终止（TaskScheduler 进程在 ASan 下不完成），
-> 为预存现象。时序正确性用普通构建验证，ASan 仅用于内存/泄漏检测。
-
----
-
-## 7. 已知限制与后续工作
-
-1. **反压机制建模**（论文 5.2.2 数据队列、5.3.1 反压）：`SIMD_compute_ready` 信号已声明但未接线；
-   多核反压依赖目前以 `core_batch_num_map_` 软件计数模拟，非硬件 ready/valid 握手。
-2. **事件计数器自动化**（算法 5.1）：当前事件由模块条件函数动态触发，未实现从任务参数静态生成事件集合。
-3. **组合逻辑依赖检测**（论文 5.2.2）：框架预留了机制但未自动化。
-4. **多核事务机制泛化**：`MulticoreSimulator` 为硬编码 6 核依赖，未实现通用的任务依赖原语/消息原语。
-5. **配置驱动模块图**：拓扑仍硬编码在 C++ `Init()` 中，未从 JSON/YAML 加载。
-6. **ISimulator 抽象接口**：`CycleAccurateSimulator` 为具体类，未提取虚接口（影响 mock 测试）。
-
-对应 TASKS.md "模拟器架构优化" 章节待办项。
+> 注意：ASan 构建下模拟器测试会运行到 max_cycles 而非提前终止
+> （TaskScheduler 进程在 ASan 下不完成），为预存现象。时序正确性用
+> 普通构建验证，ASan 仅用于内存/泄漏检测。
