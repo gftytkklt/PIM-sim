@@ -157,3 +157,5 @@ See `TASKS.md` for the full task list. Current progress: 26/52 completed.
 - `test/tilingtest.cpp` hits max_cycles (300000) before completion
 - Boost `-Wmaybe-uninitialized` false positives (13 warnings from template internals)
 - `mappingalexnet` is the only test without simulator (passes ASan with 0 leaks)
+- **ASan timing anomaly**: under ASan builds, simulator tests run to max_cycles instead of terminating early (TaskScheduler processes never complete). This is a pre-existing phenomenon (present in original master). Use normal (non-ASan) builds to verify timing correctness; use ASan only for memory/leak detection. To run ASan tests, use `cmake -DENABLE_ASAN=ON ..`.
+- **Simulator decoupling**: `evaluate()` returns `std::vector<SimulatorEvent>` (defined in `SimulatorEvent.h`); modules accumulate events in `pending_events_` instead of using callbacks into simulator private queues. Signal access is typed via `SignalID` enum (see `signals.h`).
