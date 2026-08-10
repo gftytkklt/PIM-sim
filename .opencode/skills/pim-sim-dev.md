@@ -84,6 +84,7 @@ User instruction
   → Wait for user confirmation
   → Execute
   → Verify with ctest + compare.py
+  → Sync docs & CI (see Refactoring workflow step 4)
 ```
 
 ## Refactoring workflow
@@ -99,6 +100,16 @@ When making structural changes to C++ code:
    - Full ctest with ASan: `cmake -DENABLE_ASAN=ON .. && make && ctest`
    - Quick regression: `compare.py`
    - Full regression: `compare.py --full` (slow, only for final verification)
+4. **Sync docs & CI (mandatory)**:
+   - **Dependency changes** → update CI: if `CMakeLists.txt`/`src/CMakeLists.txt` adds a
+     package/component (e.g. `Boost::json`), ensure `.github/workflows/ci.yml` installs it
+     (e.g. `libboost-graph-dev` → `libboost-dev` for json component). Verify the apt package
+     actually provides the required headers.
+   - **Code structure/functionality changes** → update markdown docs: `README.md`
+     (structure tree, component descriptions, usage), `src/simulator/README.md`
+     (if simulator touched), `TASKS.md` (mark items done / add new gaps), and
+     this skill file (`.opencode/skills/pim-sim-dev.md`) if conventions/architecture change.
+   - Commit docs/CI changes together with or right after the code change in the same iteration.
 
 ## Regression test infrastructure
 

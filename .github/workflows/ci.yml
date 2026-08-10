@@ -17,7 +17,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            cmake g++ libboost-graph-dev libgtest-dev pybind11-dev \
+            cmake g++ libboost-dev libgtest-dev pybind11-dev \
             python3 python3-pip python3-venv
 
       - name: Build and test
