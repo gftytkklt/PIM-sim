@@ -13,23 +13,23 @@ ONNX 模型 ──(onnx_analysis.py)──▶ NNkernel 数组
                        pybind11 ──────────┘
                                    ▼
   ┌─────────────────────────────────────────────────────────────────┐
-  │  算子映射前端 (libPIMapping.a)                                   │
+  │  算子映射前端 (libPIMapping.a)                                    │
   │                                                                 │
   │  Analyzer ──▶ CGraph ──▶ TGraph ──▶ HGraph ──▶ DGraph           │
-  │  (crossbar级)  (tile级)    (硬件映射)   (动态调度)              │
+  │  (crossbar级)  (tile级)    (硬件映射)   (动态调度)                 │
   │                                                                 │
-  │  Mapper（物理映射）  Scheduler（拥塞感知路由）                  │
-  │  strategy/（PIMAPPING / SPATEM / HITM / MNSIM / TILE2_0）       │
+  │  Mapper（物理映射）  Scheduler（拥塞感知路由）                       │
+  │  strategy/（PIMAPPING / SPATEM / HITM / MNSIM / TILE2_0）        │
   └─────────────────────────────────────────────────────────────────┘
                                    │
                        pybind11 ──────────┘
                                    ▼
   ┌─────────────────────────────────────────────────────────────────┐
-  │  性能模拟后端 (Python + C++ Simulator)                           │
+  │  性能模拟后端 (Python + C++ Simulator)                            │
   │                                                                 │
-  │  MappingInfo.py ──▶ Booksim（NoC 仿真） + MNSIM（硬件建模）     │
-  │  Simulator/ ──▶ Cycle-accurate 事件驱动仿真（Tile2.0 架构）     │
-  │  perf.py ──▶ 延迟/吞吐量/功耗分析 + 可视化                      │
+  │  MappingInfo.py ──▶ Booksim（NoC 仿真） + MNSIM（硬件建模）        │
+  │  Simulator/ ──▶ Cycle-accurate 事件驱动仿真（Tile2.0 架构）        │
+  │  perf.py ──▶ 延迟/吞吐量/功耗分析 + 可视化                          │
   └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -356,7 +356,20 @@ Scheduler 通过 `shared_ptr<Scheduler>` 注入到 `DGraph`，支持运行时替
 
 模块通过 `core_factory.h` 中的 `create_core_modules()` 工厂函数统一创建和连接，减少重复代码。`ModuleBase` 为非模板类，继承自 `ISimulatable`，提供信号管理、进程管理、`get_signal_as<T>()` 安全类型访问等基础设施。
 
-模拟器模块图支持**配置驱动构建**：`ConfigLoader.h` 中的 `SimConfigLoader` 从 JSON 配置（模块列表 + 信号连接）自动构建模块图，通过工厂注册表将字符串类型映射到具体模块类，`connect_modules` 复用信号注册表做连接验证。与硬编码 `create_core_modules()` 方式并存，互不干扰。
+模拟器模块图支持**配置驱动构建**：`ConfigLoader.h` 中的 `SimConfigLoader` 从 JSON 配置（模块列表 + 信号连接）自动构建模块图。核心机制是**工厂注册表**——用户为每个模块类型注册工厂 lambda（`register_factory(type, lambda)`），lambda 内部调用模板 `register_module<ConcreteType>` 保持类型安全并解析 `params` 构造参数，`connect_modules` 复用信号注册表做连接验证：
+
+```cpp
+// 注册工厂（类型字符串 → 具体模块类）
+loader.register_factory("SIMD", [](CycleAccurateSimulator& sim, const std::string& id,
+                                   int depth, const boost::json::object&) {
+    sim.template register_module<SIMD>(id, depth);
+});
+// 从 JSON 加载模块图（modules[] + connections[]）
+loader.load(*this, json_config);
+```
+
+与硬编码 `create_core_modules()` 方式并存，互不干扰。完整 JSON schema、例化策略
+与使用示例见 `src/simulator/README.md` 第 6 章。
 
 #### 仿真器测试
 

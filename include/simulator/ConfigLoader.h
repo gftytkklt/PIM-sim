@@ -17,10 +17,10 @@
  *
  * {
  *   "modules": [
- *     { "id": "simd0", "type": "SIMD", "depth": 4,
+ *     { "id": "simd0", "type": "SIMD", "depth": 4 },
+ *     { "id": "task_scheduler0", "type": "TaskScheduler", "depth": 2,
  *       "params": { "tasks": [ { "block_num":1,"row":8,"col":8,
  *                                "channel_num":128,"pooling":true }, ... ] } },
- *     { "id": "crossbar0", "type": "Crossbar", "depth": 3 },
  *     ...
  *   ],
  *   "connections": [

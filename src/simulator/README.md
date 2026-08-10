@@ -285,9 +285,114 @@ public:
 
 ---
 
-## 6. 测试
+## 6. 配置驱动模块图（`SimConfigLoader`）
 
-8 个 gtest 测试文件（9 个可执行）：
+除了在 `Init()` 中用 C++ 代码硬编码构建模块图，还可用 `include/simulator/ConfigLoader.h`
+的 `SimConfigLoader` 从 JSON 配置自动构建模块图。二者并存、互不干扰。
+
+### 6.1 JSON Schema
+
+```json
+{
+  "modules": [
+    { "id": "simd", "type": "SIMD", "depth": 4 },
+    { "id": "crossbar", "type": "Crossbar", "depth": 3 },
+    { "id": "task_scheduler", "type": "TaskScheduler", "depth": 2,
+      "params": { "tasks": [
+        { "block_num": 1, "row": 6, "col": 12, "channel_num": 128, "pooling": true },
+        { "block_num": 0, "row": 0, "col": 0, "channel_num": 0, "pooling": false }
+      ] } },
+    { "id": "L1_cache", "type": "L1C", "depth": 1 }
+  ],
+  "connections": [
+    { "src": "task_scheduler", "src_signal": "cache_read_trigger",
+      "dst": "L1_cache", "dst_signal": "cache_read_trigger" }
+  ]
+}
+```
+
+- `modules[]`：每个元素 `{ id, type, depth, params? }`。
+  `type` 是模块类型字符串；`params` 为可选的构造参数对象（见 6.3 例化策略）。
+- `connections[]`：每个元素 `{ src, src_signal, dst, dst_signal }`，可选。
+  连接经 `connect_modules` 复用信号注册表做三重验证（存在性/方向/类型）。
+
+### 6.2 使用方式
+
+```cpp
+#include "simulator/ConfigLoader.h"
+#include "simulator/tile2_0/Crossbar.h"
+#include "simulator/tile2_0/SIMD.h"
+#include "simulator/tile2_0/L1C.h"
+#include "simulator/tile2_0/TaskScheduler.h"
+
+class ConfigSimulator : public CycleAccurateSimulator {
+public:
+    ConfigSimulator(const std::string& json_cfg, uint64_t max_cycles = 200000)
+        : CycleAccurateSimulator(max_cycles) {
+        // 1. 注册模块类型工厂
+        loader_.register_factory("SIMD", [](CycleAccurateSimulator& sim, const std::string& id, int depth, const json::object&) {
+            sim.template register_module<SIMD>(id, depth);
+        });
+        // ... 为每个模块类型注册工厂
+        // 2. 从 JSON 加载模块图
+        loader_.load(*this, json_cfg);
+    }
+private:
+    SimConfigLoader loader_;
+};
+```
+
+### 6.3 JSON 模板类的例化策略（工厂注册表）
+
+不同模块类构造参数不同（如 `SIMD`/`Crossbar`/`L1C` 只需 `id`，`TaskScheduler` 还需
+`std::array<FmapTask, L1C_BANK>`）。`SimConfigLoader` 无法在编译期知道 JSON 的
+`type` 字符串对应哪个具体类，因此采用**工厂注册表 + 模板 `register_module`** 的组合：
+
+1. **工厂注册表**：`register_factory(type_name, factory_lambda)` 将类型字符串映射到
+   一个构造工厂。工厂签名统一为
+   `void(CycleAccurateSimulator&, const std::string& id, int depth, const boost::json::object& params)`。
+
+2. **模板 `register_module`**：工厂内部调用 `sim.template register_module<ConcreteType>(id, depth, args...)`。
+   因为调用处是用户代码，`ConcreteType` 在编译期已知，故：
+   - 保持类型安全（不需要 `dynamic_cast` 或类型擦除）
+   - 自动触发 `register_processes()` / `register_message_handlers()`
+   - 自动把信号声明收集进信号注册表
+
+3. **参数差异处理**：需要额外构造参数的模块，在工厂 lambda 内解析 `params` JSON，
+   构造具体类型参数后传给 `register_module`。例如 TaskScheduler 的工厂解析 `tasks` 数组：
+
+```cpp
+loader_.register_factory("TaskScheduler", [](CycleAccurateSimulator& sim, const std::string& id, int depth, const json::object& params) {
+    std::array<FmapTask, L1C_BANK> tasks{};
+    if (params.contains("tasks")) {
+        const auto& arr = params.at("tasks").as_array();
+        for (size_t i = 0; i < arr.size() && i < L1C_BANK; ++i) {
+            const auto& t = arr[i].as_object();
+            tasks[i] = FmapTask{
+                static_cast<int>(t.at("block_num").as_int64()),
+                static_cast<int>(t.at("row").as_int64()),
+                static_cast<int>(t.at("col").as_int64()),
+                static_cast<int>(t.at("channel_num").as_int64()),
+                t.at("pooling").as_bool()
+            };
+        }
+    }
+    sim.template register_module<TaskScheduler>(id, depth, tasks);
+});
+```
+
+**错误处理**：
+- 未知模块类型（工厂未注册）→ 抛 `std::runtime_error`（"unknown module type ..."）
+- JSON 缺少 `modules` 数组 → 抛 `std::runtime_error`
+- 连接验证失败（信号不存在/方向错/类型不匹配）→ 由 `connect_modules` 抛出
+
+**依赖**：`src/CMakeLists.txt` 需链接 `Boost::json`（header-only，已添加 `Boost::json` 组件）。
+
+---
+
+## 7. 测试
+
+9 个 gtest 测试文件（10 个可执行）：
 
 | 测试 | 覆盖 |
 |------|------|
@@ -295,6 +400,7 @@ public:
 | `modulebase_test.cpp` | ModuleBase 信号管理、`get_signal_as<T>` 类型安全、信号声明/类型登记 |
 | `connect_test.cpp` | 连接验证（合法/缺失信号/方向错误/类型不匹配） |
 | `config_test.cpp` | `hw_config` constexpr 与宏一致性 |
+| `configloader_test.cpp` | `SimConfigLoader` JSON 配置驱动模块图构建/错误处理/单核运行 |
 | `oputiletest.cpp` | OPU 单 tile 全流水线（周期=5141） |
 | `bankingtest.cpp` | BankingSimulator XY/YX/Custom 策略（周期=23024） |
 | `multicoretest.cpp` | MulticoreSimulator 多核并行（周期=6867） |
