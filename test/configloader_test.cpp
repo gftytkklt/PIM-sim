@@ -14,16 +14,16 @@ public:
     ConfigOPUSimulator(const std::string& json_cfg, uint64_t max_cycles = 200000)
         : CycleAccurateSimulator(max_cycles) {
         // 注册模块类型工厂
-        loader_.register_factory("SIMD", [](CycleAccurateSimulator& sim, const std::string& id, int depth, const json::object&) {
+        loader_.register_factory("SIMD", [](ISimulator& sim, const std::string& id, int depth, const json::object&) {
             sim.template register_module<SIMD>(id, depth);
         });
-        loader_.register_factory("Crossbar", [](CycleAccurateSimulator& sim, const std::string& id, int depth, const json::object&) {
+        loader_.register_factory("Crossbar", [](ISimulator& sim, const std::string& id, int depth, const json::object&) {
             sim.template register_module<Crossbar>(id, depth);
         });
-        loader_.register_factory("L1C", [](CycleAccurateSimulator& sim, const std::string& id, int depth, const json::object&) {
+        loader_.register_factory("L1C", [](ISimulator& sim, const std::string& id, int depth, const json::object&) {
             sim.template register_module<L1C>(id, depth);
         });
-        loader_.register_factory("TaskScheduler", [](CycleAccurateSimulator& sim, const std::string& id, int depth, const json::object& params) {
+        loader_.register_factory("TaskScheduler", [](ISimulator& sim, const std::string& id, int depth, const json::object& params) {
             std::array<FmapTask, L1C_BANK> tasks{};
             if (params.contains("tasks")) {
                 const auto& arr = params.at("tasks").as_array();

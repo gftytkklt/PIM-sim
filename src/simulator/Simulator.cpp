@@ -5,6 +5,16 @@
 CycleAccurateSimulator::CycleAccurateSimulator(uint64_t max_cycles) 
     : max_cycles_(max_cycles) {}
 
+// 发送消息到核心（直发，不经消息队列）
+void CycleAccurateSimulator::send_message_to_core(const std::string& core_id, const GenericMessage& msg) {
+    auto it = module_map_.find(core_id);
+    if (it != module_map_.end()) {
+        it->second->handle_message(msg);
+    } else {
+        throw std::runtime_error("No module found for core: " + core_id);
+    }
+}
+
     // 处理消息事件的实现
 void CycleAccurateSimulator::process_message_events(uint64_t current_cycle) {
     while (!message_queue_.empty() && 
@@ -313,4 +323,42 @@ void CycleAccurateSimulator::dump_completed_events(const std::string& filename) 
     
     ofs.close();
     std::cout << "Completed events dumped to file: " << filename << std::endl;
+}
+
+// ========== ISimulator 虚钩子实现 ==========
+
+void CycleAccurateSimulator::register_module_impl(
+    std::shared_ptr<ISimulatable> module, const std::string& id, int topological_depth) {
+    module->set_topological_depth(topological_depth);
+
+    // 收集模块声明的信号到注册表（模拟器统一管理）
+    auto& registry = signal_registry_[id];
+    for (const auto& [sig_name, direction] : module->get_signal_declarations()) {
+        registry[sig_name] = SignalMeta{direction, module->get_signal_value_type(sig_name)};
+    }
+    
+    modules_.push_back(module);
+    module_map_[id] = module;
+    
+    // 按拓扑深度排序
+    std::sort(modules_.begin(), modules_.end(),
+        [](const std::shared_ptr<ISimulatable>& a, 
+           const std::shared_ptr<ISimulatable>& b) {
+            return a->get_topological_depth() > b->get_topological_depth(); // 降序
+        });
+}
+
+std::shared_ptr<ISimulatable> CycleAccurateSimulator::get_module_impl(const std::string& id) {
+    auto it = module_map_.find(id);
+    return it != module_map_.end() ? it->second : nullptr;
+}
+
+void CycleAccurateSimulator::register_task_handler_impl(const std::string& task_id, TaskHandler handler) {
+    task_handlers_[task_id] = std::move(handler);
+}
+
+void CycleAccurateSimulator::register_task_handler_impl(const std::string& task_id, TaskHandler handler,
+                                                        std::type_index msg_type) {
+    task_handlers_[task_id] = std::move(handler);
+    task_types_.insert_or_assign(task_id, msg_type);
 }

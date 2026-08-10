@@ -35,7 +35,7 @@
  *   2. SimConfigLoader::load(sim, json) 解析配置并构建模块图
  *
  * 模块工厂 lambda 签名：
- *   void(CycleAccurateSimulator& sim, const std::string& id,
+ *   void(ISimulator& sim, const std::string& id,
  *        int depth, const boost::json::object& params)
  * 工厂内部调用 sim.template register_module<ConcreteType>(id, depth, args...)
  * 以保持类型安全并自动触发 register_processes/register_message_handlers。
@@ -43,7 +43,7 @@
 class SimConfigLoader {
 public:
     using ModuleFactory = std::function<void(
-        CycleAccurateSimulator&, const std::string& id, int depth,
+        ISimulator&, const std::string& id, int depth,
         const boost::json::object& params)>;
 
     // 注册模块类型工厂
@@ -52,19 +52,19 @@ public:
     }
 
     // 从 JSON 配置构建模块图
-    void load(CycleAccurateSimulator& sim, const boost::json::value& config) {
+    void load(ISimulator& sim, const boost::json::value& config) {
         const auto& obj = config.as_object();
         load_modules(sim, obj);
         load_connections(sim, obj);
     }
 
-    void load(CycleAccurateSimulator& sim, const std::string& json_str) {
+    void load(ISimulator& sim, const std::string& json_str) {
         auto config = boost::json::parse(json_str);
         load(sim, config);
     }
 
 private:
-    void load_modules(CycleAccurateSimulator& sim, const boost::json::object& obj) {
+    void load_modules(ISimulator& sim, const boost::json::object& obj) {
         if (!obj.contains("modules")) {
             throw std::runtime_error("SimConfigLoader: missing 'modules' array");
         }
@@ -85,7 +85,7 @@ private:
         }
     }
 
-    void load_connections(CycleAccurateSimulator& sim, const boost::json::object& obj) {
+    void load_connections(ISimulator& sim, const boost::json::object& obj) {
         if (!obj.contains("connections")) {
             return; // connections 可选
         }

@@ -65,7 +65,7 @@
 - [x] **核心实例化工厂**：`membanking.cpp`/`multicore.cpp` 等 ~400 行重复模块注册代码提取为工厂函数
 - [x] **信号系统重构（结构类型化 + 注册表）**：框架层约定信号结构（`Signal` 携带 name/direction/value_type），信号名/数量/类型由用户建模时自定义；模拟器 `register_module` 自动收集信号声明到注册表，`connect_modules` 自动验证信号存在性/方向（OUTPUT→INPUT）/值类型
 - [x] **模块与模拟器解耦**：`ModuleBase` 中回调函数直接访问 `Simulator` 私有队列，改为返回事件列表由模拟器处理
-- [ ] **ISimulator 抽象接口**：提取 `CycleAccurateSimulator` 的虚接口，支持模拟和测试
+- [x] **ISimulator 抽象接口**：新建 `ISimulator.h`（虚方法 + 模板方法 + 虚钩子 `*_impl`）；`CycleAccurateSimulator` 继承接口，引擎方法（simulate_cycle/process_*_events）转 protected virtual 供测试覆盖；SimConfigLoader 工厂签名改为 `ISimulator&`；新增 isimulator_test（接口多态/引擎钩子覆盖）
 - [x] **消息类型系统（通用模板 + 自动注册）**：框架只约定消息结构（`GenericMessage` 携带 task_id/body/delay），不预设消息类型。`register_message_handler<T>`/`register_task_handler<T>` 类型化模板：handler 接收 `const T&`，框架自动登记 `type_index(T)` 并在发送/分发时校验；通用版（handler 接收 GenericMessage）保留向后兼容。清理死代码（`SIMD_computation_done` 消息 handler、`TS_HELLO`）
 - [ ] **反压/流水线停顿建模**：添加 ready/valid 握手信号和缓冲区占用模型
 - [x] **`std::any_cast` 保护**：所有信号访问添加类型检查，防止 `bad_any_cast` 崩溃
