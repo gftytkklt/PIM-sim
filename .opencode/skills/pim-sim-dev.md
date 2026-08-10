@@ -163,7 +163,7 @@ See `TASKS.md` for the full task list. Current progress: 26/52 completed.
 ### Remaining work — see `TASKS.md` for details
 - **Algorithm improvements**: DHCG segmentation, Intensity Map tuning, spectral embedding, weight replication, more DNN ops
 - **Simulator features**: mapper-simulator integration, backpressure, multi-core transactions
-- **Simulator architecture**: ISimulator interface, message types (config-driven module graph done via SimConfigLoader)
+- **Simulator architecture**: ISimulator interface, backpressure modeling (message types + config-driven module graph done)
 - **Simulator design gaps** (from paper Ch.5 analysis): event state update model (signal-occupancy linkage), event counter automation, combinational logic dependency detection, feedback timing dependency data queue, generic multi-core transaction primitives, NoC communication modeling interface, storage granularity consistency
 - **Bug fixes**: get_adjacent_edges, cycle detection, channel intersection, BCE normalization, process state machine
 - **Testing**: Mapper/Scheduler unit tests, waveform trace output

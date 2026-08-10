@@ -6,12 +6,6 @@
 #include <tuple>
 #include <vector>
 
-void handle_simd_computation_done(const GenericMessage& msg) {
-    int value = std::any_cast<int>(msg.body);
-    std::cout << "SIMD computation done, value: " << value 
-            << ", delay: " << msg.delay_cycles << " cycles" << std::endl;
-}
-
 class OPUTileSimulatorTest : public ::testing::Test {
 protected:
     void SetUp() override {

@@ -200,7 +200,7 @@ public:
             SimulatorEvent::make_message(msg.delay_cycles, shared_from_this(), msg));
     }
 
-    void submit_message(const std::string& task_id, const std::any& body, uint64_t delay_cycles = 0) {
+    void submit_message(const std::string& task_id, const MessageBody& body, uint64_t delay_cycles = 0) {
         submit_message(GenericMessage(task_id, body, delay_cycles));
     }
 

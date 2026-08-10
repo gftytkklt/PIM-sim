@@ -36,7 +36,7 @@ void MulticoreSimulator::Init() {
 
 void MulticoreSimulator::handle_batch_task_done(const GenericMessage& msg) {
     // 处理任务完成的消息，可以根据需要更新模拟器状态或者触发其他事件
-    auto data = std::any_cast<std::tuple<int, std::string>>(msg.body);
+    auto data = std::get<std::tuple<int, std::string>>(msg.body);
     int bank_id = std::get<0>(data);
     std::string core_name = std::get<1>(data);
     // 写死：core0和core1的bank0算完可以出发core4，core2和core3的bank0算完可以触发core5

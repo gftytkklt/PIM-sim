@@ -34,7 +34,7 @@ void TilingSimulator::init_task() {
 }
 
 void TilingSimulator::handle_batch_task_done(const GenericMessage& msg) {
-    auto [bank_id, core_name] = std::any_cast<std::tuple<int, std::string>>(msg.body);
+    auto [bank_id, core_name] = std::get<std::tuple<int, std::string>>(msg.body);
     // std::cout << "Received task batch done message for bank " << bank_id 
     //           << " with core: " << core_name << std::endl;
     // 根据core_name更新对应的batch计数器
