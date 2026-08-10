@@ -104,11 +104,14 @@ PIMapping 的工作流分为三个阶段：**递进式部署表示生成** → *
 │   ├── errors.h                  # 统一异常层次（PIMException/GraphError 等）
 │   ├── strategy/                 # 策略模式（按图层次组织）
 │   │   └── StrategyBase.h        # 基类 + 工厂函数 + 类型别名
-│   └── simulator/                # Cycle-accurate 仿真器
-│       ├── ISimulatable.h        # 模块接口
-│       ├── Process.h             # 进程状态机（IDLE → TRIGGERED → EXECUTING → FINISHED）
-│       ├── ModuleBase.h          # CRTP 模块基类（信号/消息/进程管理）
-│       ├── Simulator.h           # 事件驱动仿真引擎
+│   └── simulator/                # Cycle-accurate 仿真器框架层
+│       ├── ISimulatable.h        # 模块抽象接口 + Signal 信号结构
+│       ├── Process.h             # 进程状态机（IDLE → TRIGGERED → EXECUTING → FINISHED → ENDED）
+│       ├── ModuleBase.h          # 模块基类（非模板，信号/事件/进程管理）
+│       ├── Simulator.h           # 事件驱动仿真引擎 + 信号注册表
+│       ├── SimulatorEvent.h      # 统一事件类型（信号更新/消息发送）
+│       ├── MessageBase.h         # GenericMessage 通用消息
+│       ├── ConfigLoader.h        # 配置驱动模块图加载器（JSON → 模块图）
 │       └── tile2_0/              # Tile 2.0 架构模型
 │           ├── Crossbar.h        # 交叉开关矩阵（计算 + 切换）
 │           ├── SIMD.h            # SIMD 流水线（量化→激活→池化）
@@ -136,16 +139,19 @@ PIMapping 的工作流分为三个阶段：**递进式部署表示生成** → *
 │   │   ├── HStrategy.cpp         # HGraph 策略（MNSIM/PIMAPPING/SPATEM）
 │   │   └── DStrategy.cpp         # DGraph 策略（Default/PIMAPPING/TILE2_0）
 │   └── simulator/
+│       ├── README.md             # 模拟器架构说明文档
 │       ├── Process.cpp           # 进程状态机
 │       ├── Simulator.cpp         # 仿真引擎
 │       └── tile2_0/              # Tile 2.0 各模块实现 + 工厂函数
 │           └── core_factory.h    # create_core_modules() 核心模块工厂
 │
-├── test/                         # Google Test 测试（8 个文件，25+ 用例）
+├── test/                         # Google Test 测试（10 个文件，35+ 用例）
 │   ├── CMakeLists.txt            # 每个 .cpp 自动生成一个测试可执行文件
 │   ├── process_test.cpp          # ProcessEvent/ProcessManager 单元测试
 │   ├── modulebase_test.cpp       # ModuleBase 信号管理单元测试
+│   ├── connect_test.cpp          # connect_modules 连接验证单元测试
 │   ├── config_test.cpp           # hw_config constexpr 一致性测试
+│   ├── configloader_test.cpp     # SimConfigLoader 配置驱动模块图测试
 │   ├── mappingalexnet.cpp        # Analyzer 全流程测试
 │   ├── bankingtest.cpp           # BankingSimulator 测试
 │   ├── multicoretest.cpp         # MulticoreSimulator 多核并行测试
@@ -350,15 +356,19 @@ Scheduler 通过 `shared_ptr<Scheduler>` 注入到 `DGraph`，支持运行时替
 
 模块通过 `core_factory.h` 中的 `create_core_modules()` 工厂函数统一创建和连接，减少重复代码。`ModuleBase` 为非模板类，继承自 `ISimulatable`，提供信号管理、进程管理、`get_signal_as<T>()` 安全类型访问等基础设施。
 
+模拟器模块图支持**配置驱动构建**：`ConfigLoader.h` 中的 `SimConfigLoader` 从 JSON 配置（模块列表 + 信号连接）自动构建模块图，通过工厂注册表将字符串类型映射到具体模块类，`connect_modules` 复用信号注册表做连接验证。与硬编码 `create_core_modules()` 方式并存，互不干扰。
+
 #### 仿真器测试
 
-8 个 gtest 测试文件（25+ 用例）：
+10 个 gtest 测试文件（35+ 用例）：
 
 | 测试 | 覆盖 |
 |------|------|
 | `process_test.cpp` | ProcessEvent 生命周期/状态转换/计时统计；ProcessManager 注册/驱动/清理/统计 |
 | `modulebase_test.cpp` | ModuleBase 信号增删改查、`get_signal_as<T>` 类型安全 |
+| `connect_test.cpp` | `connect_modules` 连接验证（合法/缺失信号/方向错误/类型不匹配） |
 | `config_test.cpp` | `hw_config` 命名空间 constexpr 值与宏定义一致性 |
+| `configloader_test.cpp` | `SimConfigLoader` JSON 配置驱动模块图构建/错误处理 |
 | `mappingalexnet.cpp` | Analyzer 全流程测试（AlexNet 风格 kernel） |
 | `bankingtest.cpp` | BankingSimulator 测试（XY/YX/Custom 策略） |
 | `multicoretest.cpp` | MulticoreSimulator 多核并行测试 |
