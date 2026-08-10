@@ -16,9 +16,9 @@ void BankingSimulator::Init() {
     create_core_modules(*this, "1", task_list1);
     create_core_modules(*this, "2", task_list2);
 
-    register_task_handler("task_batch_done",
-            [this](const GenericMessage& msg) {
-                this->handle_batch_task_done(msg);
+    register_task_handler<std::tuple<int, std::string>>("task_batch_done",
+            [this](const std::tuple<int, std::string>& data) {
+                this->handle_batch_task_done(data);
             });
     core_batch_num_map_["task_scheduler0"] = 0;
     core_batch_num_map_["task_scheduler1"] = 0;
@@ -31,9 +31,8 @@ void BankingSimulator::init_task(int core_id, int bank_id, int batch_num) {
     send_message_to_core(core_name, GenericMessage("init_task", std::make_tuple(local_bank_id, batch_num), 0));
 }
 
-void BankingSimulator::handle_batch_task_done(const GenericMessage& msg) {
+void BankingSimulator::handle_batch_task_done(const std::tuple<int, std::string>& data) {
     // 处理任务完成的消息，可以根据需要更新模拟器状态或者触发其他事件
-    auto data = std::any_cast<std::tuple<int, std::string>>(msg.body);
     // int bank_id = std::get<0>(data);
     std::string core_name = std::get<1>(data);
     // std::cout << "Received task batch done message from " << core_name 

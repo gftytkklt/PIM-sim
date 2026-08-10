@@ -16,9 +16,9 @@ void TilingSimulator::Init() {
     create_core_modules(*this, "0", task_list0);
     create_core_modules(*this, "1", task_list1);
 
-    register_task_handler("task_batch_done",
-            [this](const GenericMessage& msg) {
-                this->handle_batch_task_done(msg);
+    register_task_handler<std::tuple<int, std::string>>("task_batch_done",
+            [this](const std::tuple<int, std::string>& data) {
+                this->handle_batch_task_done(data);
             });
     core_batch_num_map_["task_scheduler0"] = 0;
     core_batch_num_map_["task_scheduler1"] = 0;
@@ -33,8 +33,8 @@ void TilingSimulator::init_task() {
     send_message_to_core("task_scheduler0", GenericMessage("init_task", std::make_tuple(0, batch_num), 1)); // 触发core0的任务，持续一个周期
 }
 
-void TilingSimulator::handle_batch_task_done(const GenericMessage& msg) {
-    auto [bank_id, core_name] = std::any_cast<std::tuple<int, std::string>>(msg.body);
+void TilingSimulator::handle_batch_task_done(const std::tuple<int, std::string>& data) {
+    auto [bank_id, core_name] = data;
     // std::cout << "Received task batch done message for bank " << bank_id 
     //           << " with core: " << core_name << std::endl;
     // 根据core_name更新对应的batch计数器

@@ -23,9 +23,9 @@ void OPUSimulator::Init() {
     connect_modules("simd", "SIMD_data_valid", "task_scheduler", "SIMD_computation_done");
     connect_modules("crossbar", "computation_done", "simd", "SIMD_channel_batch");
 
-    register_task_handler("task_batch_done",
-            [this](const GenericMessage& msg) {
-                this->handle_batch_task_done(msg);
+    register_task_handler<std::tuple<int, std::string>>("task_batch_done",
+            [this](const std::tuple<int, std::string>& data) {
+                this->handle_batch_task_done(data);
             });
 }
 
@@ -34,8 +34,8 @@ void OPUSimulator::init_task(int bank_id, int batch_num) {
     send_message_to_core("task_scheduler", GenericMessage("init_task", std::make_tuple(bank_id, batch_num), 0));
 }
 
-void OPUSimulator::handle_batch_task_done(const GenericMessage& msg) {
-    auto [bank_id, core_name] = std::any_cast<std::tuple<int, std::string>>(msg.body);
+void OPUSimulator::handle_batch_task_done(const std::tuple<int, std::string>& data) {
+    auto [bank_id, core_name] = data;
     std::cout << "Received task batch done message for bank " << bank_id 
               << " with core: " << core_name << std::endl;
     // 可以在这里更新任务调度器的状态或者触发后续的任务。

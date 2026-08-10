@@ -33,7 +33,7 @@ public:
         int local_bank_id = bank_id; // 计算本地bank id，假设每个调度器管理L1C_BANK个bank
         send_message_to_core(core_name, GenericMessage("init_task", std::make_tuple(local_bank_id, batch_num), 0));
     }
-    void handle_batch_task_done(const GenericMessage& msg);
+    void handle_batch_task_done(const std::tuple<int, std::string>& data);
 private:
     std::unordered_map<CoreBank, int, CoreBankHash> core_batch_num_map_; // 记录每个核心当前处理的batch数量
     bool ideal_= false; // 是否理想化模拟，理想化模拟遵循第四章的流水线，和tile2.0进行比较。

@@ -25,7 +25,7 @@ public:
     OPUSimulator(uint64_t max_cycles = 100000) : CycleAccurateSimulator(max_cycles){}
     void Init();
     // 模块到模拟器的消息处理函数
-    void handle_batch_task_done(const GenericMessage& msg);
+    void handle_batch_task_done(const std::tuple<int, std::string>& data);
     // 模拟器到模块的消息分发函数
     // 任务队列初始化，模拟计算开始时L1C已有部分数据。
     void init_task(int bank_id, int batch_num);
