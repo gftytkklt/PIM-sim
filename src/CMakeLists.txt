@@ -1,5 +1,6 @@
 file(GLOB_RECURSE SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
 
+set(Boost_NO_BOOST_CMAKE ON)
 find_package(Boost REQUIRED COMPONENTS graph)
 
 add_library(PIMapping STATIC ${SOURCES})
