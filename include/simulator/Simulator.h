@@ -72,6 +72,8 @@ private:
     
     // 任务ID到处理函数的映射
     std::unordered_map<std::string, TaskHandler> task_handlers_;
+    // 任务消息体类型登记：task_id → 消息体类型
+    std::unordered_map<std::string, std::type_index> task_types_;
     
     // 模块消息处理器映射
     // std::unordered_map<std::string, std::shared_ptr<ModuleBase<void>>> core_handlers_;
@@ -142,10 +144,26 @@ public:
     // 获取所有模块（类型擦除版本）
     const std::vector<std::shared_ptr<ISimulatable>>& get_all_modules() const;
 
-    // 注册任务处理器
+    // 注册任务处理器（通用版：handler 接收 GenericMessage，不登记消息类型）
     template<typename Func>
     void register_task_handler(const std::string& task_id, Func&& handler) {
         task_handlers_[task_id] = std::forward<Func>(handler);
+    }
+
+    // 注册类型化任务处理器（推荐）
+    // handler 接收 const T&，框架自动登记消息体类型 T 并在分发时校验
+    template<typename T>
+    void register_task_handler(const std::string& task_id, std::function<void(const T&)> handler) {
+        task_handlers_[task_id] = [handler = std::move(handler)](const GenericMessage& msg) {
+            try {
+                handler(std::any_cast<const T&>(msg.body));
+            } catch (const std::bad_any_cast&) {
+                throw std::runtime_error("Task message type mismatch for '" + msg.task_id +
+                                         "': expected " + std::string(typeid(T).name()) +
+                                         ", got " + msg.body.type().name());
+            }
+        };
+        task_types_.insert_or_assign(task_id, std::type_index(typeid(T)));
     }
 
     // 提交信号更新事件的公共接口

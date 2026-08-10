@@ -20,6 +20,15 @@ void CycleAccurateSimulator::process_message_events(uint64_t current_cycle) {
         // 根据task_id查找处理函数
         auto handler_it = task_handlers_.find(event.message.task_id);
         if (handler_it != task_handlers_.end()) {
+            // 类型校验：若该 task 已登记消息类型，则 body 类型必须匹配
+            auto type_it = task_types_.find(event.message.task_id);
+            if (type_it != task_types_.end() && event.message.body.has_value() &&
+                std::type_index(event.message.body.type()) != type_it->second) {
+                throw std::runtime_error(
+                    "Task message type mismatch for '" + event.message.task_id +
+                    "': expected " + type_it->second.name() +
+                    ", got " + event.message.body.type().name());
+            }
             // 直接调用注册的处理函数
             handler_it->second(event.message);
         } else {

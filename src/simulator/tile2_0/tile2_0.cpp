@@ -35,7 +35,7 @@ void OPUSimulator::init_task(int bank_id, int batch_num) {
 }
 
 void OPUSimulator::handle_batch_task_done(const GenericMessage& msg) {
-    auto [bank_id, core_name] = std::get<std::tuple<int, std::string>>(msg.body);
+    auto [bank_id, core_name] = std::any_cast<std::tuple<int, std::string>>(msg.body);
     std::cout << "Received task batch done message for bank " << bank_id 
               << " with core: " << core_name << std::endl;
     // 可以在这里更新任务调度器的状态或者触发后续的任务。

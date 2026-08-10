@@ -120,3 +120,65 @@ TEST(TypedSignalTest, TypeValidationOnSubmit) {
     // 错误类型：bool → 应抛异常
     EXPECT_THROW(mod->submit_signal_value("int_out", true, 1), std::runtime_error);
 }
+
+// ========== 消息类型系统测试 ==========
+// 用户自定义消息类型
+struct UserMessage {
+    int id;
+    std::string name;
+};
+
+class MessageModule : public ModuleBase {
+public:
+    MessageModule(const std::string& id) : ModuleBase(id) {}
+    void register_processes() override {}
+    void register_message_handlers() override {}
+
+    // 类型化注册：handler 接收 const UserMessage&，框架登记类型
+    void setup() {
+        register_message_handler<UserMessage>("user_msg",
+            [this](const UserMessage& m) { last_msg_ = m; });
+    }
+
+    UserMessage last_msg_{0, ""};
+};
+
+TEST(MessageTypeTest, TypedRegistrationAndDispatch) {
+    auto mod = std::make_shared<MessageModule>("msg_mod");
+    mod->setup();
+
+    // 类型化发送：正确类型正常分发
+    EXPECT_NO_THROW(
+        mod->handle_message(GenericMessage("user_msg", UserMessage{42, "hello"})));
+    EXPECT_EQ(mod->last_msg_.id, 42);
+    EXPECT_EQ(mod->last_msg_.name, "hello");
+
+    // 消息类型登记正确
+    EXPECT_EQ(mod->get_message_type("user_msg"), typeid(UserMessage));
+}
+
+TEST(MessageTypeTest, TypeMismatchThrows) {
+    auto mod = std::make_shared<MessageModule>("msg_mod");
+    mod->setup();
+
+    // 错误类型：int 而非 UserMessage → 应抛异常
+    EXPECT_THROW(
+        mod->handle_message(GenericMessage("user_msg", 123)),
+        std::runtime_error);
+
+    // 发送侧校验：submit_message 类型不匹配也抛异常
+    EXPECT_THROW(
+        mod->submit_message("user_msg", std::string("wrong")),
+        std::runtime_error);
+}
+
+TEST(MessageTypeTest, UntypedMessageStillWorks) {
+    auto mod = std::make_shared<MessageModule>("msg_mod");
+    // 未登记类型，通用消息仍可分发（向后兼容）
+    bool received = false;
+    mod->register_message_handler("plain_msg", [&received](const GenericMessage&) {
+        received = true;
+    });
+    EXPECT_NO_THROW(mod->handle_message(GenericMessage("plain_msg", 7)));
+    EXPECT_TRUE(received);
+}

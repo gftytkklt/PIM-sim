@@ -94,23 +94,13 @@ public:
 
     // 留给多核判断反压的接口
     void register_message_handlers() override final {
-        register_message_handler("init_task", 
-            [this](const GenericMessage& msg) {
-                try {
-                    // 从消息体中提取tuple<int, int>（bank_id, batch_num）
-                    auto data = std::get<std::tuple<int, int>>(msg.body);
-                    int bank_id = std::get<0>(data);
-                    int batch_num = std::get<1>(data);
-                    
-                    
-                    // 调用初始化函数
-                    this->init_pending_tasks(bank_id, batch_num);
-                    
-                } catch (const std::bad_variant_access& e) {
-                    std::cerr << "TaskScheduler: Failed to get init_task message body. "
-                              << "Expected tuple<int, int>, got variant index: " 
-                              << msg.body.index() << std::endl;
-                }
+        // 类型化注册：handler 直接接收 tuple<int,int>（bank_id, batch_num），
+        // 框架自动登记消息类型并在分发时校验
+        register_message_handler<std::tuple<int, int>>("init_task",
+            [this](const std::tuple<int, int>& data) {
+                int bank_id = std::get<0>(data);
+                int batch_num = std::get<1>(data);
+                this->init_pending_tasks(bank_id, batch_num);
             });
     }
 

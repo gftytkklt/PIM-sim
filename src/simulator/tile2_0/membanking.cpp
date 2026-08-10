@@ -33,7 +33,7 @@ void BankingSimulator::init_task(int core_id, int bank_id, int batch_num) {
 
 void BankingSimulator::handle_batch_task_done(const GenericMessage& msg) {
     // 处理任务完成的消息，可以根据需要更新模拟器状态或者触发其他事件
-    auto data = std::get<std::tuple<int, std::string>>(msg.body);
+    auto data = std::any_cast<std::tuple<int, std::string>>(msg.body);
     // int bank_id = std::get<0>(data);
     std::string core_name = std::get<1>(data);
     // std::cout << "Received task batch done message from " << core_name 

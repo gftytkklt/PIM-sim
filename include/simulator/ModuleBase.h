@@ -70,6 +70,8 @@ protected:
     // 用于提交消息的函数指针
     using MessageHandlerFunc = std::function<void(const GenericMessage&)>;
     std::unordered_map<std::string, MessageHandlerFunc> message_handlers_;
+    // 消息体类型登记：task_id → 消息体类型（用户注册消息处理器时自动登记）
+    std::unordered_map<std::string, std::type_index> message_types_;
     
     // 性能统计
     mutable std::unordered_map<std::string, uint64_t> performance_stats_;
@@ -79,12 +81,28 @@ public:
         process_manager_ = std::make_unique<ProcessManager>();
     }
 
-    // 新增：注册消息处理函数
+    // 注册消息处理函数（通用版：handler 接收 GenericMessage，不登记消息类型）
     void register_message_handler(const std::string& task_id, 
                                  MessageHandlerFunc handler) {
         message_handlers_[task_id] = std::move(handler);
     }
-    
+
+    // 注册类型化消息处理函数（推荐）
+    // handler 接收 const T&，框架自动登记消息体类型 T 并在分发时校验
+    template<typename T>
+    void register_message_handler(const std::string& task_id,
+                                  std::function<void(const T&)> handler) {
+        message_handlers_[task_id] = [handler = std::move(handler)](const GenericMessage& msg) {
+            try {
+                handler(std::any_cast<const T&>(msg.body));
+            } catch (const std::bad_any_cast&) {
+                throw std::runtime_error("Message type mismatch for task '" + msg.task_id + "': expected " +
+                                         std::string(typeid(T).name()) + ", got " + msg.body.type().name());
+            }
+        };
+        message_types_.insert_or_assign(task_id, std::type_index(typeid(T)));
+    }
+
     // 便捷版本：注册消息处理函数（完美转发）
     // 允许传递除了msg以外的其它参数，这些参数会被绑定到处理函数中，在消息到达时一起调用。
     template<typename Func, typename... Args>
@@ -103,10 +121,24 @@ public:
         };
     }
 
+    // 查询消息体类型登记（供模拟器统一管理）
+    std::type_index get_message_type(const std::string& task_id) const {
+        auto it = message_types_.find(task_id);
+        return it != message_types_.end() ? it->second : std::type_index(typeid(void));
+    }
+
     virtual void handle_message(const GenericMessage& msg) {
         std::cout << std::endl;
         auto it = message_handlers_.find(msg.task_id);
         if (it != message_handlers_.end()) {
+            // 类型校验：若该 task 已登记消息类型，则 body 类型必须匹配
+            auto type_it = message_types_.find(msg.task_id);
+            if (type_it != message_types_.end() && msg.body.has_value() &&
+                std::type_index(msg.body.type()) != type_it->second) {
+                throw std::runtime_error(
+                    "Module " + id_ + ": message type mismatch for task '" + msg.task_id +
+                    "': expected " + type_it->second.name() + ", got " + msg.body.type().name());
+            }
             // 找到处理函数，执行它
             it->second(msg);
         } else {
@@ -177,7 +209,7 @@ public:
         if (it != signals_.end()) {
             // 类型校验：值类型需与声明时登记的类型一致
             if (value.has_value() && it->second.value_type != typeid(void) &&
-                value.type() != it->second.value_type) {
+                std::type_index(value.type()) != it->second.value_type) {
                 throw std::runtime_error("Signal type mismatch for '" + name + "': declared " +
                                          it->second.value_type.name() + ", got " + value.type().name());
             }
@@ -200,8 +232,17 @@ public:
             SimulatorEvent::make_message(msg.delay_cycles, shared_from_this(), msg));
     }
 
-    void submit_message(const std::string& task_id, const MessageBody& body, uint64_t delay_cycles = 0) {
-        submit_message(GenericMessage(task_id, body, delay_cycles));
+    // 发送消息：body 为用户自定义类型，若该 task 已登记消息类型则校验
+    template<typename T>
+    void submit_message(const std::string& task_id, T&& body, uint64_t delay_cycles = 0) {
+        auto type_it = message_types_.find(task_id);
+        if (type_it != message_types_.end() &&
+            std::type_index(typeid(std::decay_t<T>)) != type_it->second) {
+            throw std::runtime_error("Message type mismatch for task '" + task_id +
+                                     "': expected " + type_it->second.name() +
+                                     ", got " + typeid(std::decay_t<T>).name());
+        }
+        submit_message(GenericMessage(task_id, std::forward<T>(body), delay_cycles));
     }
 
     void invalidate_signal(const std::string& name) {
