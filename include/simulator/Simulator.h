@@ -4,6 +4,7 @@
 #include "ISimulatable.h"
 #include "ModuleBase.h"
 #include "MessageBase.h"
+#include "SimulatorEvent.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -28,7 +29,6 @@ struct SignalUpdateEvent {
 // 消息事件
 struct MessageEvent {
     uint64_t trigger_cycle;
-    std::string source_core_id;
     GenericMessage message;
     
     bool operator>(const MessageEvent& other) const {
@@ -81,10 +81,18 @@ private:
     
     // 私有方法
     void process_signal_events(uint64_t current_cycle);
+    void dispatch_simulator_event(const SimulatorEvent& event);
     void propagate_signal_to_targets(std::shared_ptr<ISimulatable> source_module,
                                     const std::string& source_signal,
                                     const std::any& value,
                                     uint64_t valid_cycle);
+
+    // 信号注册表：模块ID -> (信号名 -> (方向, 值类型))
+    struct SignalMeta {
+        Signal::Direction direction;
+        std::type_index value_type{typeid(void)};
+    };
+    std::unordered_map<std::string, std::unordered_map<std::string, SignalMeta>> signal_registry_;
 
     std::vector<std::shared_ptr<ISimulatable>> modules_;
     std::vector<std::shared_ptr<ISimulatable>> combinational_modules_; // 组合逻辑模块
@@ -190,45 +198,16 @@ std::shared_ptr<ModuleType> CycleAccurateSimulator::register_module(
     
     auto module = std::make_shared<ModuleType>(id, std::forward<Args>(args)...);
     module->set_topological_depth(topological_depth);
-    // 设置信号更新回调
-    auto weak_this = std::weak_ptr<CycleAccurateSimulator>(
-        std::static_pointer_cast<CycleAccurateSimulator>(shared_from_this())
-    );
-    
-    auto* module_ptr = module.get();
-    module->set_schedule_callback([weak_this, module_ptr](
-        uint64_t valid_cycle, // latency after current cycle
-        std::weak_ptr<ISimulatable> source_module,
-        const std::string& signal_name,
-        const std::any& value) {
-        
-        if (auto sim = weak_this.lock()) {
-            // 将信号更新事件加入队列
-            SignalUpdateEvent event;
-            event.cycle = valid_cycle + sim->get_current_cycle();
-            event.module = source_module;
-            event.signal_name = signal_name;
-            event.value = value;
-            
-            sim->signal_event_queue_.push(event);
-        }
-    });
-
-    //这里设计的语义跟上面一样，都是提交消息事件队列。
-    module->set_message_submit_callback([weak_this, module_ptr](const GenericMessage& msg) {
-        if (auto sim = weak_this.lock()) {
-            MessageEvent event;
-            event.trigger_cycle = sim->get_current_cycle() + msg.delay_cycles;
-            event.source_core_id = module_ptr->get_id();
-            event.message = msg;
-            
-            sim->message_queue_.push(event);
-        }
-    });
 
     module->register_processes();
 
     module->register_message_handlers();
+    
+    // 收集模块声明的信号到注册表（模拟器统一管理）
+    auto& registry = signal_registry_[id];
+    for (const auto& [sig_name, direction] : module->get_signal_declarations()) {
+        registry[sig_name] = SignalMeta{direction, module->get_signal_value_type(sig_name)};
+    }
     
     modules_.push_back(module);
     module_map_[id] = module;

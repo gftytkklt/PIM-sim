@@ -48,8 +48,8 @@ C++:       Analyzer → CGraph → TGraph → HGraph → DGraph
 
 - `include/graph.h` is the core header. Graph implementations split into `src/cgraph.cpp`, `tgraph.cpp`, `hgraph.cpp`, `dgraph.cpp`, `graph_io.cpp`.
 - `ModuleBase` is non-template (CRTP removed). Uses `enable_shared_from_this<ISimulatable>`.
-- Signal access: `get_signal_as<T>()` returns `std::optional<T>` for safe type-checked access.
-- Core factory: `create_core_modules()` in `include/simulator/tile2_0/core_factory.h` eliminates repeated module registration.
+- Signal access: `get_signal_as<T>()` returns `std::optional<T>` for safe type-checked access. Signal system: framework defines `Signal` struct (name/direction/value_type), users declare their own signals via `add_signal`; `register_module` auto-collects declarations into `signal_registry_`; `connect_modules` auto-validates signal existence, direction (OUTPUT→INPUT), and value type. Signal names are user-defined strings, not framework enums.
+- Core factory: `create_core_modules()` in `include/simulator/tile2_0/core_factory.h` eliminates repeated module registration. Config-driven: `SimConfigLoader` in `include/simulator/ConfigLoader.h` builds module graphs from JSON (factory registry maps type string → concrete module).
 - Hardware config: `hw_config` namespace with `constexpr int` values. Legacy `#define` aliases kept for backward compatibility.
 - `src/CMakeLists.txt` uses `GLOB_RECURSE` — new .cpp files auto-discovered.
 - `test/CMakeLists.txt` uses `GLOB_RECURSE` — each .cpp becomes a test executable.
@@ -84,6 +84,7 @@ User instruction
   → Wait for user confirmation
   → Execute
   → Verify with ctest + compare.py
+  → Sync docs & CI (see Refactoring workflow step 4)
 ```
 
 ## Refactoring workflow
@@ -99,6 +100,16 @@ When making structural changes to C++ code:
    - Full ctest with ASan: `cmake -DENABLE_ASAN=ON .. && make && ctest`
    - Quick regression: `compare.py`
    - Full regression: `compare.py --full` (slow, only for final verification)
+4. **Sync docs & CI (mandatory)**:
+   - **Dependency changes** → update CI: if `CMakeLists.txt`/`src/CMakeLists.txt` adds a
+     package/component (e.g. `Boost::json`), ensure `.github/workflows/ci.yml` installs it
+     (e.g. `libboost-graph-dev` → `libboost-dev` for json component). Verify the apt package
+     actually provides the required headers.
+   - **Code structure/functionality changes** → update markdown docs: `README.md`
+     (structure tree, component descriptions, usage), `src/simulator/README.md`
+     (if simulator touched), `TASKS.md` (mark items done / add new gaps), and
+     this skill file (`.opencode/skills/pim-sim-dev.md`) if conventions/architecture change.
+   - Commit docs/CI changes together with or right after the code change in the same iteration.
 
 ## Regression test infrastructure
 
@@ -145,10 +156,11 @@ See `TASKS.md` for the full task list. Current progress: 26/52 completed.
 - **Integration**: cache key fix, Booksim timeout, Perf.py split, pybind11 ProcessEvent, config_validator.py
 - **Engineering**: CI, clang-format, ASan, Doxygen, 8 test files (25+ cases)
 
-### Remaining work (26 items) — see `TASKS.md` for details
+### Remaining work — see `TASKS.md` for details
 - **Algorithm improvements**: DHCG segmentation, Intensity Map tuning, spectral embedding, weight replication, more DNN ops
-- **Simulator features**: mapper-simulator integration, event counters, backpressure, multi-core transactions
-- **Simulator architecture** (4 items): typed signals, module decoupling, ISimulator interface, message types
+- **Simulator features**: mapper-simulator integration, backpressure, multi-core transactions
+- **Simulator architecture**: ISimulator interface, message types (config-driven module graph done via SimConfigLoader)
+- **Simulator design gaps** (from paper Ch.5 analysis): event state update model (signal-occupancy linkage), event counter automation, combinational logic dependency detection, feedback timing dependency data queue, generic multi-core transaction primitives, NoC communication modeling interface, storage granularity consistency
 - **Bug fixes**: get_adjacent_edges, cycle detection, channel intersection, BCE normalization, process state machine
 - **Testing**: Mapper/Scheduler unit tests, waveform trace output
 
@@ -157,3 +169,5 @@ See `TASKS.md` for the full task list. Current progress: 26/52 completed.
 - `test/tilingtest.cpp` hits max_cycles (300000) before completion
 - Boost `-Wmaybe-uninitialized` false positives (13 warnings from template internals)
 - `mappingalexnet` is the only test without simulator (passes ASan with 0 leaks)
+- **ASan timing anomaly**: under ASan builds, simulator tests run to max_cycles instead of terminating early (TaskScheduler processes never complete). This is a pre-existing phenomenon (present in original master). Use normal (non-ASan) builds to verify timing correctness; use ASan only for memory/leak detection. To run ASan tests, use `cmake -DENABLE_ASAN=ON ..`.
+- **Simulator decoupling**: `evaluate()` returns `std::vector<SimulatorEvent>` (defined in `SimulatorEvent.h`); modules accumulate events in `pending_events_` instead of using callbacks into simulator private queues. Signal system uses string names + runtime registry validation (see Code conventions).

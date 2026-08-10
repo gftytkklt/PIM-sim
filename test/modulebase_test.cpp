@@ -66,3 +66,57 @@ TEST_F(ModuleBaseTest, InvalidateSignal) {
     auto val = mod->get_signal_as<bool>("bool_signal");
     EXPECT_FALSE(val.has_value());
 }
+
+TEST_F(ModuleBaseTest, SignalDeclarations) {
+    auto decls = mod->get_signal_declarations();
+    ASSERT_EQ(decls.size(), 3);
+    bool found_int = false, found_bool = false, found_empty = false;
+    for (const auto& [name, dir] : decls) {
+        EXPECT_EQ(dir, Signal::Direction::INPUT);
+        if (name == "int_signal") found_int = true;
+        if (name == "bool_signal") found_bool = true;
+        if (name == "empty_signal") found_empty = true;
+    }
+    EXPECT_TRUE(found_int && found_bool && found_empty);
+}
+
+TEST_F(ModuleBaseTest, SignalValueTypeRegistered) {
+    // 声明时无值，类型为 void
+    EXPECT_EQ(mod->get_signal_value_type("int_signal"), typeid(void));
+    EXPECT_EQ(mod->get_signal_value_type("bool_signal"), typeid(void));
+    EXPECT_EQ(mod->get_signal_value_type("empty_signal"), typeid(void));
+}
+
+TEST_F(ModuleBaseTest, SignalDirection) {
+    EXPECT_EQ(mod->get_signal_direction("int_signal"), Signal::Direction::INPUT);
+    EXPECT_EQ(mod->get_signal_direction("bool_signal"), Signal::Direction::INPUT);
+}
+
+// 带类型信息的信号声明
+class TypedSignalModule : public ModuleBase {
+public:
+    TypedSignalModule(const std::string& id) : ModuleBase(id) {
+        add_signal(Signal("int_out", Signal::Direction::OUTPUT, 0));     // int 类型
+        add_signal(Signal("bool_in", Signal::Direction::INPUT, false));  // bool 类型
+        add_signal(Signal("any_out", Signal::Direction::OUTPUT, std::make_any<int>(42))); // any 包裹 int
+    }
+    void register_processes() override {}
+    void register_message_handlers() override {}
+};
+
+TEST(TypedSignalTest, TypeDeductionFromValue) {
+    auto mod = std::make_shared<TypedSignalModule>("typed");
+    // 直接值推导类型
+    EXPECT_EQ(mod->get_signal_value_type("int_out"), typeid(int));
+    EXPECT_EQ(mod->get_signal_value_type("bool_in"), typeid(bool));
+    // std::any 包裹时取内部实际类型
+    EXPECT_EQ(mod->get_signal_value_type("any_out"), typeid(int));
+}
+
+TEST(TypedSignalTest, TypeValidationOnSubmit) {
+    auto mod = std::make_shared<TypedSignalModule>("typed");
+    // 正确类型：int
+    EXPECT_NO_THROW(mod->submit_signal_value("int_out", 10, 1));
+    // 错误类型：bool → 应抛异常
+    EXPECT_THROW(mod->submit_signal_value("int_out", true, 1), std::runtime_error);
+}

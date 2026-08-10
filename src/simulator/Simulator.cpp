@@ -123,18 +123,47 @@ void CycleAccurateSimulator::connect_modules(const std::string& src_id,
     auto src_it = module_map_.find(src_id);
     auto dst_it = module_map_.find(dst_id);
     
-    if (src_it != module_map_.end() && dst_it != module_map_.end()) {
-        // 1. 在模块层面建立连接
-        src_it->second->connect_to(src_signal, dst_it->second, dst_signal);
-        
-        // 2. 在模拟器层面记录连接关系
-        SimConnectionKey key = {src_it->second, src_signal};
-        connections_map_[key].push_back({
-            dst_it->second, dst_signal
-        });
-    } else {
+    if (src_it == module_map_.end() || dst_it == module_map_.end()) {
         throw std::runtime_error("Failed to connect modules. Source or target not found: " + src_id + " -> " + dst_id);
     }
+
+    // 信号注册表验证：源/目标信号必须已声明
+    auto src_reg = signal_registry_.find(src_id);
+    auto dst_reg = signal_registry_.find(dst_id);
+    if (src_reg == signal_registry_.end() ||
+        src_reg->second.find(src_signal) == src_reg->second.end()) {
+        throw std::runtime_error("Source signal '" + src_signal + "' not declared by module '" + src_id + "'");
+    }
+    if (dst_reg == signal_registry_.end() ||
+        dst_reg->second.find(dst_signal) == dst_reg->second.end()) {
+        throw std::runtime_error("Target signal '" + dst_signal + "' not declared by module '" + dst_id + "'");
+    }
+
+    // 方向验证：源必须是 OUTPUT，目标必须是 INPUT
+    if (src_reg->second.at(src_signal).direction != Signal::Direction::OUTPUT) {
+        throw std::runtime_error("Source signal '" + src_signal + "' of '" + src_id + "' is not OUTPUT");
+    }
+    if (dst_reg->second.at(dst_signal).direction != Signal::Direction::INPUT) {
+        throw std::runtime_error("Target signal '" + dst_signal + "' of '" + dst_id + "' is not INPUT");
+    }
+
+    // 类型验证：源信号值类型与目标信号声明类型一致
+    auto src_type = src_reg->second.at(src_signal).value_type;
+    auto dst_type = dst_reg->second.at(dst_signal).value_type;
+    if (src_type != typeid(void) && dst_type != typeid(void) && src_type != dst_type) {
+        throw std::runtime_error("Signal type mismatch connecting '" + src_id + "." + src_signal +
+                                 "' (" + src_type.name() + ") to '" + dst_id + "." + dst_signal +
+                                 "' (" + dst_type.name() + ")");
+    }
+
+    // 1. 在模块层面建立连接
+    src_it->second->connect_to(src_signal, dst_it->second, dst_signal);
+    
+    // 2. 在模拟器层面记录连接关系
+    SimConnectionKey key = {src_it->second, src_signal};
+    connections_map_[key].push_back({
+        dst_it->second, dst_signal
+    });
 }
 
 const std::vector<std::shared_ptr<ISimulatable>>& CycleAccurateSimulator::get_all_modules() const {
@@ -157,10 +186,13 @@ void CycleAccurateSimulator::simulate_cycle() {
     // 处理组合逻辑模块（如果有的话）
     process_combinational_logic();
     
-    // 评估所有模块的活跃事件
+    // 评估所有模块的活跃事件，收集模块返回的待调度事件
     stats_.modules_processed = 0;
     for (auto& module : modules_) {
-        module->evaluate(current_cycle_);
+        auto events = module->evaluate(current_cycle_);
+        for (const auto& ev : events) {
+            dispatch_simulator_event(ev);
+        }
         stats_.modules_processed++;
     }
     
@@ -171,10 +203,35 @@ void CycleAccurateSimulator::simulate_cycle() {
     check_simulation_complete();
 }
 
+void CycleAccurateSimulator::dispatch_simulator_event(const SimulatorEvent& ev) {
+    switch (ev.kind) {
+        case SimulatorEvent::Kind::SIGNAL_UPDATE: {
+            // 模块在 evaluate(current_cycle) 内提交相对延迟，转成绝对生效周期
+            SignalUpdateEvent signal_ev;
+            signal_ev.cycle = current_cycle_ + ev.cycle;
+            signal_ev.module = ev.src_module;
+            signal_ev.signal_name = ev.signal_name;
+            signal_ev.value = ev.signal_value;
+            signal_event_queue_.push(signal_ev);
+            break;
+        }
+        case SimulatorEvent::Kind::MESSAGE_SEND: {
+            MessageEvent msg_ev;
+            msg_ev.trigger_cycle = current_cycle_ + ev.cycle;
+            msg_ev.message = ev.message;
+            message_queue_.push(msg_ev);
+            break;
+        }
+    }
+}
+
 void CycleAccurateSimulator::process_combinational_logic() {
     // 处理延迟为0的组合逻辑模块
     for (auto& module : combinational_modules_) {
-        module->evaluate(current_cycle_);
+        auto events = module->evaluate(current_cycle_);
+        for (const auto& ev : events) {
+            dispatch_simulator_event(ev);
+        }
     }
 }
 

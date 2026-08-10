@@ -12,29 +12,6 @@
 #include "Process.h"
 #include "MessageBase.h"
 
-/**
- * 信号定义
- */
-struct Signal {
-    std::string name;
-    enum class Direction { INPUT, OUTPUT, INTERNAL} direction;
-    bool valid{false};
-    uint64_t valid_cycle{0};
-    std::any value;
-
-    template<typename T>
-    Signal(const std::string& n, Signal::Direction d, T&& v)
-        : name(n), direction(d), value(std::forward<T>(v)) {
-            // std::cout << "Initialized signal '" << name << "' with value of type " 
-            //           << value.type().name() << std::endl;
-        }
-
-    Signal(const std::string& n, Signal::Direction d)
-        : name(n), direction(d) {}
-    
-    Signal() = default;
-};
-
 // 连接管理映射：源模块信号 -> 目标模块信号列表
 struct ConnectionInfo {
     std::weak_ptr<ISimulatable> target_module;
@@ -87,9 +64,8 @@ protected:
     // 信号到进程类型的映射（用于快速检查哪些进程受信号影响）
     std::unordered_map<std::string, std::vector<std::string>> signal_to_processes_;
 
-    // 添加：用于提交信号更新事件的函数指针
-    std::function<void(uint64_t, std::weak_ptr<ISimulatable>, 
-                      std::string, std::any)> schedule_signal_update_callback_;
+    // 本周期待调度事件缓冲（由 evaluate() 返回给模拟器）
+    std::vector<SimulatorEvent> pending_events_;
 
     // 用于提交消息的函数指针
     using MessageHandlerFunc = std::function<void(const GenericMessage&)>;
@@ -97,26 +73,10 @@ protected:
     
     // 性能统计
     mutable std::unordered_map<std::string, uint64_t> performance_stats_;
-
-    // MessageCallback message_callback_;
-    using MessageSubmitCallback = std::function<void(const GenericMessage&)>;
-    
-    MessageSubmitCallback submit_message_callback_;
     
 public:
     ModuleBase(const std::string& id) : id_(id) {
         process_manager_ = std::make_unique<ProcessManager>();
-    }
-
-    // 设置信号更新回调
-    void set_schedule_callback(std::function<void(uint64_t, std::weak_ptr<ISimulatable>, 
-                                                std::string, std::any)> callback) {
-        schedule_signal_update_callback_ = callback;
-    }
-
-    // 设置信息发送回调
-    void set_message_submit_callback(MessageSubmitCallback callback) {
-        submit_message_callback_ = std::move(callback);
     }
 
     // 新增：注册消息处理函数
@@ -215,39 +175,29 @@ public:
                          uint64_t valid_cycle) {
         auto it = signals_.find(name);
         if (it != signals_.end()) {
-            // it->second.value = value;
-            // it->second.valid = true;
-            // it->second.valid_cycle = valid_cycle; // 经多少周期以后信号生效。
-            
-            performance_stats_["signal_updates"]++;
-            
-            // 提交信号更新事件
-            if (schedule_signal_update_callback_) {
-                schedule_signal_update_callback_(
-                    valid_cycle, 
-                    shared_from_this(),
-                    name, 
-                    value
-                );
+            // 类型校验：值类型需与声明时登记的类型一致
+            if (value.has_value() && it->second.value_type != typeid(void) &&
+                value.type() != it->second.value_type) {
+                throw std::runtime_error("Signal type mismatch for '" + name + "': declared " +
+                                         it->second.value_type.name() + ", got " + value.type().name());
             }
+            performance_stats_["signal_updates"]++;
+            // 将信号更新事件累积到缓冲，由 evaluate() 返回给模拟器
+            pending_events_.push_back(
+                SimulatorEvent::make_signal(valid_cycle, shared_from_this(), name, value));
         }
         else {
             throw std::runtime_error("Attempting to submit value for non-existent signal: " + name);
         }
-        // std::cout << "Module " << id_ << " submitted signal update: " 
-        //           << name << " = " << value.type().name() 
-        //           << " (valid after cycle " << valid_cycle << ")" << std::endl;
     }
 
     // 提交GenericMessage
     // task_id在simulator中注册，对应处理函数
     // delay cycle跟body是一样的，传值的东西
     void submit_message(const GenericMessage& msg) {
-        if (submit_message_callback_) {
-            submit_message_callback_(msg);
-        } else {
-            throw std::runtime_error("Message submit callback not set for module: " + id_);
-        }
+        // 将消息事件累积到缓冲，由 evaluate() 返回给模拟器
+        pending_events_.push_back(
+            SimulatorEvent::make_message(msg.delay_cycles, shared_from_this(), msg));
     }
 
     void submit_message(const std::string& task_id, const std::any& body, uint64_t delay_cycles = 0) {
@@ -284,9 +234,13 @@ public:
     }
     
     // 这里直接调用
-    virtual void evaluate(uint64_t current_cycle) override {
+    std::vector<SimulatorEvent> evaluate(uint64_t current_cycle) override {
         performance_stats_["total_evaluations"]++;
         process_manager_->drive_state_transitions(current_cycle);
+        // 返回并清空本周期待调度事件
+        auto events = std::move(pending_events_);
+        pending_events_.clear();
+        return events;
     }
     
     const std::vector<ProcessEventPtr>& get_active_processes() const override {
@@ -309,6 +263,26 @@ public:
         stats = performance_stats_;
         auto module_stats = get_process_stats();
         stats.insert(module_stats.begin(), module_stats.end());
+    }
+
+    // 信号声明收集接口（供模拟器注册表使用）
+    std::vector<std::pair<std::string, Signal::Direction>> get_signal_declarations() const override {
+        std::vector<std::pair<std::string, Signal::Direction>> decls;
+        decls.reserve(signals_.size());
+        for (const auto& [name, sig] : signals_) {
+            decls.emplace_back(name, sig.direction);
+        }
+        return decls;
+    }
+
+    std::type_index get_signal_value_type(const std::string& name) const override {
+        auto it = signals_.find(name);
+        return it != signals_.end() ? it->second.value_type : typeid(void);
+    }
+
+    Signal::Direction get_signal_direction(const std::string& name) const override {
+        auto it = signals_.find(name);
+        return it != signals_.end() ? it->second.direction : Signal::Direction::INTERNAL;
     }
 
     // 进程管理接口
