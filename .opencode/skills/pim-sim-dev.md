@@ -111,7 +111,7 @@ When making structural changes to C++ code:
      actually provides BOTH the headers AND the `*Config.cmake` / `-config.cmake` files
      (use `dpkg -S`, `dpkg -L`).
    - **Code structure/functionality changes** → update markdown docs: `README.md`
-     (structure tree, component descriptions, usage), `src/simulator/README.md`
+     (structure tree, component descriptions, usage), `src/simulator/SIMULATOR.md`
      (if simulator touched), `TASKS.md` (mark items done / add new gaps), and
      this skill file (`.opencode/skills/pim-sim-dev.md`) if conventions/architecture change.
    - Commit docs/CI changes together with or right after the code change in the same iteration.

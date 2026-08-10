@@ -139,11 +139,11 @@ PIMapping 的工作流分为三个阶段：**递进式部署表示生成** → *
 │   │   ├── HStrategy.cpp         # HGraph 策略（MNSIM/PIMAPPING/SPATEM）
 │   │   └── DStrategy.cpp         # DGraph 策略（Default/PIMAPPING/TILE2_0）
 │   └── simulator/
-│       ├── README.md             # 模拟器架构说明文档
-│       ├── Process.cpp           # 进程状态机
-│       ├── Simulator.cpp         # 仿真引擎
-│       └── tile2_0/              # Tile 2.0 各模块实现 + 工厂函数
-│           └── core_factory.h    # create_core_modules() 核心模块工厂
+│       ├── SIMULATOR.md           # 模拟器架构专项文档
+│       ├── Process.cpp            # 进程状态机
+│       ├── Simulator.cpp          # 仿真引擎
+│       └── tile2_0/               # Tile 2.0 各模块实现 + 工厂函数
+│           └── core_factory.h     # create_core_modules() 核心模块工厂
 │
 ├── test/                         # Google Test 测试（10 个文件，35+ 用例）
 │   ├── CMakeLists.txt            # 每个 .cpp 自动生成一个测试可执行文件
@@ -360,7 +360,7 @@ Scheduler 通过 `shared_ptr<Scheduler>` 注入到 `DGraph`，支持运行时替
 
 ```cpp
 // 注册工厂（类型字符串 → 具体模块类）
-loader.register_factory("SIMD", [](CycleAccurateSimulator& sim, const std::string& id,
+loader.register_factory("SIMD", [](ISimulator& sim, const std::string& id,
                                    int depth, const boost::json::object&) {
     sim.template register_module<SIMD>(id, depth);
 });
@@ -369,7 +369,7 @@ loader.load(*this, json_config);
 ```
 
 与硬编码 `create_core_modules()` 方式并存，互不干扰。完整 JSON schema、例化策略
-与使用示例见 `src/simulator/README.md` 第 6 章。
+与使用示例见 `src/simulator/SIMULATOR.md` 第 7 章。
 
 #### 仿真器测试
 
