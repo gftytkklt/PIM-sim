@@ -145,13 +145,14 @@ PIMapping 的工作流分为三个阶段：**递进式部署表示生成** → *
 │       └── tile2_0/               # Tile 2.0 各模块实现 + 工厂函数
 │           └── core_factory.h     # create_core_modules() 核心模块工厂
 │
-├── test/                         # Google Test 测试（10 个文件，35+ 用例）
+├── test/                         # Google Test 测试（11 个文件，11 个可执行）
 │   ├── CMakeLists.txt            # 每个 .cpp 自动生成一个测试可执行文件
 │   ├── process_test.cpp          # ProcessEvent/ProcessManager 单元测试
-│   ├── modulebase_test.cpp       # ModuleBase 信号管理单元测试
+│   ├── modulebase_test.cpp       # ModuleBase 信号/消息类型化单元测试
 │   ├── connect_test.cpp          # connect_modules 连接验证单元测试
 │   ├── config_test.cpp           # hw_config constexpr 一致性测试
 │   ├── configloader_test.cpp     # SimConfigLoader 配置驱动模块图测试
+│   ├── isimulator_test.cpp       # ISimulator 接口多态/引擎钩子测试
 │   ├── mappingalexnet.cpp        # Analyzer 全流程测试
 │   ├── bankingtest.cpp           # BankingSimulator 测试
 │   ├── multicoretest.cpp         # MulticoreSimulator 多核并行测试
@@ -373,15 +374,16 @@ loader.load(*this, json_config);
 
 #### 仿真器测试
 
-10 个 gtest 测试文件（35+ 用例）：
+11 个 gtest 测试文件（11 个可执行）：
 
 | 测试 | 覆盖 |
 |------|------|
 | `process_test.cpp` | ProcessEvent 生命周期/状态转换/计时统计；ProcessManager 注册/驱动/清理/统计 |
-| `modulebase_test.cpp` | ModuleBase 信号增删改查、`get_signal_as<T>` 类型安全 |
+| `modulebase_test.cpp` | ModuleBase 信号增删改查、`get_signal_as<T>` 类型安全、消息类型化注册/校验 |
 | `connect_test.cpp` | `connect_modules` 连接验证（合法/缺失信号/方向错误/类型不匹配） |
 | `config_test.cpp` | `hw_config` 命名空间 constexpr 值与宏定义一致性 |
 | `configloader_test.cpp` | `SimConfigLoader` JSON 配置驱动模块图构建/错误处理 |
+| `isimulator_test.cpp` | `ISimulator` 接口多态、引擎钩子覆盖（mock 可测试性） |
 | `mappingalexnet.cpp` | Analyzer 全流程测试（AlexNet 风格 kernel） |
 | `bankingtest.cpp` | BankingSimulator 测试（XY/YX/Custom 策略） |
 | `multicoretest.cpp` | MulticoreSimulator 多核并行测试 |

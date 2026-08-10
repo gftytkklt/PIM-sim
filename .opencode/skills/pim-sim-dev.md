@@ -152,19 +152,18 @@ result_develop/
 
 ## Current status & remaining work
 
-See `TASKS.md` for the full task list. Current progress: 26/52 completed.
+See `TASKS.md` for the full task list. Current progress: 31/57 completed.
 
-### Completed refactoring (26 items)
+### Completed refactoring (31 items)
 - **Code organization**: graph.cpp split, strategy pattern, Mapper/Scheduler decoupling, .gitignore, CMake
 - **Interface**: logging (PIM_INFO), error handling (PIMException), naming conventions (snake_case)
-- **Simulator optimization**: CRTP removal, hw_config constexpr, core_factory, any_cast safety, completion detection
+- **Simulator architecture**: CRTP removal, hw_config constexpr, core_factory, any_cast safety, completion detection, signal system (struct-typed + registry), module-simulator decoupling, message system (generic template + auto registration), ISimulator abstract interface, config-driven module graph (SimConfigLoader)
 - **Integration**: cache key fix, Booksim timeout, Perf.py split, pybind11 ProcessEvent, config_validator.py
-- **Engineering**: CI, clang-format, ASan, Doxygen, 8 test files (25+ cases)
+- **Engineering**: CI, clang-format, ASan, Doxygen, 11 test files (11 executables)
 
 ### Remaining work — see `TASKS.md` for details
 - **Algorithm improvements**: DHCG segmentation, Intensity Map tuning, spectral embedding, weight replication, more DNN ops
-- **Simulator features**: mapper-simulator integration, backpressure, multi-core transactions
-- **Simulator architecture**: backpressure modeling (ISimulator interface + message types + config-driven module graph done)
+- **Simulator features**: mapper-simulator integration, backpressure, multi-core transaction generalization (hardcoded 6-core switch → generic task-dependency/message primitives)
 - **Simulator design gaps** (from paper Ch.5 analysis): event state update model (signal-occupancy linkage), event counter automation, combinational logic dependency detection, feedback timing dependency data queue, generic multi-core transaction primitives, NoC communication modeling interface, storage granularity consistency
 - **Bug fixes**: get_adjacent_edges, cycle detection, channel intersection, BCE normalization, process state machine
 - **Testing**: Mapper/Scheduler unit tests, waveform trace output

@@ -79,14 +79,17 @@ C++ (libPIMapping) │  Analyzer → Graph hierarchy:        │
 
 ## Simulator architecture
 
+- **Abstraction layers**: `ISimulator` (contract: virtual methods + template methods delegating to `*_impl` hooks) → `CycleAccurateSimulator` (engine + state: event queues, signal registry, module maps) → architecture wrappers (`OPU`/`Banking`/`MultiCore`/`Tiling`, define topology in `Init()`)
 - **Module hierarchy**: `ISimulatable` → `ModuleBase` → `Crossbar`/`SIMD`/`L1C`/`TaskScheduler`
 - **ModuleBase** is non-template (CRTP removed), uses `enable_shared_from_this<ISimulatable>`
 - **Signal access**: `get_signal_as<T>()` returns `std::optional<T>` for safe type-checked access
-- **Core factory**: `create_core_modules()` in `core_factory.h` eliminates repeated module registration
+- **Signal system**: framework defines `Signal` struct (name/direction/value_type); users declare own signals via `add_signal`; `register_module` auto-collects into `signal_registry_`; `connect_modules` validates existence/direction/type
+- **Message system**: framework defines `GenericMessage` structure only; users register typed handlers via `register_message_handler<T>`/`register_task_handler<T>` (auto type registration + validation); untyped handlers still supported
+- **Core factory**: `create_core_modules()` in `include/simulator/tile2_0/core_factory.h` eliminates repeated module registration. Config-driven: `SimConfigLoader` in `include/simulator/ConfigLoader.h` builds module graphs from JSON
 - **Hardware config**: `hw_config` namespace with `constexpr int` values (legacy `#define` aliases kept)
 - **Memory**: `shared_ptr` self-reference cycle in `register_module` lambdas fixed (Issue #d4a9883)
-- **Tests**: 8 gtest files (25+ cases) including ProcessManager/ModuleBase/Config unit tests
-- **ASan**: `cmake -DENABLE_ASAN=ON` passes all tests with 0 leaks
+- **Tests**: 11 gtest files (11 executables) including ProcessManager/ModuleBase/ISimulator/ConfigLoader unit tests
+- **ASan**: `cmake -DENABLE_ASAN=ON` passes all tests with 0 leaks (timing anomaly: simulator tests run to max_cycles under ASan — pre-existing, verify timing with normal builds)
 
 ## Conventions & gotchas
 
