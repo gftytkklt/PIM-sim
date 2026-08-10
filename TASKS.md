@@ -69,7 +69,7 @@
 - [ ] **消息类型系统**：替换 `std::any` + `std::string` 消息体为 `std::variant` 或类型化消息
 - [ ] **反压/流水线停顿建模**：添加 ready/valid 握手信号和缓冲区占用模型
 - [x] **`std::any_cast` 保护**：所有信号访问添加类型检查，防止 `bad_any_cast` 崩溃
-- [ ] **配置驱动模块图**：模拟器拓扑从配置文件（JSON/YAML）加载，替代硬编码 C++ 代码
+- [x] **配置驱动模块图**：新增 SimConfigLoader（JSON 配置到模块图构建），工厂注册表支持字符串到模块类型映射；register_module 保持类型安全，connect_modules 复用信号注册表验证；新增 configloader_test（5 用例）
 - [x] **单元测试覆盖**：添加 `ProcessManager`、`ProcessEvent`、各模块独立单元测试，补充断言
 
 ### 模拟器设计差距（基于论文第5章分析）

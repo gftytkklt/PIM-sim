@@ -49,7 +49,7 @@ C++:       Analyzer → CGraph → TGraph → HGraph → DGraph
 - `include/graph.h` is the core header. Graph implementations split into `src/cgraph.cpp`, `tgraph.cpp`, `hgraph.cpp`, `dgraph.cpp`, `graph_io.cpp`.
 - `ModuleBase` is non-template (CRTP removed). Uses `enable_shared_from_this<ISimulatable>`.
 - Signal access: `get_signal_as<T>()` returns `std::optional<T>` for safe type-checked access. Signal system: framework defines `Signal` struct (name/direction/value_type), users declare their own signals via `add_signal`; `register_module` auto-collects declarations into `signal_registry_`; `connect_modules` auto-validates signal existence, direction (OUTPUT→INPUT), and value type. Signal names are user-defined strings, not framework enums.
-- Core factory: `create_core_modules()` in `include/simulator/tile2_0/core_factory.h` eliminates repeated module registration.
+- Core factory: `create_core_modules()` in `include/simulator/tile2_0/core_factory.h` eliminates repeated module registration. Config-driven: `SimConfigLoader` in `include/simulator/ConfigLoader.h` builds module graphs from JSON (factory registry maps type string → concrete module).
 - Hardware config: `hw_config` namespace with `constexpr int` values. Legacy `#define` aliases kept for backward compatibility.
 - `src/CMakeLists.txt` uses `GLOB_RECURSE` — new .cpp files auto-discovered.
 - `test/CMakeLists.txt` uses `GLOB_RECURSE` — each .cpp becomes a test executable.
@@ -148,7 +148,7 @@ See `TASKS.md` for the full task list. Current progress: 26/52 completed.
 ### Remaining work — see `TASKS.md` for details
 - **Algorithm improvements**: DHCG segmentation, Intensity Map tuning, spectral embedding, weight replication, more DNN ops
 - **Simulator features**: mapper-simulator integration, backpressure, multi-core transactions
-- **Simulator architecture**: ISimulator interface, message types, config-driven module graph
+- **Simulator architecture**: ISimulator interface, message types (config-driven module graph done via SimConfigLoader)
 - **Simulator design gaps** (from paper Ch.5 analysis): event state update model (signal-occupancy linkage), event counter automation, combinational logic dependency detection, feedback timing dependency data queue, generic multi-core transaction primitives, NoC communication modeling interface, storage granularity consistency
 - **Bug fixes**: get_adjacent_edges, cycle detection, channel intersection, BCE normalization, process state machine
 - **Testing**: Mapper/Scheduler unit tests, waveform trace output
