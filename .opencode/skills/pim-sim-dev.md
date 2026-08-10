@@ -102,9 +102,13 @@ When making structural changes to C++ code:
    - Full regression: `compare.py --full` (slow, only for final verification)
 4. **Sync docs & CI (mandatory)**:
    - **Dependency changes** → update CI: if `CMakeLists.txt`/`src/CMakeLists.txt` adds a
-     package/component (e.g. `Boost::json`), ensure `.github/workflows/ci.yml` installs it
-     (e.g. `libboost-graph-dev` → `libboost-dev` for json component). Verify the apt package
-     actually provides the required headers.
+     package/component (e.g. `Boost::json`), ensure `.github/workflows/ci.yml` installs it.
+     **Boost components are NOT all header-only**: each compiled component (graph, json, etc.)
+     needs its own dev package providing the CMake config (`boost_graph-config.cmake`,
+     `boost_json-config.cmake`). `libboost-dev` only installs headers (no cmake configs);
+     `libboost-all-dev` is the safe catch-all matching local dev env. Verify the apt package
+     actually provides BOTH the headers AND the `*Config.cmake` / `-config.cmake` files
+     (use `dpkg -S`, `dpkg -L`).
    - **Code structure/functionality changes** → update markdown docs: `README.md`
      (structure tree, component descriptions, usage), `src/simulator/README.md`
      (if simulator touched), `TASKS.md` (mark items done / add new gaps), and
