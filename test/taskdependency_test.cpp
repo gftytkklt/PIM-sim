@@ -243,3 +243,57 @@ TEST(TaskDependencyTest, MixedThresholdsResetsAfterFire) {
     entry->on_message(make_batch_done(0, "task_scheduler1"));
     EXPECT_EQ(fired, 2);
 }
+
+// 通用场景 4：非 bank 任务 —— 消息携带 incr 增量，消费者按 incr 更新计数
+struct IncrMessage { std::string task_name; int incr; };  // 用户自定义消息类型
+
+TEST(TaskDependencyTest, NonBankTaskWithIncrUpdate) {
+    int fired = 0;
+    auto entry = std::make_shared<TaskDependencyEntry>(
+        "new_task",
+        // ProducerHook: 从自定义消息提取 incr，按增量累加（而非 +1）
+        [](TaskDependencyEntry& self, const GenericMessage& msg) {
+            auto data = std::any_cast<IncrMessage>(msg.body);
+            self.counter("task:" + data.task_name) += data.incr;  // 按 incr 累加
+        },
+        // ConditionCheck: 阈值 10
+        [](const TaskDependencyEntry& self) {
+            return self.counter("task:alpha") >= 10;
+        },
+        [&fired]() { fired++; });
+
+    // 发送增量消息：3 + 4 = 7 < 10，不触发
+    entry->on_message(GenericMessage("new_task", IncrMessage{"alpha", 3}, 0));
+    entry->on_message(GenericMessage("new_task", IncrMessage{"alpha", 4}, 0));
+    EXPECT_EQ(fired, 0);
+    EXPECT_EQ(entry->counter("task:alpha"), 7);
+
+    // 再发增量 3 → 10 >= 10，触发
+    entry->on_message(GenericMessage("new_task", IncrMessage{"alpha", 3}, 0));
+    EXPECT_EQ(fired, 1);
+    // 触发后清零
+    EXPECT_EQ(entry->counter("task:alpha"), 0);
+}
+
+// 通用场景 5：incr 消息不涉及 bank，key 自定义 + 多任务独立计数
+TEST(TaskDependencyTest, MultiTaskIndependentIncr) {
+    int fired = 0;
+    auto entry = std::make_shared<TaskDependencyEntry>(
+        "multi",
+        [](TaskDependencyEntry& self, const GenericMessage& msg) {
+            auto data = std::any_cast<IncrMessage>(msg.body);
+            self.counter("task:" + data.task_name) += data.incr;
+        },
+        // alpha 需 >=10 且 beta 需 >=5（不同阈值，非 bank 维度）
+        [](const TaskDependencyEntry& self) {
+            return self.counter("task:alpha") >= 10 &&
+                   self.counter("task:beta") >= 5;
+        },
+        [&fired]() { fired++; });
+
+    entry->on_message(GenericMessage("new_task", IncrMessage{"beta", 5}, 0));
+    EXPECT_EQ(fired, 0);  // alpha=0 < 10
+
+    entry->on_message(GenericMessage("new_task", IncrMessage{"alpha", 10}, 0));
+    EXPECT_EQ(fired, 1);  // alpha=10 >=10, beta=5 >=5 → 触发
+}
