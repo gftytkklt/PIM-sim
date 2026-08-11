@@ -273,8 +273,9 @@ class TaskDependencyEntry {   // 一个生产-消费屏障
 };
 
 class TaskDependencyTable {  // 活跃任务表
-    void register_entry(TaskDependencyEntryPtr);
-    int  on_task_done(const GenericMessage&);  // 广播到所有活跃表项
+    void register_entry(TaskDependencyEntryPtr);  // name 重复时抛异常
+    int  on_task_done(const GenericMessage&);     // 广播到所有活跃表项
+    TaskDependencyEntryPtr get_entry(const std::string& name);  // 按 name 查询
 };
 ```
 

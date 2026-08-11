@@ -6,6 +6,7 @@
 #include <memory>
 #include <vector>
 #include <unordered_map>
+#include <stdexcept>
 #include "MessageBase.h"
 
 /**
@@ -125,8 +126,13 @@ inline TaskDependencyEntryPtr make_increment_dependency(
  */
 class TaskDependencyTable {
 public:
-    // 注册表项
+    // 注册表项（name 重复时抛异常，避免静默覆盖）
     void register_entry(TaskDependencyEntryPtr entry) {
+        auto name = entry->get_name();
+        if (name_to_index_.count(name)) {
+            throw std::runtime_error("Duplicate task dependency entry name: '" + name + "'");
+        }
+        name_to_index_[name] = entries_.size();
         entries_.push_back(std::move(entry));
     }
 
@@ -142,8 +148,15 @@ public:
 
     const std::vector<TaskDependencyEntryPtr>& get_entries() const { return entries_; }
 
+    // 按 name 查询表项（未找到返回 nullptr）
+    TaskDependencyEntryPtr get_entry(const std::string& name) const {
+        auto it = name_to_index_.find(name);
+        return it != name_to_index_.end() ? entries_[it->second] : nullptr;
+    }
+
 private:
     std::vector<TaskDependencyEntryPtr> entries_;
+    std::unordered_map<std::string, size_t> name_to_index_;
 };
 
 #endif // TASK_DEPENDENCY_H

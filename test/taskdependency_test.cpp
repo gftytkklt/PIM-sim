@@ -345,3 +345,31 @@ TEST(TaskDependencyTest, ConvenientRegistrationForIncrTask) {
     EXPECT_EQ(fired, 1);
     EXPECT_EQ(entry->counter("task:alpha"), 0);  // 触发后清零
 }
+
+// 表项 name 唯一性校验
+TEST(TaskDependencyTest, DuplicateNameThrows) {
+    TaskDependencyTable table;
+    auto entry = make_increment_dependency(
+        "E1",
+        [](const GenericMessage&) -> std::pair<std::string, int> { return {"k", 1}; },
+        {{"k", 1}},
+        []() {});
+    table.register_entry(entry);
+    // 同名再注册 → 抛异常
+    EXPECT_THROW(table.register_entry(entry), std::runtime_error);
+}
+
+// 按 name 查询表项
+TEST(TaskDependencyTest, GetEntryByName) {
+    TaskDependencyTable table;
+    int fired = 0;
+    auto entry = make_increment_dependency(
+        "my_entry",
+        [](const GenericMessage&) -> std::pair<std::string, int> { return {"k", 1}; },
+        {{"k", 1}},
+        [&fired]() { fired++; });
+    table.register_entry(entry);
+
+    EXPECT_EQ(table.get_entry("my_entry"), entry);
+    EXPECT_EQ(table.get_entry("nonexistent"), nullptr);
+}
