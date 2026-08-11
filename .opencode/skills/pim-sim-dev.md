@@ -152,14 +152,14 @@ result_develop/
 
 ## Current status & remaining work
 
-See `TASKS.md` for the full task list. Current progress: 31/57 completed.
+See `TASKS.md` for the full task list. Current progress: 32/57 completed.
 
 ### Completed refactoring (31 items)
 - **Code organization**: graph.cpp split, strategy pattern, Mapper/Scheduler decoupling, .gitignore, CMake
 - **Interface**: logging (PIM_INFO), error handling (PIMException), naming conventions (snake_case)
 - **Simulator architecture**: CRTP removal, hw_config constexpr, core_factory, any_cast safety, completion detection, signal system (struct-typed + registry), module-simulator decoupling, message system (generic template + auto registration), ISimulator abstract interface, config-driven module graph (SimConfigLoader)
 - **Integration**: cache key fix, Booksim timeout, Perf.py split, pybind11 ProcessEvent, config_validator.py
-- **Engineering**: CI, clang-format, ASan, Doxygen, 11 test files (11 executables)
+- **Engineering**: CI, clang-format, ASan, Doxygen, 12 test files (12 executables)
 
 ### Remaining work — see `TASKS.md` for details
 - **Algorithm improvements**: DHCG segmentation, Intensity Map tuning, spectral embedding, weight replication, more DNN ops

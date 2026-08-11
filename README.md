@@ -145,7 +145,7 @@ PIMapping 的工作流分为三个阶段：**递进式部署表示生成** → *
 │       └── tile2_0/               # Tile 2.0 各模块实现 + 工厂函数
 │           └── core_factory.h     # create_core_modules() 核心模块工厂
 │
-├── test/                         # Google Test 测试（11 个文件，11 个可执行）
+# Google Test 测试（12 个文件，12 个可执行）
 │   ├── CMakeLists.txt            # 每个 .cpp 自动生成一个测试可执行文件
 │   ├── process_test.cpp          # ProcessEvent/ProcessManager 单元测试
 │   ├── modulebase_test.cpp       # ModuleBase 信号/消息类型化单元测试
@@ -374,7 +374,7 @@ loader.load(*this, json_config);
 
 #### 仿真器测试
 
-11 个 gtest 测试文件（11 个可执行）：
+12 个 gtest 测试文件（12 个可执行）：
 
 | 测试 | 覆盖 |
 |------|------|
@@ -384,6 +384,7 @@ loader.load(*this, json_config);
 | `config_test.cpp` | `hw_config` 命名空间 constexpr 值与宏定义一致性 |
 | `configloader_test.cpp` | `SimConfigLoader` JSON 配置驱动模块图构建/错误处理 |
 | `isimulator_test.cpp` | `ISimulator` 接口多态、引擎钩子覆盖（mock 可测试性） |
+| `taskdependency_test.cpp` | 任务依赖表项：屏障触发/重置/广播/激活/模拟器集成 |
 | `mappingalexnet.cpp` | Analyzer 全流程测试（AlexNet 风格 kernel） |
 | `bankingtest.cpp` | BankingSimulator 测试（XY/YX/Custom 策略） |
 | `multicoretest.cpp` | MulticoreSimulator 多核并行测试 |

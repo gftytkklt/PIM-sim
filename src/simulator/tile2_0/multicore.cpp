@@ -27,185 +27,78 @@ void MulticoreSimulator::Init() {
                 this->handle_batch_task_done(data);
             });
 
-    for (int i = 0; i < 6; ++i) {
-        for (int j = 0; j < L1C_BANK; ++j) {
-            core_batch_num_map_[{"task_scheduler" + std::to_string(i), j}] = 0;
+    // 注册生产-消费屏障表项（数据驱动替代硬编码 switch）
+    // E1: {ts0.b0=4, ts1.b0=4} → ts4.b0/ts5.b0/ts1.b1/ts2.b1
+    register_task_dependency(make_dependency(
+        "E1",
+        {{"task_scheduler0", 0, 4}, {"task_scheduler1", 0, 4}},
+        {{4, 0, 2}, {5, 0, 2}, {1, 1, 2}, {2, 1, 2}}));
+    // E2: {ts0.b1=2, ts4.b0=2, ts5.b0=2} → ts4.b1/ts5.b1
+    register_task_dependency(make_dependency(
+        "E2",
+        {{"task_scheduler0", 1, 2}, {"task_scheduler4", 0, 2}, {"task_scheduler5", 0, 2}},
+        {{4, 1, 2}, {5, 1, 2}}));
+    // E3: {ts1.b1=2, ts2.b1=2, ts3.b1=2} → ts0.b2
+    register_task_dependency(make_dependency(
+        "E3",
+        {{"task_scheduler1", 1, 2}, {"task_scheduler2", 1, 2}, {"task_scheduler3", 1, 2}},
+        {{0, 2, 2}}));
+    // E4: {ts2.b0=4, ts3.b0=4} → ts0.b1 + ts3.b1 (合并原B4/B5)
+    register_task_dependency(make_dependency(
+        "E4",
+        {{"task_scheduler2", 0, 4}, {"task_scheduler3", 0, 4}},
+        {{0, 1, 2}, {3, 1, 2}}));
+}
+
+// 构造一个生产-消费屏障表项
+// producers: {core_name, bank_id, threshold} 每个生产者携带各自计数阈值
+// targets:   {core_id, bank_id, batch_num} 消费者事务列表（→ init_task）
+TaskDependencyEntryPtr MulticoreSimulator::make_dependency(
+    const std::string& name,
+    std::vector<std::tuple<std::string, int, int>> producers,
+    std::vector<std::tuple<int, int, int>> targets) {
+    auto entry = std::make_shared<TaskDependencyEntry>(
+        name,
+        // ProducerHook: 从消息提取 (bank, core)，匹配生产者则计数+1
+        [producers](TaskDependencyEntry& self, const GenericMessage& msg) {
+            try {
+                auto data = std::any_cast<std::tuple<int, std::string>>(msg.body);
+                int bank = std::get<0>(data);
+                const std::string& core = std::get<1>(data);
+                std::string key = core + ":" + std::to_string(bank);
+                for (const auto& [pcore, pbank, pthr] : producers) {
+                    (void)pthr;
+                    if (pcore == core && pbank == bank) {
+                        self.counter(key)++;
+                        break;
+                    }
+                }
+            } catch (const std::bad_any_cast&) {
+                // 非 task_batch_done 消息，忽略
+            }
+        },
+        // ConditionCheck: 每个生产者按各自阈值判断
+        [producers](const TaskDependencyEntry& self) {
+            for (const auto& [pcore, pbank, pthr] : producers) {
+                if (self.counter(pcore + ":" + std::to_string(pbank)) < pthr) {
+                    return false;
+                }
+            }
+            return true;
+        },
+        // ConsumerAction: 触发所有目标事务（计数器由框架在触发后自动清零）
+        [this, targets = std::move(targets)]() {
+            for (const auto& [core_id, bank_id, batch_num] : targets) {
+                init_task(core_id, bank_id, batch_num);
+            }
         }
-    }
+    );
+    entry->reset_all_counters();
+    return entry;
 }
 
 void MulticoreSimulator::handle_batch_task_done(const std::tuple<int, std::string>& data) {
-    // 处理任务完成的消息，可以根据需要更新模拟器状态或者触发其他事件
-    int bank_id = std::get<0>(data);
-    std::string core_name = std::get<1>(data);
-    // 写死：core0和core1的bank0算完可以出发core4，core2和core3的bank0算完可以触发core5
-    core_batch_num_map_[{core_name, bank_id}]++;
-    // std::cout << "Received task batch done message for bank " << bank_id 
-    //           << " with core: " << core_name << std::endl;
-    std::cout << "Current batch num for " << core_name << " bank " << bank_id 
-              << ": " << core_batch_num_map_[{core_name, bank_id}] << std::endl;
-    if (core_name == "task_scheduler0") {
-        switch (bank_id) {
-            // 与core1的bank0共同触发core4和core5的bank0，core1和core2的bank1
-            case 0:
-                if (core_batch_num_map_[{"task_scheduler0", 0}] == 4 && 
-                    core_batch_num_map_[{"task_scheduler1", 0}] == 4) {
-                    // core0和core1的bank0都完成了，可以触发core4
-                    init_task(4, 0, 2);
-                    init_task(5, 0, 2);
-                    init_task(1, 1, 2);
-                    init_task(2, 1, 2);
-                    // 清空core0和core1的bank0的batch num，准备下一轮
-                    core_batch_num_map_[{"task_scheduler0", 0}] = 0;
-                    core_batch_num_map_[{"task_scheduler1", 0}] = 0;
-                }
-                break;
-            // 和core4和core5的bank0共同触发core4和core5的bank1
-            case 1:
-                if (core_batch_num_map_[{"task_scheduler0", 1}] == 2 &&
-                    core_batch_num_map_[{"task_scheduler4", 0}] == 2 && 
-                    core_batch_num_map_[{"task_scheduler5", 0}] == 2) {
-                    // core0和core1的bank1都完成了，可以触发core4
-                    init_task(4, 1, 2);
-                    init_task(5, 1, 2);
-                    // 清空core0和core1的bank1的batch num，准备下一轮
-                    core_batch_num_map_[{"task_scheduler0", 1}] = 0;
-                    core_batch_num_map_[{"task_scheduler4", 0}] = 0;
-                    core_batch_num_map_[{"task_scheduler5", 0}] = 0;
-                }
-                break;
-            default:
-                break;
-        }
-    }
-    else if (core_name == "task_scheduler1") {
-        switch (bank_id) {
-            // 与core0的bank0共同触发core4和core5的bank0，core1和core2的bank1
-            case 0:
-                if (core_batch_num_map_[{"task_scheduler0", 0}] == 4 && 
-                    core_batch_num_map_[{"task_scheduler1", 0}] == 4) {
-                    // core0和core1的bank0都完成了，可以触发core4
-                    init_task(4, 0, 2);
-                    init_task(5, 0, 2);
-                    init_task(1, 1, 2);
-                    init_task(2, 1, 2);
-                    // 清空core0和core1的bank0的batch num，准备下一轮
-                    core_batch_num_map_[{"task_scheduler0", 0}] = 0;
-                    core_batch_num_map_[{"task_scheduler1", 0}] = 0;
-                }
-                break;
-            // 和core2和core3的bank1共同触发core0的bank2
-            case 1:
-                if (core_batch_num_map_[{"task_scheduler1", 1}] == 2 &&
-                    core_batch_num_map_[{"task_scheduler2", 1}] == 2 && 
-                    core_batch_num_map_[{"task_scheduler3", 1}] == 2) {
-                    // core0和core1的bank1都完成了，可以触发core4
-                    init_task(0, 2, 2);
-                    // 清空core0和core1的bank1的batch num，准备下一轮
-                    core_batch_num_map_[{"task_scheduler1", 1}] = 0;
-                    core_batch_num_map_[{"task_scheduler2", 1}] = 0;
-                    core_batch_num_map_[{"task_scheduler3", 1}] = 0;
-                }
-                break;
-            default:
-                break;
-        }
-    }
-    else if (core_name == "task_scheduler2") {
-        switch (bank_id) {
-            // 和core3的bank0共同触发core0的bank1
-            case 0:
-                if (core_batch_num_map_[{"task_scheduler2", 0}] == 4 && 
-                    core_batch_num_map_[{"task_scheduler3", 0}] == 4) {
-                    init_task(0, 1, 2);
-                    // 清空core0和core1的bank0的batch num，准备下一轮
-                    core_batch_num_map_[{"task_scheduler2", 0}] = 0;
-                    core_batch_num_map_[{"task_scheduler3", 0}] = 0;
-                }
-                break;
-            // 和core1和core3的bank1共同触发core0的bank2
-            case 1:
-                if (core_batch_num_map_[{"task_scheduler1", 1}] == 2 &&
-                    core_batch_num_map_[{"task_scheduler2", 1}] == 2 && 
-                    core_batch_num_map_[{"task_scheduler3", 1}] == 2) {
-                    // core0和core1的bank1都完成了，可以触发core4
-                    init_task(0, 2, 2);
-                    // 清空core0和core1的bank1的batch num，准备下一轮
-                    core_batch_num_map_[{"task_scheduler1", 1}] = 0;
-                    core_batch_num_map_[{"task_scheduler2", 1}] = 0;
-                    core_batch_num_map_[{"task_scheduler3", 1}] = 0;
-                }
-                break;
-            default:
-                break;
-        }
-    }
-    else if (core_name == "task_scheduler3") {
-        switch (bank_id) {
-            // 和core2的bank0共同触发core0的bank1,core3的bank1
-            case 0:
-                if (core_batch_num_map_[{"task_scheduler2", 0}] == 4 && 
-                    core_batch_num_map_[{"task_scheduler3", 0}] == 4) {
-                    init_task(0, 1, 2);
-                    init_task(3, 1, 2);
-                    // 清空core0和core1的bank0的batch num，准备下一轮
-                    core_batch_num_map_[{"task_scheduler2", 0}] = 0;
-                    core_batch_num_map_[{"task_scheduler3", 0}] = 0;
-                }
-                break;
-            // 和core1和core2的bank1共同触发core0的bank2
-            case 1:
-                if (core_batch_num_map_[{"task_scheduler1", 1}] == 2 &&
-                    core_batch_num_map_[{"task_scheduler2", 1}] == 2 && 
-                    core_batch_num_map_[{"task_scheduler3", 1}] == 2) {
-                    // core0和core1的bank1都完成了，可以触发core4
-                    init_task(0, 2, 2);
-                    // 清空core0和core1的bank1的batch num，准备下一轮
-                    core_batch_num_map_[{"task_scheduler1", 1}] = 0;
-                    core_batch_num_map_[{"task_scheduler2", 1}] = 0;
-                    core_batch_num_map_[{"task_scheduler3", 1}] = 0;
-                }
-                break;
-            default:
-                break;
-        }
-    }
-    else if (core_name == "task_scheduler4") {
-        switch (bank_id) {
-            // 和core5的bank0，core0的bank1共同触发core4的bank1和core5的bank1
-            case 0:
-                if (core_batch_num_map_[{"task_scheduler0", 1}] == 2 &&
-                    core_batch_num_map_[{"task_scheduler4", 0}] == 2 && 
-                    core_batch_num_map_[{"task_scheduler5", 0}] == 2) {
-                    init_task(4, 1, 2);
-                    init_task(5, 1, 2);
-                    // 清空core0和core1的bank0的batch num，准备下一轮
-                        
-                    core_batch_num_map_[{"task_scheduler4", 0}] = 0;
-                    core_batch_num_map_[{"task_scheduler5", 0}] = 0;
-                }
-                break;
-            default:
-                break;
-        }
-    }
-    else if (core_name == "task_scheduler5") {
-        switch (bank_id) {
-            // 和core4的bank0,core0的bank1共同触发core4的bank1和core5的bank1
-            case 0:
-                if (core_batch_num_map_[{"task_scheduler0", 1}] == 2 &&
-                    core_batch_num_map_[{"task_scheduler4", 0}] == 2 && 
-                    core_batch_num_map_[{"task_scheduler5", 0}] == 2) {
-                    init_task(4, 1, 2);
-                    init_task(5, 1, 2);
-                    // 清空core0和core1的bank0的batch num，准备下一轮
-
-                    core_batch_num_map_[{"task_scheduler4", 0}] = 0;
-                    core_batch_num_map_[{"task_scheduler5", 0}] = 0;
-                }
-                break;
-            default:
-                break;
-        }
-    }
+    // 泛化：任务完成消息广播到活跃任务表，各表项自行判断/触发/清零
+    GenericMessage msg("task_batch_done", data, 0);
+    on_task_done(msg);
 }

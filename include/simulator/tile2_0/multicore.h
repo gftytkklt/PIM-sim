@@ -9,6 +9,7 @@
 #include "L1C.h"
 #include "simulator/ModuleBase.h"
 #include "simulator/Simulator.h"
+#include "simulator/TaskDependency.h"
 
 
 using CoreBank = std::pair<std::string, int>; // pair<core_name, bank_id>
@@ -34,8 +35,14 @@ public:
         send_message_to_core(core_name, GenericMessage("init_task", std::make_tuple(local_bank_id, batch_num), 0));
     }
     void handle_batch_task_done(const std::tuple<int, std::string>& data);
+    // 构造一个生产-消费屏障表项（生产者/条件/消费者均来自该模拟器的 init_task 与计数）
+    // producers: {core_name, bank_id, threshold} 每个生产者携带各自计数阈值
+    // targets:   {core_id, bank_id, batch_num} 消费者事务列表
+    TaskDependencyEntryPtr make_dependency(
+        const std::string& name,
+        std::vector<std::tuple<std::string, int, int>> producers,
+        std::vector<std::tuple<int, int, int>> targets);
 private:
-    std::unordered_map<CoreBank, int, CoreBankHash> core_batch_num_map_; // 记录每个核心当前处理的batch数量
     bool ideal_= false; // 是否理想化模拟，理想化模拟遵循第四章的流水线，和tile2.0进行比较。
 };
 

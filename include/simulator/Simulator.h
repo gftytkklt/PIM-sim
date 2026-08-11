@@ -6,6 +6,7 @@
 #include "MessageBase.h"
 #include "SimulatorEvent.h"
 #include "ISimulator.h"
+#include "TaskDependency.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -78,6 +79,8 @@ private:
     std::unordered_map<std::string, TaskHandler> task_handlers_;
     // 任务消息体类型登记：task_id → 消息体类型
     std::unordered_map<std::string, std::type_index> task_types_;
+    // 多核事务：活跃任务表（生产-消费屏障）
+    TaskDependencyTable dependency_table_;
     
     void dispatch_simulator_event(const SimulatorEvent& event);
     void propagate_signal_to_targets(std::shared_ptr<ISimulatable> source_module,
@@ -160,6 +163,22 @@ public:
 
     // dump完成的事件到文件
     void dump_completed_events(const std::string& filename) const override;
+
+    // ========== 多核事务：任务依赖表 ==========
+
+    // 注册生产-消费屏障表项
+    void register_task_dependency(TaskDependencyEntryPtr entry) {
+        dependency_table_.register_entry(std::move(entry));
+    }
+
+    // 某个生产者的任务完成消息到达：驱动所有相关表项状态更新与触发判断
+    // 返回触发了消费者事务的表项数
+    int on_task_done(const GenericMessage& msg) {
+        return dependency_table_.on_task_done(msg);
+    }
+
+    // 获取活跃任务表（供测试/配置驱动）
+    TaskDependencyTable& get_dependency_table() { return dependency_table_; }
 };
 
 #endif // SIMULATOR_H

@@ -108,6 +108,7 @@ std::shared_ptr<ModuleType> register_module(const std::string& id, int depth, Ar
 | `SimulatorEvent.h` | 统一事件类型（信号更新/消息发送），`evaluate()` 返回值 |
 | `MessageBase.h` | `GenericMessage` 通用消息（task_id + body，body 为 std::any） |
 | `ConfigLoader.h` | 配置驱动模块图加载器（JSON → 模块图） |
+| `TaskDependency.h` | 多核事务：任务依赖原语（生产-消费屏障 + 活跃任务表） |
 
 ### 3.2 Tile2.0 架构模型层（`include/simulator/tile2_0/`, `src/simulator/tile2_0/`）
 
@@ -257,11 +258,44 @@ register_task_handler<std::tuple<int, std::string>>("task_batch_done",
 | **事务分配** | 硬件映射 | 核心/模块注册（`register_module`） |
 | **事务间消息传递** | 多核调度 | `GenericMessage` + `task_handlers_` 消息分发 |
 
-**任务依赖表**：`core_batch_num_map_`（记录每个核心/ bank 的批次数），
-监视多核数据传输触发条件。
+#### 任务依赖原语（`TaskDependency.h`）
 
-当前多核实现（`multicore.cpp`）以 6 核硬编码依赖关系
-（`handle_batch_task_done` 的 switch 逻辑）模拟数据依赖反压与计算批次模式。
+框架约定表项结构，生产-消费屏障由用户建模时自定义（与信号/消息机制同原则）：
+
+```cpp
+class TaskDependencyEntry {   // 一个生产-消费屏障
+    using ProducerHook   = std::function<void(Entry&, const GenericMessage&)>;
+    using ConditionCheck = std::function<bool(const Entry&)>;
+    using ConsumerAction = std::function<void()>;
+    // ProducerHook: 任务完成消息 → 更新表项状态（计数器）
+    // ConditionCheck: 状态是否满足触发条件
+    // ConsumerAction: 条件满足时执行的消费者事务（触发下游 init_task 等）
+};
+
+class TaskDependencyTable {  // 活跃任务表
+    void register_entry(TaskDependencyEntryPtr);
+    int  on_task_done(const GenericMessage&);  // 广播到所有活跃表项
+};
+```
+
+**触发语义**：某个生产者的任务完成消息到达时，`on_task_done` 广播到所有活跃
+表项，各表项自行判断是否相关（ProducerHook 匹配生产者）并更新状态；满足条件
+（ConditionCheck）则执行消费者事务（ConsumerAction），随后**自动清零计数器**
+准备下一轮屏障。
+
+**通用性**：
+- **不同生产者可有不同计数阈值**：ConditionCheck 是用户自定义函数，可对每个
+  生产者按各自阈值判断（如 ts0.b0≥4 且 ts1.b0≥2 才触发）
+- **单生产者可触发多个消费者**：一个生产者消息广播到所有表项，各表项独立
+  判断、独立清零，互不影响
+
+**模拟器集成**（`CycleAccurateSimulator`）：
+- `register_task_dependency(entry)`：注册表项
+- `on_task_done(msg)`：驱动所有相关表项状态更新与触发判断
+
+**当前实现**（`MulticoreSimulator`）：6 核数据依赖已从硬编码 switch 迁移为
+4 个数据驱动表项（E1-E4），`handle_batch_task_done` 简化为 `on_task_done` 广播。
+迁移过程修复了原 switch 中 B6/B7 清零不完整（未清零 ts0.b1）的 bug。
 
 ---
 
@@ -520,7 +554,7 @@ loader_.register_factory("TaskScheduler", [](ISimulator& sim, const std::string&
 
 ## 8. 测试
 
-10 个 gtest 测试文件（11 个可执行）：
+11 个 gtest 测试文件（12 个可执行）：
 
 | 测试 | 覆盖 |
 |------|------|
@@ -530,6 +564,7 @@ loader_.register_factory("TaskScheduler", [](ISimulator& sim, const std::string&
 | `config_test.cpp` | `hw_config` constexpr 与宏一致性 |
 | `configloader_test.cpp` | `SimConfigLoader` JSON 配置驱动模块图构建/错误处理/单核运行 |
 | `isimulator_test.cpp` | ISimulator 接口多态、引擎钩子覆盖（mock 可测试性） |
+| `taskdependency_test.cpp` | 任务依赖表项：屏障触发/重置/广播/激活/模拟器集成 |
 | `oputiletest.cpp` | OPU 单 tile 全流水线（周期=5141） |
 | `bankingtest.cpp` | BankingSimulator XY/YX/Custom 策略（周期=23024） |
 | `multicoretest.cpp` | MulticoreSimulator 多核并行（周期=6867） |

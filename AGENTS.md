@@ -88,7 +88,7 @@ C++ (libPIMapping) │  Analyzer → Graph hierarchy:        │
 - **Core factory**: `create_core_modules()` in `include/simulator/tile2_0/core_factory.h` eliminates repeated module registration. Config-driven: `SimConfigLoader` in `include/simulator/ConfigLoader.h` builds module graphs from JSON
 - **Hardware config**: `hw_config` namespace with `constexpr int` values (legacy `#define` aliases kept)
 - **Memory**: `shared_ptr` self-reference cycle in `register_module` lambdas fixed (Issue #d4a9883)
-- **Tests**: 11 gtest files (11 executables) including ProcessManager/ModuleBase/ISimulator/ConfigLoader unit tests
+- **Tests**: 12 gtest files (12 executables) including ProcessManager/ModuleBase/ISimulator/ConfigLoader/TaskDependency unit tests
 - **ASan**: `cmake -DENABLE_ASAN=ON` passes all tests with 0 leaks (timing anomaly: simulator tests run to max_cycles under ASan — pre-existing, verify timing with normal builds)
 
 ## Conventions & gotchas
