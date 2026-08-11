@@ -297,3 +297,51 @@ TEST(TaskDependencyTest, MultiTaskIndependentIncr) {
     entry->on_message(GenericMessage("new_task", IncrMessage{"alpha", 10}, 0));
     EXPECT_EQ(fired, 1);  // alpha=10 >=10, beta=5 >=5 → 触发
 }
+
+// 便捷注册接口：用户侧声明式用法
+TEST(TaskDependencyTest, ConvenientRegistrationForBankTask) {
+    int fired = 0;
+    // 用户只需提供：增量提取 + 阈值表 + 消费者事务
+    auto entry = make_increment_dependency(
+        "E1",
+        // 从 task_batch_done 消息提取 {core:bank, 1}
+        [](const GenericMessage& msg) -> std::pair<std::string, int> {
+            auto data = std::any_cast<std::tuple<int, std::string>>(msg.body);
+            return {std::get<1>(data) + ":" + std::to_string(std::get<0>(data)), 1};
+        },
+        // 不同生产者不同阈值
+        {{"task_scheduler0:0", 4}, {"task_scheduler1:0", 2}},
+        [&fired]() { fired++; });
+
+    TaskDependencyTable table;
+    table.register_entry(entry);
+
+    // ts1.b0 达 2，ts0.b0 达 4 → 触发
+    table.on_task_done(make_batch_done(0, "task_scheduler1"));
+    table.on_task_done(make_batch_done(0, "task_scheduler1"));
+    for (int i = 0; i < 4; i++) table.on_task_done(make_batch_done(0, "task_scheduler0"));
+    EXPECT_EQ(fired, 1);
+}
+
+// 便捷注册接口：incr 场景（消息不涉及 bank）
+TEST(TaskDependencyTest, ConvenientRegistrationForIncrTask) {
+    int fired = 0;
+    auto entry = make_increment_dependency(
+        "new_task",
+        // 从自定义消息提取 {task:name, incr}
+        [](const GenericMessage& msg) -> std::pair<std::string, int> {
+            auto data = std::any_cast<IncrMessage>(msg.body);
+            return {"task:" + data.task_name, data.incr};
+        },
+        {{"task:alpha", 10}},
+        [&fired]() { fired++; });
+
+    TaskDependencyTable table;
+    table.register_entry(entry);
+
+    // incr 累加到 10 → 触发
+    table.on_task_done(GenericMessage("new_task", IncrMessage{"alpha", 6}, 0));
+    table.on_task_done(GenericMessage("new_task", IncrMessage{"alpha", 4}, 0));
+    EXPECT_EQ(fired, 1);
+    EXPECT_EQ(entry->counter("task:alpha"), 0);  // 触发后清零
+}

@@ -57,44 +57,25 @@ TaskDependencyEntryPtr MulticoreSimulator::make_dependency(
     const std::string& name,
     std::vector<std::tuple<std::string, int, int>> producers,
     std::vector<std::tuple<int, int, int>> targets) {
-    auto entry = std::make_shared<TaskDependencyEntry>(
-        name,
-        // ProducerHook: 从消息提取 (bank, core)，匹配生产者则计数+1
-        [producers](TaskDependencyEntry& self, const GenericMessage& msg) {
-            try {
-                auto data = std::any_cast<std::tuple<int, std::string>>(msg.body);
-                int bank = std::get<0>(data);
-                const std::string& core = std::get<1>(data);
-                std::string key = core + ":" + std::to_string(bank);
-                for (const auto& [pcore, pbank, pthr] : producers) {
-                    (void)pthr;
-                    if (pcore == core && pbank == bank) {
-                        self.counter(key)++;
-                        break;
-                    }
-                }
-            } catch (const std::bad_any_cast&) {
-                // 非 task_batch_done 消息，忽略
-            }
-        },
-        // ConditionCheck: 每个生产者按各自阈值判断
-        [producers](const TaskDependencyEntry& self) {
-            for (const auto& [pcore, pbank, pthr] : producers) {
-                if (self.counter(pcore + ":" + std::to_string(pbank)) < pthr) {
-                    return false;
-                }
-            }
-            return true;
-        },
-        // ConsumerAction: 触发所有目标事务（计数器由框架在触发后自动清零）
-        [this, targets = std::move(targets)]() {
-            for (const auto& [core_id, bank_id, batch_num] : targets) {
-                init_task(core_id, bank_id, batch_num);
-            }
+    // 构建阈值表：core:bank → threshold
+    std::unordered_map<std::string, int> thresholds;
+    for (const auto& [pcore, pbank, pthr] : producers) {
+        thresholds[pcore + ":" + std::to_string(pbank)] = pthr;
+    }
+    // 消费者事务：触发所有目标 init_task（计数器由框架触发后自动清零）
+    auto fire = [this, targets = std::move(targets)]() {
+        for (const auto& [core_id, bank_id, batch_num] : targets) {
+            init_task(core_id, bank_id, batch_num);
         }
-    );
-    entry->reset_all_counters();
-    return entry;
+    };
+    // 增量提取：从 task_batch_done 消息提取 {core:bank, 1}
+    auto extract = [](const GenericMessage& msg) -> std::pair<std::string, int> {
+        auto data = std::any_cast<std::tuple<int, std::string>>(msg.body);
+        int bank = std::get<0>(data);
+        const std::string& core = std::get<1>(data);
+        return {core + ":" + std::to_string(bank), 1};
+    };
+    return make_increment_dependency(name, extract, thresholds, fire);
 }
 
 void MulticoreSimulator::handle_batch_task_done(const std::tuple<int, std::string>& data) {

@@ -19,6 +19,10 @@
  * 每个表项代表一个生产-消费屏障。某个生产者的输出到达时，
  * 由 TaskDependencyTable 广播到所有活跃表项，各表项自行判断
  * 是否相关并更新状态/判断触发。
+ *
+ * 便捷注册：make_increment_dependency 覆盖最常见的
+ * "计数累加 + 阈值触发" 模式，用户只需提供增量提取函数、
+ * 阈值表和消费者事务。
  */
 
 // 任务表项：一个生产-消费屏障
@@ -72,6 +76,47 @@ private:
 };
 
 using TaskDependencyEntryPtr = std::shared_ptr<TaskDependencyEntry>;
+
+/**
+ * 便捷注册：声明式构造"计数累加 + 阈值触发"屏障
+ *
+ * @param name        表项名称（调试/日志）
+ * @param extract_incr 用户定义：从任意消息提取 {计数键, 增量}
+ *                     （bank 场景 → {"core:bank", 1}；incr 场景 → {"task:x", incr}）
+ * @param thresholds   每个计数键的独立触发阈值（key → threshold）
+ * @param fire         条件满足时执行的消费者事务
+ *
+ * 触发条件：所有在 thresholds 中的计数键，计数 >= 各自阈值。
+ * 触发后框架自动清零计数器。
+ */
+inline TaskDependencyEntryPtr make_increment_dependency(
+    std::string name,
+    std::function<std::pair<std::string, int>(const GenericMessage&)> extract_incr,
+    std::unordered_map<std::string, int> thresholds,
+    TaskDependencyEntry::ConsumerAction fire) {
+    auto entry = std::make_shared<TaskDependencyEntry>(
+        std::move(name),
+        // ProducerHook: 提取 {key, incr} 并累加
+        [extract_incr = std::move(extract_incr)](TaskDependencyEntry& self, const GenericMessage& msg) {
+            try {
+                auto [key, incr] = extract_incr(msg);
+                self.counter(key) += incr;
+            } catch (const std::bad_any_cast&) {
+                // 非本表项关心的消息，忽略
+            }
+        },
+        // ConditionCheck: 所有阈值键计数 >= 各自阈值
+        [thresholds](const TaskDependencyEntry& self) {
+            for (const auto& [key, threshold] : thresholds) {
+                if (self.counter(key) < threshold) {
+                    return false;
+                }
+            }
+            return true;
+        },
+        std::move(fire));
+    return entry;
+}
 
 /**
  * 活跃任务表：维护所有生产-消费屏障表项。

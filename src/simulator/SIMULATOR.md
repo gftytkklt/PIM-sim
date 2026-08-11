@@ -288,6 +288,29 @@ class TaskDependencyTable {  // 活跃任务表
   生产者按各自阈值判断（如 ts0.b0≥4 且 ts1.b0≥2 才触发）
 - **单生产者可触发多个消费者**：一个生产者消息广播到所有表项，各表项独立
   判断、独立清零，互不影响
+- **任意消息类型/增量语义**：消息 body 为 `std::any`（用户自定义类型）；
+  计数累加量由用户定义（可为 +1，也可为消息携带的 incr 增量）
+
+**便捷注册接口**（`make_increment_dependency`）：覆盖最常见的
+"计数累加 + 阈值触发" 模式，用户只需提供三个要素：
+
+```cpp
+auto entry = make_increment_dependency(
+    "E1",
+    // ① 增量提取：从任意消息提取 {计数键, 增量}
+    [](const GenericMessage& msg) -> std::pair<std::string, int> {
+        auto data = std::any_cast<std::tuple<int, std::string>>(msg.body);
+        return {std::get<1>(data) + ":" + std::to_string(std::get<0>(data)), 1};
+    },
+    // ② 阈值表：每个计数键独立阈值（key → threshold）
+    {{"task_scheduler0:0", 4}, {"task_scheduler1:0", 2}},
+    // ③ 消费者事务
+    [&fired]() { fired++; });
+table.register_entry(entry);
+```
+
+框架负责计数累加、所有键达阈值判断、触发后清零。需要完全自定义逻辑的
+场景仍可用 `TaskDependencyEntry` 原始三回调构造器。
 
 **模拟器集成**（`CycleAccurateSimulator`）：
 - `register_task_dependency(entry)`：注册表项
