@@ -12,6 +12,7 @@
 #include <queue>
 #include <sstream>
 #include "util.h"
+#include "errors.h"
 #include <array>
 
 // nodes group
@@ -38,7 +39,7 @@ constexpr std::array<std::array<int, 2>, DIRECTION_COUNT> DIRS = {{
 class Mapper {
 public:
     // ctor
-    Mapper(int r, int c) : rows(r), cols(c), core_array(r, std::vector<size_t>(c, -1)) {}
+    Mapper(int r, int c);
     Mapper(std::pair<int, int> size) : Mapper(size.first, size.second) {}
     Mapper() = default;
     // print mappings
@@ -66,7 +67,7 @@ public:
 private:
     // core array, -1 means free, otherwise node index
     std::vector<std::vector<size_t>> core_array;
-    int rows, cols;
+    int rows = 0, cols = 0;
 
     // bidirectional mapping between node and core
     std::unordered_map<size_t, std::pair<int, int>> node_to_core;

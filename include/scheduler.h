@@ -9,78 +9,36 @@
 #include <boost/property_map/property_map.hpp>
 #include <boost/property_map/function_property_map.hpp>
 #include "util.h"
+#include "errors.h"
 class CSum {
 public:
-    CSum() : sumLower(0), n(0) {}
-    // insert and update sum
     void insert(int value) {
-        n++;
-
-        // insert value to lowerSet or higherSet
-        // first elem will be inserted to higherSet in fact
-        if (lowerSet.empty() || value <= *lowerSet.rbegin()) {
-            lowerSet.insert(value);
-            sumLower += value;
-        } else {
-            higherSet.insert(value);
-        }
-
-        // move the largest element in lowerSet to higherSet
-        // this will happen if value <= *lowerSet.rbegin()
-        if (lowerSet.size() > n - 1) {
-            auto it = --lowerSet.end();
-            sumLower -= *it;
-            higherSet.insert(*it);
-            lowerSet.erase(it);
-        }
-
-        // move the smallest element in higherSet to lowerSet
-        // this will happen if value > *lowerSet.rbegin()
-        // I think the second condition is not necessary
-        while (lowerSet.size() < n - 1 && !higherSet.empty()) {
-            auto it = higherSet.begin();
-            lowerSet.insert(*it);
-            sumLower += *it;
-            higherSet.erase(it);
-        }
+        if (value < 0) throw pim::SchedulingError("congestion volume must be nonnegative");
+        values.insert(value);
+        total += value;
     }
 
-    // get sum = sum(v[0],v[1],...,v[n-2]) + v[n-2]
+    // Equation (3-26): sorted v[0..n-1], sum(v[0..n-2]) + v[n-2].
+    // A link with at most one positive-volume flow has no contention (cost 1).
     long long getCSum() const {
-        // 0/1 elem case
-        if (lowerSet.empty()) {
-            return 1;
-        }
-        auto it = lowerSet.end();
-        --it; // v[n-2]
-        return sumLower + (*it);
+        if (values.size() < 2) return 1;
+        auto largest = values.rbegin();
+        auto second_largest = std::next(largest);
+        return total - *largest + *second_largest;
     }
 
-    // get Csum of original data and new value
-    // value will not be inserted
     long long getCSum(int value) const {
-        // empty set
-        if (n < 1) {
-            return 1;
-        }
-        // n >= 1, non-empty higherSet
-        auto max_original = *higherSet.begin();
-        // only elem in higherSet
-        if (n == 1) {
-            return 2*std::min(max_original, value);
-        }
-        // n >= 2, general case
-        if (value >= max_original) {
-            return sumLower + 2*max_original;
-        }
-        auto minmax_original = *lowerSet.rbegin();
-        return sumLower + value + std::max(minmax_original, value);
+        if (value < 0) throw pim::SchedulingError("congestion volume must be nonnegative");
+        if (values.empty()) return 1;
+        auto largest = values.rbegin();
+        if (values.size() == 1) return 2LL * std::min(*largest, value);
+        if (value >= *largest) return total + *largest;
+        return total + value - *largest + std::max(*std::next(largest), value);
     }
+
 private:
-    std::multiset <int> lowerSet;  // v[0],v[1],...,v[n-2]
-    std::multiset <int> higherSet; // v[n-1], sometimes candidate
-    long long sumLower;     // sum(v[0],v[1],...,v[n-2]) + v[n-2]
-    size_t n;               // elem num of CSum
+    std::multiset<int> values;
+    long long total = 0;
 };
 
 using SNode = std::pair<int,int>; // (x, y) of node
@@ -129,14 +87,12 @@ class Scheduler {
 public:
     Scheduler() = default;
     Scheduler(std::pair<int, int> tile_size);
-    void set_path_set(std::vector<std::shared_ptr<Path>> path_set) {
-        this->path_set = path_set;
-    }
+    void set_path_set(std::vector<std::shared_ptr<Path>> path_set);
     // return congestion volume of cur seg
     long long schedule();
     long long xy_routing();
     auto id_to_xy(size_t id) const {
-        return std::make_pair(id / tile_size.second, id % tile_size.second);
+        return std::make_pair(static_cast<int>(id / tile_size.second), static_cast<int>(id % tile_size.second));
     }
     size_t xy_to_id(std::pair<int, int> xy) const {
         return xy.first * tile_size.second + xy.second;
@@ -144,7 +100,7 @@ public:
 private:
     SGraph graph;
     std::vector<std::shared_ptr<Path>> path_set;
-    std::pair<int, int> tile_size;
+    std::pair<int, int> tile_size{0, 0};
     std::map<UnorderedPair, size_t> edge_map;// edge, id map pair
     std::map<size_t, double> bce_map; // (path_id, bce)
     std::map<size_t, CSum> congestion_map; // (path_id, congestion)

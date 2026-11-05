@@ -15,7 +15,7 @@ namespace pim {
 enum class LogLevel { DEBUG = 0, INFO = 1, WARN = 2, ERROR = 3 };
 
 /// Thread-safe singleton logger for C++ analysis output.
-/// Logs to stdout and optionally to a file (runs/cpp_analysis.log).
+/// Logs to stdout and optionally to a file (artifacts/logs/cpp_analysis.log).
 class Logger {
 public:
     /// Returns the global logger singleton instance.

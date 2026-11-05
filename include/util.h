@@ -10,6 +10,22 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
+#include <limits>
+#include <stdexcept>
+
+// Public mapping result volumes remain signed int for compatibility. Reject
+// unsupported totals instead of allowing signed overflow or negative traffic.
+inline int checked_volume(long long value) {
+    if (value < 0 || value > std::numeric_limits<int>::max()) {
+        throw std::overflow_error("mapping element count exceeds supported int range");
+    }
+    return static_cast<int>(value);
+}
+
+inline int add_volume(int first, int second) {
+    if (first < 0 || second < 0) throw std::overflow_error("negative mapping element count");
+    return checked_volume(static_cast<long long>(first) + second);
+}
 
 std::vector<std::vector<std::pair<int, int>>> uniformsplit(int M, int N, int K);
 int unique_elements(const std::pair<int, int>& pair1, const std::pair<int, int>& pair2);
@@ -111,10 +127,11 @@ inline std::string opt_type_to_string(OptType opt_type) {
 
 int compute_node_num (std::pair<int, int> xbar_size, std::pair<int, int> window_shape, std::pair<int, int> channel_shape);
 
-int get_compute_num(std::pair<int, int> window_shape, std::pair<int, int> channel_shape, std::pair<int, int> fmap_size);
+long long get_compute_num(std::pair<int, int> window_shape, std::pair<int, int> channel_shape, std::pair<int, int> fmap_size);
 
 template <typename T>
 std::vector<std::vector<T>> chunk_vector(const std::vector<T>& vec, size_t chunk_size) {
+    if (chunk_size == 0) throw std::invalid_argument("chunk size must be positive");
     std::vector<std::vector<T>> chunks;
     for (size_t i = 0; i < vec.size(); i += chunk_size) {
         chunks.emplace_back(vec.begin() + i, vec.begin() + std::min(vec.size(), i + chunk_size));

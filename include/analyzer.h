@@ -60,6 +60,10 @@ public:
     CommInfo get_comm_info() const { return comm_info; }
     void generate_comm_info();
     void print_result() const;
+    const CGraph& cgraph() const { return *cg; }
+    const TGraph& tgraph() const { return *tg; }
+    const HGraph& hgraph() const { return *hg; }
+    const DGraph& dgraph() const { return *dg; }
 private:
     OptType opt_type;
     // CGraph cg;

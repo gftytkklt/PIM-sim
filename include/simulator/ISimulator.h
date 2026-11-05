@@ -53,6 +53,10 @@ public:
 
     // 发送消息到核心（直发，不经消息队列）
     virtual void send_message_to_core(const std::string& core_id, const GenericMessage& msg) = 0;
+    // 队列化发送，msg.delay_cycles 是相对当前周期的传输延迟。
+    virtual void schedule_message_to_core(const std::string& core_id, const GenericMessage& msg) {
+        throw std::runtime_error("Queued core messaging is unsupported by this simulator");
+    }
 
     // ========== 模板方法（类型安全，委托虚钩子） ==========
 

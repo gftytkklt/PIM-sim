@@ -7,6 +7,7 @@
 #include <vector>
 #include <unordered_map>
 #include <stdexcept>
+#include <limits>
 #include "MessageBase.h"
 
 /**
@@ -32,11 +33,14 @@ public:
     using ProducerHook = std::function<void(TaskDependencyEntry&, const GenericMessage&)>;
     using ConditionCheck = std::function<bool(const TaskDependencyEntry&)>;
     using ConsumerAction = std::function<void()>;
+    using ConsumeAction = std::function<void(TaskDependencyEntry&)>;
 
     TaskDependencyEntry(std::string name, ProducerHook on_msg,
-                        ConditionCheck ready, ConsumerAction fire)
+                        ConditionCheck ready, ConsumerAction fire, ConsumeAction consume = {})
         : name_(std::move(name)), producer_hook_(std::move(on_msg)),
-          ready_(std::move(ready)), fire_(std::move(fire)) {}
+          ready_(std::move(ready)), fire_(std::move(fire)), consume_(std::move(consume)) {
+        if (name_.empty()) throw std::invalid_argument("Task dependency name must not be empty");
+    }
 
     const std::string& get_name() const { return name_; }
 
@@ -44,14 +48,23 @@ public:
     // 返回是否触发了消费者事务（供测试/日志）
     bool on_message(const GenericMessage& msg) {
         if (!active_) return false;
+        if (processing_) throw std::runtime_error("Reentrant task dependency: " + name_);
+        struct Guard {
+            bool& flag;
+            explicit Guard(bool& value) : flag(value) { flag = true; }
+            ~Guard() { flag = false; }
+        } guard(processing_);
         if (producer_hook_) producer_hook_(*this, msg);
-        if (ready_ && ready_(*this)) {
+        bool fired = false;
+        while (active_ && ready_ && ready_(*this)) {
+            // 通用屏障保留一轮后清零的旧行为；计数屏障按阈值消费，保留余量。
+            if (consume_) consume_(*this);
+            else counters_.clear();
             if (fire_) fire_();
-            // 屏障触发后清零计数器，准备下一轮
-            counters_.clear();
-            return true;
+            fired = true;
+            if (!consume_) break;
         }
-        return false;
+        return fired;
     }
 
     bool is_active() const { return active_; }
@@ -72,6 +85,8 @@ private:
     ProducerHook producer_hook_;
     ConditionCheck ready_;
     ConsumerAction fire_;
+    ConsumeAction consume_;
+    bool processing_{false};
     bool active_{true};
     std::unordered_map<std::string, int> counters_;
 };
@@ -88,19 +103,28 @@ using TaskDependencyEntryPtr = std::shared_ptr<TaskDependencyEntry>;
  * @param fire         条件满足时执行的消费者事务
  *
  * 触发条件：所有在 thresholds 中的计数键，计数 >= 各自阈值。
- * 触发后框架自动清零计数器。
+ * 每轮触发按阈值扣减计数，保留超额数据；单条增量可触发多轮消费者事务。
  */
 inline TaskDependencyEntryPtr make_increment_dependency(
     std::string name,
     std::function<std::pair<std::string, int>(const GenericMessage&)> extract_incr,
     std::unordered_map<std::string, int> thresholds,
     TaskDependencyEntry::ConsumerAction fire) {
+    if (!extract_incr || thresholds.empty()) throw std::invalid_argument("Increment dependency needs an extractor and positive thresholds");
+    for (const auto& [key, threshold] : thresholds) {
+        if (key.empty() || threshold <= 0) throw std::invalid_argument("Dependency thresholds must be positive and keys non-empty");
+    }
     auto entry = std::make_shared<TaskDependencyEntry>(
         std::move(name),
         // ProducerHook: 提取 {key, incr} 并累加
-        [extract_incr = std::move(extract_incr)](TaskDependencyEntry& self, const GenericMessage& msg) {
+        [extract_incr = std::move(extract_incr), thresholds](TaskDependencyEntry& self, const GenericMessage& msg) {
             try {
                 auto [key, incr] = extract_incr(msg);
+                if (!thresholds.count(key)) return;
+                if (incr < 0) throw std::invalid_argument("Dependency increment must not be negative");
+                if (incr > std::numeric_limits<int>::max() - self.counter(key)) {
+                    throw std::overflow_error("Dependency counter overflow");
+                }
                 self.counter(key) += incr;
             } catch (const std::bad_any_cast&) {
                 // 非本表项关心的消息，忽略
@@ -115,7 +139,10 @@ inline TaskDependencyEntryPtr make_increment_dependency(
             }
             return true;
         },
-        std::move(fire));
+        std::move(fire),
+        [thresholds](TaskDependencyEntry& self) {
+            for (const auto& [key, threshold] : thresholds) self.counter(key) -= threshold;
+        });
     return entry;
 }
 
@@ -128,6 +155,7 @@ class TaskDependencyTable {
 public:
     // 注册表项（name 重复时抛异常，避免静默覆盖）
     void register_entry(TaskDependencyEntryPtr entry) {
+        if (!entry) throw std::invalid_argument("Cannot register a null task dependency");
         auto name = entry->get_name();
         if (name_to_index_.count(name)) {
             throw std::runtime_error("Duplicate task dependency entry name: '" + name + "'");
@@ -140,7 +168,9 @@ public:
     // 返回触发了消费者事务的表项数（供测试）
     int on_task_done(const GenericMessage& msg) {
         int fired = 0;
-        for (auto& entry : entries_) {
+        // 回调允许注册新依赖；本条消息只广播至进入函数时已有的表项。
+        const auto entries = entries_;
+        for (const auto& entry : entries) {
             if (entry->on_message(msg)) fired++;
         }
         return fired;

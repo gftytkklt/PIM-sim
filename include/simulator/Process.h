@@ -156,7 +156,8 @@ public:
     // 检查是否已存在某类事件
     bool has_active_event_of_type(const std::string& process_type) const;
 
-    void drive_state_transitions(uint64_t current_cycle);
+    // 返回是否创建事件或推进状态；调用方据此处理同周期内部依赖。
+    bool drive_state_transitions(uint64_t current_cycle);
     
     // 移除已完成事件
     void cleanup_ended_events();
@@ -170,6 +171,11 @@ public:
 private:
     // 进程类型注册表
     std::unordered_map<std::string, ProcessTypePtr> process_types_;
+    // 注册顺序是同周期多个功能的显式优先级，不能依赖哈希遍历顺序。
+    std::vector<std::string> process_order_;
+    std::unordered_map<std::string, uint64_t> last_trigger_cycle_;
+    // 结束当前事件的周期不能重用仍未撤销的同一握手输入。
+    std::unordered_map<std::string, uint64_t> last_end_cycle_;
     
     // 活跃事件列表
     std::vector<ProcessEventPtr> active_events_;

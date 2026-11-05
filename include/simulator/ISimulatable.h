@@ -51,6 +51,10 @@ public:
     // 事件驱动接口 (对应算法5.2)
     // 返回本周期产生的待调度事件（信号更新/消息发送），由模拟器统一入队
     virtual std::vector<SimulatorEvent> evaluate(uint64_t current_cycle) = 0;
+    // 引擎在每周期传播信号前同步模块时钟。旧模块可保留默认实现。
+    virtual void prepare_cycle(uint64_t current_cycle) {}
+    // 本轮求值推进了内部状态，需要继续当前周期的 delta 求值。
+    virtual bool has_delta_activity() const { return false; }
     virtual const std::vector<ProcessEventPtr>& get_active_processes() const = 0;
     virtual const std::vector<ProcessEventPtr>& get_completed_processes() const = 0;
     

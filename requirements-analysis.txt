@@ -1,0 +1,6 @@
+# Reproduced on Python 3.12; mapping, MNSIM/Booksim adapter, tests and plotting.
+# torch2onnx / MNSIM training interfaces need a separate PyTorch installation.
+numpy==2.1.2
+onnx==1.18.0
+matplotlib==3.10.3
+pandas==2.3.1

@@ -13,7 +13,7 @@ public:
             [this]() { return check_computation_exec(); },
             [this]() { return check_computation_finish(); },
             [this]() { return check_computation_end(); },
-            compute_latency_
+            0 // Dynamic latency is enforced by the scheduled SIMD_data_valid event.
         );
     }
     void register_message_handlers() override final {
@@ -26,7 +26,7 @@ private:
     bool check_computation_end();
 
     bool enable_pipeline_ = true;
-    int compute_latency_;
+    int compute_latency_ = 0;
     int channel_num_ = SIMD_NUM;
     const int quant_latency_ = SIMD_QUANT_LATENCY;
     const int activate_latency_ = SIMD_ACTIVATE_LATENCY;

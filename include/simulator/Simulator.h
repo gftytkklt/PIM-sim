@@ -21,10 +21,11 @@ struct SignalUpdateEvent {
     std::weak_ptr<ISimulatable> module;  // 源模块
     std::string signal_name;             // 信号名
     std::any value;                      // 信号值
+    uint64_t sequence{0};               // 引擎赋值，同周期保持入队顺序
     
     // 比较函数，用于优先队列
     bool operator>(const SignalUpdateEvent& other) const {
-        return cycle > other.cycle;  // 最小堆
+        return cycle > other.cycle || (cycle == other.cycle && sequence > other.sequence);
     }
 };
 
@@ -32,9 +33,12 @@ struct SignalUpdateEvent {
 struct MessageEvent {
     uint64_t trigger_cycle;
     GenericMessage message;
+    uint64_t sequence{0};
+    std::string target_core; // 空串表示交付全局任务处理器
     
     bool operator>(const MessageEvent& other) const {
-        return trigger_cycle > other.trigger_cycle;
+        return trigger_cycle > other.trigger_cycle ||
+               (trigger_cycle == other.trigger_cycle && sequence > other.sequence);
     }
 };
 
@@ -45,6 +49,9 @@ struct MessageEvent {
  * 在接口层定义，委托到本类的虚钩子。
  */
 class CycleAccurateSimulator : public ISimulator {
+public:
+    enum class StopReason { NotStarted, Completed, Quiescent, MaxCycles, Error };
+
 private:
     // 优先队列，最小堆，按周期排序
     using EventQueue = std::priority_queue<
@@ -96,11 +103,15 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, SignalMeta>> signal_registry_;
 
     std::vector<std::shared_ptr<ISimulatable>> modules_;
-    std::vector<std::shared_ptr<ISimulatable>> combinational_modules_; // 组合逻辑模块
     std::unordered_map<std::string, std::shared_ptr<ISimulatable>> module_map_;
     uint64_t current_cycle_{0};
     uint64_t max_cycles_{1000};
     bool simulation_done_{false};
+    bool has_run_{false};
+    StopReason stop_reason_{StopReason::NotStarted};
+    std::function<bool()> completion_condition_;
+    uint64_t next_event_sequence_{0};
+    uint64_t max_delta_steps_{1024};
     
     // 性能统计
     struct SimulationStats {
@@ -111,7 +122,7 @@ private:
     } stats_;
     
     void initialize_simulation();
-    void process_combinational_logic();
+    bool has_current_events() const;
     void check_simulation_complete();
     void print_statistics() const;
 
@@ -148,18 +159,29 @@ public:
     const std::vector<std::shared_ptr<ISimulatable>>& get_all_modules() const override;
 
     // 提交信号更新事件的公共接口
-    void schedule_signal_update(const SignalUpdateEvent& event) override {
-        signal_event_queue_.push(event);
-    }
+    void schedule_signal_update(const SignalUpdateEvent& event) override;
 
     // 发送消息到核心（直发，不经消息队列）
     void send_message_to_core(const std::string& core_id, const GenericMessage& msg) override;
+    void schedule_message_to_core(const std::string& core_id, const GenericMessage& msg) override;
     
     // 获取当前周期
     uint64_t get_current_cycle() const override { return current_cycle_; }
     
     // 检查模拟是否完成
     bool is_simulation_done() const override { return simulation_done_; }
+    StopReason get_stop_reason() const { return stop_reason_; }
+    const char* get_stop_reason_name() const;
+    uint64_t get_total_cycles() const { return stats_.total_cycles; }
+    uint64_t get_total_events() const { return stats_.total_events; }
+    // 工作负载完成判据由架构/调用方提供；仅耗尽事件并不能证明任务完成。
+    void set_completion_condition(std::function<bool()> condition) {
+        completion_condition_ = std::move(condition);
+    }
+    void set_max_delta_steps(uint64_t steps) {
+        if (!steps) throw std::invalid_argument("max_delta_steps must be positive");
+        max_delta_steps_ = steps;
+    }
 
     // dump完成的事件到文件
     void dump_completed_events(const std::string& filename) const override;

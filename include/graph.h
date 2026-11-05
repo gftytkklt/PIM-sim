@@ -20,6 +20,7 @@
 #include <vector>
 #include <memory>
 #include <cmath>
+#include <cstdint>
 #include "mapper.h"
 #include "scheduler.h"
 #include "util.h"
@@ -29,8 +30,16 @@
 
 // Dep info of a kernel dep
 struct DepInfo{
-    int dep_layer;
-    std::pair<int,int> dep_chan;
+    int dep_layer = -1;
+    // 1-based inclusive source MVM output channels.
+    // dep_layer == -1 is the output sentinel; its interval is ignored.
+    std::pair<int,int> dep_chan{};
+    // (0,0) preserves the legacy shared-channel interpretation.
+    std::pair<int,int> dst_chan{};
+    // Total elements in the projected stream. -1 uses raw source spatial size.
+    int64_t elements = -1;
+    // Equal payload views share an identity; distinct transformed views do not.
+    std::string tensor_id{};
 };
 
 struct NNkernel {
@@ -59,9 +68,13 @@ struct CNode {
 std::ostream& operator<<(std::ostream& os, const CNode& cnode);
 
 struct CEdge {
-    DepType c_type;
-    std::pair<int,int> channel_id;
-    int datavolume;
+    DepType c_type = DepType::Error;
+    std::pair<int,int> channel_id{};
+    int datavolume = 0;
+    // Propagation preserves the full normalized projection and its exact
+    // half-open element interval. Accumulation/legacy manual edges use -1.
+    DepInfo projection{};
+    std::pair<int64_t,int64_t> stream_range{};
 };
 
 std::ostream& operator<<(std::ostream& os, const CEdge& cedge);
@@ -328,14 +341,8 @@ public:
 
 private:
     std::vector<NNkernel> kernels;
-    /* Note: dup_num is not equal to filtered kernel.
-     * However, since dup_num is updated by dup_num[ker.layer]
-     * and filtered kernel is initialized by 1 for duplication,
-     * it's ok to keep some deprecated kernels info in dup_num.
-     * Avoid using i increment to traverse dup_num to prevent filtered info query.
-     */
-    std::vector<int> dup_num;
-    int cnode_capacity; // total xbar num on chip, used for tile2.0 optimization
+    std::map<int, int> dup_num; // keyed by layer identity, never vector position
+    int cnode_capacity = 0; // total xbar num on chip, used for tile2.0 optimization
     Graph cg;
     std::pair<int, int> CNode_size; // (W, H) of node
     std::vector<CDep> cdeps; // kernel-wise dep list

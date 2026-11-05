@@ -47,6 +47,8 @@ class ModuleBase : public ISimulatable,
 protected:
     std::string id_;
     int topological_depth_{0};
+    uint64_t current_cycle_{0};
+    bool delta_activity_{false};
     
     // 信号管理
     std::unordered_map<std::string, Signal> signals_;
@@ -84,6 +86,7 @@ public:
     // 注册消息处理函数（通用版：handler 接收 GenericMessage，不登记消息类型）
     void register_message_handler(const std::string& task_id, 
                                  MessageHandlerFunc handler) {
+        message_types_.erase(task_id);
         message_handlers_[task_id] = std::move(handler);
     }
 
@@ -108,6 +111,7 @@ public:
     template<typename Func, typename... Args>
     void register_message_handler(const std::string& task_id, 
                                  Func&& func, Args&&... args) {
+        message_types_.erase(task_id);
         // 使用lambda包装函数和参数
         message_handlers_[task_id] = 
             [func = std::forward<Func>(func), 
@@ -117,7 +121,7 @@ public:
             // 调用函数，传入消息和绑定的参数
             std::apply([&func, &msg](auto&&... bound_args) {
                 func(msg, std::forward<decltype(bound_args)>(bound_args)...);
-            }, std::move(args));
+            }, args);
         };
     }
 
@@ -128,12 +132,11 @@ public:
     }
 
     virtual void handle_message(const GenericMessage& msg) {
-        std::cout << std::endl;
         auto it = message_handlers_.find(msg.task_id);
         if (it != message_handlers_.end()) {
             // 类型校验：若该 task 已登记消息类型，则 body 类型必须匹配
             auto type_it = message_types_.find(msg.task_id);
-            if (type_it != message_types_.end() && msg.body.has_value() &&
+            if (type_it != message_types_.end() &&
                 std::type_index(msg.body.type()) != type_it->second) {
                 throw std::runtime_error(
                     "Module " + id_ + ": message type mismatch for task '" + msg.task_id +
@@ -200,11 +203,11 @@ public:
         }
     }
 
-    // 这是将setter函数延迟到对应周期的接口
+    // delay_cycles 是相对延迟；0 在当前周期的后续 delta 步生效。
     // 当模块产生输出的时候，不直接修改信号的值，通过该接口提交一个信号更新事件。
     void submit_signal_value(const std::string& name, 
                          const std::any& value, 
-                         uint64_t valid_cycle) {
+                         uint64_t delay_cycles) {
         auto it = signals_.find(name);
         if (it != signals_.end()) {
             // 类型校验：值类型需与声明时登记的类型一致
@@ -216,7 +219,7 @@ public:
             performance_stats_["signal_updates"]++;
             // 将信号更新事件累积到缓冲，由 evaluate() 返回给模拟器
             pending_events_.push_back(
-                SimulatorEvent::make_signal(valid_cycle, shared_from_this(), name, value));
+                SimulatorEvent::make_signal(delay_cycles, shared_from_this(), name, value));
         }
         else {
             throw std::runtime_error("Attempting to submit value for non-existent signal: " + name);
@@ -260,11 +263,19 @@ public:
                          const std::any& value, 
                          uint64_t valid_cycle) override {
         auto it = signals_.find(name);
-        if (it != signals_.end()) {
-            it->second.value = value;
-            it->second.valid = true;
-            it->second.valid_cycle = valid_cycle;
+        if (it == signals_.end()) {
+            throw std::runtime_error("Unknown signal: " + id_ + "." + name);
         }
+        if (valid_cycle > current_cycle_) {
+            throw std::runtime_error("Future signal write must use submit_signal_value or schedule_signal_update: " + id_ + "." + name);
+        }
+        if (value.has_value() && it->second.value_type != typeid(void) &&
+            std::type_index(value.type()) != it->second.value_type) {
+            throw std::runtime_error("Signal type mismatch for '" + id_ + "." + name + "'");
+        }
+        it->second.value = value;
+        it->second.valid = value.has_value();
+        it->second.valid_cycle = valid_cycle;
     }
     // 目前没有用到这个函数，但为了实现嵌套module的连接，需要保留这个接口
     // 当前的实现是在simulator里例化flatten的module，然后定义它们的connection
@@ -275,9 +286,19 @@ public:
     }
     
     // 这里直接调用
+    void prepare_cycle(uint64_t current_cycle) override {
+        if (current_cycle < current_cycle_) {
+            throw std::runtime_error("Module clock cannot move backwards: " + id_);
+        }
+        current_cycle_ = current_cycle;
+    }
+
+    bool has_delta_activity() const override { return delta_activity_; }
+
     std::vector<SimulatorEvent> evaluate(uint64_t current_cycle) override {
+        prepare_cycle(current_cycle);
         performance_stats_["total_evaluations"]++;
-        process_manager_->drive_state_transitions(current_cycle);
+        delta_activity_ = process_manager_->drive_state_transitions(current_cycle);
         // 返回并清空本周期待调度事件
         auto events = std::move(pending_events_);
         pending_events_.clear();
